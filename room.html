@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASPD Forum — Room</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise"></div>
+
+  <!-- Room Layout -->
+  <div class="room-container" data-page="room" data-room-id="">
+
+    <!-- Header -->
+    <header class="room-header" data-component="room-header">
+      <div class="room-header-left">
+        <a href="forum.html" class="room-back">← NODES</a>
+        <span class="room-divider">/</span>
+        <span class="room-name" data-bind="room-name">NODE.000</span>
+      </div>
+      <div class="header-right">
+        <span class="room-signal-count" data-bind="signal-count"><span id="signal-count">0</span> SIGNALS</span>
+        <a href="#" class="header-exit" data-action="logout">EXIT</a>
+      </div>
+    </header>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <input type="text" id="search-input" class="filter-input" placeholder="SEARCH SIGNALS...">
+      <div class="sort-controls">
+        <button class="sort-btn active" data-sort="default">DEFAULT</button>
+        <button class="sort-btn" data-sort="newest">NEWEST</button>
+        <button class="sort-btn" data-sort="oldest">OLDEST</button>
+      </div>
+    </div>
+
+    <!-- Signal List - Container for dynamic signals -->
+    <main class="signal-list" id="signals-container" data-container="signals">
+      <!-- PLACEHOLDER: Signal rows will be injected here by JS -->
+    </main>
+
+    <!-- Footer -->
+    <footer class="room-footer" data-component="room-footer">
+      <span data-bind="node-id">NODE.000</span>
+      <span>INDEX</span>
+      <span data-bind="connection-status">CONN.ACTIVE</span>
+    </footer>
+
+  </div>
+
+  <script src="js/auth-state.js"></script>
+  <script src="js/notify.js"></script>
+  <script src="js/ui-components.js"></script>
+  <script src="js/data-loader.js"></script>
+  <script>
+    (function() {
+      'use strict';
+
+      Notify.checkUrlNotify();
+
+      if (!AuthState.gateProtected()) return;
+
+      var signalsContainer = document.getElementById('signals-container');
+      var signalCountEl = document.getElementById('signal-count');
+      var roomContainer = document.querySelector('[data-page="room"]');
+      var roomNameEl = document.querySelector('[data-bind="room-name"]');
+      var nodeIdEl = document.querySelector('[data-bind="node-id"]');
+      var searchInput = document.getElementById('search-input');
+      var sortBtns = document.querySelectorAll('.sort-btn');
+
+      var allSignals = [];
+      var currentSort = 'default';
+      var currentSearch = '';
+
+      function getRoomIdFromUrl() {
+        var params = new URLSearchParams(window.location.search);
+        return params.get('id');
+      }
+
+      function updateRoomMeta(roomMeta) {
+        if (!roomMeta) return;
+        var roomId = roomMeta.id || '';
+        var nodeIndex = roomMeta.nodeIndex || 'NODE.000';
+        roomContainer.setAttribute('data-room-id', roomId);
+        roomNameEl.textContent = nodeIndex;
+        nodeIdEl.textContent = nodeIndex;
+        document.title = 'ASPD Forum — ' + (roomMeta.title || 'Room');
+      }
+
+      function renderSignals(signals) {
+        if (!signals || !signals.length) {
+          signalsContainer.innerHTML = '<div class="empty-state" data-empty="signals">NO SIGNALS AVAILABLE</div>';
+          signalCountEl.textContent = '0';
+          return;
+        }
+        signalsContainer.innerHTML = signals.map(function(signal) {
+          return UIComponents.signalRow(signal);
+        }).join('');
+        signalCountEl.textContent = signals.length;
+      }
+
+      function applyFilters() {
+        var filtered = allSignals.slice();
+        
+        // Search
+        if (currentSearch) {
+          var q = currentSearch.toLowerCase();
+          filtered = filtered.filter(function(s) {
+            return s.title.toLowerCase().indexOf(q) !== -1;
+          });
+        }
+        
+        // Sort
+        if (currentSort === 'newest') {
+          filtered.reverse();
+        } else if (currentSort === 'oldest') {
+          // default order is oldest first
+        }
+        
+        renderSignals(filtered);
+      }
+
+      searchInput.addEventListener('input', function() {
+        currentSearch = this.value;
+        applyFilters();
+      });
+
+      sortBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          sortBtns.forEach(function(b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          currentSort = btn.dataset.sort;
+          applyFilters();
+        });
+      });
+
+      /**
+       * Fetch room data from API
+       */
+      function fetchRoom(roomId) {
+        return AuthState.apiRequest('/api/room/' + roomId)
+          .then(function(data) {
+            if (data.success) {
+              var nodeNum = roomId ? roomId.replace('room-', '') : '000';
+              data.room.nodeIndex = 'NODE.' + nodeNum;
+              if (data.threads) {
+                data.signals = data.threads.map(function(thread) {
+                  return {
+                    id: thread.id,
+                    title: thread.title,
+                    href: 'thread.html?id=' + thread.id + '&room=' + roomId,
+                    meta: 'ENTRIES: ' + (thread.entriesCount || 0)
+                  };
+                });
+              }
+            }
+            return data;
+          });
+      }
+
+      /**
+       * Initialize page
+       */
+      function init() {
+        var roomId = getRoomIdFromUrl();
+
+        fetchRoom(roomId)
+          .then(function(data) {
+            if (data.success) {
+              updateRoomMeta(data.room);
+              allSignals = data.signals || [];
+              applyFilters();
+            } else {
+              allSignals = [];
+              renderSignals([]);
+            }
+          })
+          .catch(function() {
+            allSignals = [];
+            renderSignals([]);
+          });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+
+      document.querySelector('[data-action="logout"]').addEventListener('click', function(e) {
+        e.preventDefault();
+        AuthState.logout();
+      });
+    })();
+  </script>
+
+</body>
+</html>

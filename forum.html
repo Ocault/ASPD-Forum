@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASPD Forum — Rooms</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise"></div>
+
+  <!-- Forum Layout -->
+  <div class="forum-container" data-page="forum">
+
+    <!-- Header -->
+    <header class="forum-header" data-component="forum-header">
+      <a href="index.html" class="forum-logo" data-bind="site-title">ASPD.FORUM</a>
+      <div class="header-right">
+        <span class="forum-status" data-bind="page-status">ROOMS</span>
+        <a href="#" class="header-exit" data-action="logout">EXIT</a>
+      </div>
+    </header>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <input type="text" id="filter-input" class="filter-input" placeholder="FILTER BY TITLE...">
+    </div>
+
+    <!-- Room Grid - Container for dynamic room nodes -->
+    <main class="rooms-grid" id="rooms-container" data-container="rooms">
+      <!-- PLACEHOLDER: Room nodes will be injected here by JS -->
+    </main>
+
+    <!-- Footer -->
+    <footer class="forum-footer" data-component="forum-footer">
+      <span data-bind="version">SYS.1.0.0</span>
+      <span data-bind="node-count">NODES: <span id="room-count">0</span></span>
+      <span data-bind="connection-status">CONN.ACTIVE</span>
+    </footer>
+
+  </div>
+
+  <script src="js/auth-state.js"></script>
+  <script src="js/notify.js"></script>
+  <script src="js/ui-components.js"></script>
+  <script src="js/data-loader.js"></script>
+  <script>
+    (function() {
+      'use strict';
+
+      Notify.checkUrlNotify();
+
+      if (!AuthState.gateProtected()) return;
+
+      const roomsContainer = document.getElementById('rooms-container');
+      const roomCountEl = document.getElementById('room-count');
+      const filterInput = document.getElementById('filter-input');
+
+      var allRooms = [];
+
+      /**
+       * Render rooms to the grid
+       * @param {Array} rooms - Array of room objects from DataLoader or backend
+       */
+      function renderRooms(rooms) {
+        if (!rooms || !rooms.length) {
+          roomsContainer.innerHTML = '<div class="empty-state" data-empty="rooms">NO NODES AVAILABLE</div>';
+          roomCountEl.textContent = '0';
+          return;
+        }
+        roomsContainer.innerHTML = rooms.map(function(room) {
+          return UIComponents.roomNode(room);
+        }).join('');
+        roomCountEl.textContent = rooms.length;
+      }
+
+      /**
+       * Filter rooms by title
+       */
+      function filterRooms(query) {
+        if (!query) {
+          renderRooms(allRooms);
+          return;
+        }
+        var q = query.toLowerCase();
+        var filtered = allRooms.filter(function(room) {
+          return room.title.toLowerCase().indexOf(q) !== -1;
+        });
+        renderRooms(filtered);
+      }
+
+      filterInput.addEventListener('input', function() {
+        filterRooms(this.value);
+      });
+
+      /**
+       * Fetch rooms from API
+       */
+      function fetchRooms() {
+        return AuthState.apiRequest('/api/rooms')
+          .then(function(data) {
+            if (data.success && data.rooms) {
+              data.rooms = data.rooms.map(function(room) {
+                return {
+                  id: room.id,
+                  title: room.title,
+                  href: 'room.html?id=' + room.id
+                };
+              });
+            }
+            return data;
+          });
+      }
+
+      /**
+       * Initialize page
+       */
+      function init() {
+        fetchRooms()
+          .then(function(data) {
+            if (data.success && data.rooms) {
+              allRooms = data.rooms;
+              renderRooms(allRooms);
+            } else {
+              allRooms = [];
+              renderRooms([]);
+            }
+          })
+          .catch(function() {
+            allRooms = [];
+            renderRooms([]);
+          });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+
+      document.querySelector('[data-action="logout"]').addEventListener('click', function(e) {
+        e.preventDefault();
+        AuthState.logout();
+      });
+    })();
+  </script>
+
+</body>
+</html>

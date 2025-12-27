@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASPD Forum — Avatar</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* ========================================
+       AVATAR PAGE STYLES
+    ======================================== */
+
+    .avatar-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .avatar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--spacing-sm) var(--spacing-lg);
+      border-bottom: 1px solid var(--border-color);
+      background-color: var(--bg-secondary);
+    }
+
+    .avatar-header-left {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+    }
+
+    .avatar-back {
+      font-family: var(--font-mono);
+      font-size: 0.5625rem;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+
+    .avatar-back:hover {
+      color: var(--text-secondary);
+    }
+
+    .avatar-label {
+      font-family: var(--font-mono);
+      font-size: 0.5625rem;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+
+    .avatar-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: var(--spacing-lg);
+      background-color: var(--bg-primary);
+      padding: var(--spacing-md);
+    }
+
+    .avatar-frame {
+      position: relative;
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      padding: var(--spacing-lg);
+    }
+
+    .avatar-inner {
+      position: relative;
+      border: 1px solid var(--border-color);
+    }
+
+    .avatar-canvas {
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .avatar-scanline {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      opacity: 0.03;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 1px,
+        rgba(255, 255, 255, 0.1) 1px,
+        rgba(255, 255, 255, 0.1) 2px
+      );
+    }
+
+    /* ========================================
+       CONTROLS
+    ======================================== */
+
+    .avatar-controls {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+    }
+
+    .control-label {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      letter-spacing: 0.2em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .control-row {
+      display: flex;
+      gap: 2px;
+    }
+
+    .ctrl-btn {
+      flex: 1;
+      padding: var(--spacing-sm) var(--spacing-xs);
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.5625rem;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .ctrl-btn:hover {
+      background-color: var(--bg-secondary);
+      border-color: var(--border-hover);
+      color: var(--text-secondary);
+    }
+
+    .ctrl-btn.active {
+      background-color: #1a1a1a;
+      border-color: var(--text-muted);
+      color: var(--text-primary);
+    }
+
+    .ctrl-toggle {
+      padding: var(--spacing-sm) var(--spacing-md);
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.5625rem;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .ctrl-toggle:hover {
+      background-color: var(--bg-secondary);
+      border-color: var(--border-hover);
+    }
+
+    .ctrl-toggle.active {
+      background-color: #1a1a1a;
+      border-color: var(--text-muted);
+      color: var(--text-primary);
+    }
+
+    .ctrl-toggle.active::before {
+      content: '■ ';
+    }
+
+    .ctrl-toggle:not(.active)::before {
+      content: '□ ';
+    }
+
+    .avatar-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--spacing-xs) var(--spacing-lg);
+      border-top: 1px solid var(--border-color);
+      background-color: var(--bg-secondary);
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 768px) {
+      .avatar-header {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-md);
+      }
+
+      .avatar-main {
+        gap: var(--spacing-lg);
+        padding: var(--spacing-md);
+      }
+
+      .avatar-frame {
+        padding: var(--spacing-md);
+      }
+
+      .avatar-controls {
+        max-width: 100%;
+      }
+
+      .avatar-footer {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise"></div>
+
+  <!-- Avatar Layout -->
+  <div class="avatar-container">
+
+    <!-- Header -->
+    <header class="avatar-header">
+      <div class="avatar-header-left">
+        <a href="forum.html" class="avatar-back">← EXIT</a>
+      </div>
+      <span class="avatar-label">IDENT.RENDER</span>
+    </header>
+
+    <!-- Avatar Display -->
+    <main class="avatar-main">
+      <div class="avatar-frame">
+        <div class="avatar-inner">
+          <canvas id="avatarCanvas" class="avatar-canvas" width="96" height="96"></canvas>
+          <div class="avatar-scanline"></div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="avatar-controls">
+        <div class="control-group">
+          <span class="control-label">STRUCT</span>
+          <div class="control-row">
+            <button class="ctrl-btn" data-group="head" data-value="0">I</button>
+            <button class="ctrl-btn" data-group="head" data-value="1">II</button>
+            <button class="ctrl-btn" data-group="head" data-value="2">III</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <span class="control-label">OPTIC</span>
+          <div class="control-row">
+            <button class="ctrl-btn" data-group="eyes" data-value="0">I</button>
+            <button class="ctrl-btn" data-group="eyes" data-value="1">II</button>
+            <button class="ctrl-btn" data-group="eyes" data-value="2">III</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <span class="control-label">EFFECT</span>
+          <div class="control-row">
+            <button class="ctrl-toggle" data-overlay="static">NOISE</button>
+            <button class="ctrl-toggle" data-overlay="crack">FAULT</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <button class="ctrl-btn avatar-confirm" id="avatar-confirm" style="flex: none; width: 100%; margin-top: var(--spacing-sm);">CONFIRM</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="avatar-footer">
+      <span>IDENT.SYS</span>
+      <span>96x96</span>
+      <span>RENDER.OK</span>
+    </footer>
+
+  </div>
+
+  <script src="js/auth-state.js"></script>
+  <script>
+    (function() {
+      // Require authentication but allow avatar setup
+      if (!AuthState.isAuthenticated()) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      const canvas = document.getElementById('avatarCanvas');
+      const ctx = canvas.getContext('2d');
+      const W = 96;
+      const H = 96;
+
+      // Configuration state
+      const STORAGE_KEY = 'aspd_avatar_config';
+      let config = {
+        head: 0,
+        eyes: 0,
+        overlays: {
+          static: false,
+          crack: false
+        }
+      };
+
+      // Load saved config
+      function loadConfig() {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            config = { ...config, ...parsed };
+          }
+        } catch (e) {}
+      }
+
+      // Save config
+      function saveConfig() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+        } catch (e) {}
+      }
+
+      // Muted palette
+      const P = {
+        bg:         '#0d0d0d',
+        face:       '#2e2e2e',
+        faceDark:   '#222222',
+        faceLight:  '#3a3a3a',
+        hair:       '#151515',
+        hairLight:  '#1c1c1c',
+        eye:        '#0a0a0a',
+        eyeSocket:  '#1a1a1a',
+        eyeGlint:   '#333333',
+        nose:       '#262626',
+        mouth:      '#1a1a1a',
+        neck:       '#252525',
+        shirt:      '#141414',
+        shirtLight: '#1a1a1a',
+        crack:      '#1a1a1a',
+        static:     '#2a2a2a'
+      };
+
+      // Pixel draw helper
+      function px(x, y, w, h, c) {
+        ctx.fillStyle = c;
+        ctx.fillRect(x, y, w, h);
+      }
+
+      // Head shape variants
+      const heads = [
+        // Type 0: Standard oval
+        function() {
+          px(28, 16, 40, 52, P.face);
+          px(28, 16, 6, 52, P.faceDark);
+          px(62, 16, 6, 52, P.faceLight);
+          px(30, 62, 36, 4, P.faceDark);
+        },
+        // Type 1: Angular/sharp
+        function() {
+          px(30, 14, 36, 54, P.face);
+          px(26, 20, 4, 40, P.faceDark);
+          px(66, 20, 4, 40, P.faceDark);
+          px(30, 14, 6, 54, P.faceDark);
+          px(60, 14, 6, 54, P.faceLight);
+          px(32, 62, 32, 6, P.faceDark);
+        },
+        // Type 2: Wider/square
+        function() {
+          px(24, 18, 48, 48, P.face);
+          px(24, 18, 8, 48, P.faceDark);
+          px(64, 18, 8, 48, P.faceLight);
+          px(28, 60, 40, 6, P.faceDark);
+        }
+      ];
+
+      // Eye style variants
+      const eyes = [
+        // Type 0: Standard
+        function() {
+          px(32, 34, 12, 10, P.eyeSocket);
+          px(52, 34, 12, 10, P.eyeSocket);
+          px(34, 36, 8, 6, P.eye);
+          px(54, 36, 8, 6, P.eye);
+          px(36, 37, 2, 2, P.eyeGlint);
+          px(56, 37, 2, 2, P.eyeGlint);
+        },
+        // Type 1: Narrow/slit
+        function() {
+          px(32, 36, 14, 6, P.eyeSocket);
+          px(50, 36, 14, 6, P.eyeSocket);
+          px(34, 38, 10, 2, P.eye);
+          px(52, 38, 10, 2, P.eye);
+          px(38, 38, 2, 2, P.eyeGlint);
+          px(56, 38, 2, 2, P.eyeGlint);
+        },
+        // Type 2: Hollow/deep
+        function() {
+          px(30, 32, 16, 14, P.eyeSocket);
+          px(50, 32, 16, 14, P.eyeSocket);
+          px(32, 34, 12, 10, P.eye);
+          px(52, 34, 12, 10, P.eye);
+          px(36, 36, 4, 4, P.eyeGlint);
+          px(56, 36, 4, 4, P.eyeGlint);
+        }
+      ];
+
+      // Overlay effects
+      const overlays = {
+        static: function() {
+          for (let i = 0; i < 80; i++) {
+            const x = Math.floor(Math.random() * W);
+            const y = Math.floor(Math.random() * H);
+            const s = Math.random() > 0.5 ? 2 : 1;
+            px(x, y, s, s, Math.random() > 0.5 ? P.static : P.bg);
+          }
+        },
+        crack: function() {
+          // Vertical crack
+          px(52, 20, 2, 8, P.crack);
+          px(54, 26, 2, 6, P.crack);
+          px(52, 30, 2, 10, P.crack);
+          px(50, 38, 2, 8, P.crack);
+          px(52, 44, 2, 6, P.crack);
+          px(54, 48, 2, 10, P.crack);
+          px(52, 56, 2, 8, P.crack);
+          // Branches
+          px(54, 28, 4, 2, P.crack);
+          px(48, 42, 4, 2, P.crack);
+          px(54, 52, 6, 2, P.crack);
+        }
+      };
+
+      // Main render function
+      function render() {
+        // Background
+        px(0, 0, W, H, P.bg);
+
+        // Hair back
+        px(24, 6, 48, 20, P.hair);
+        px(20, 14, 8, 24, P.hair);
+        px(68, 14, 8, 24, P.hair);
+
+        // Head (selected variant)
+        heads[config.head]();
+
+        // Hair front
+        px(28, 12, 40, 12, P.hair);
+        px(32, 14, 8, 6, P.hairLight);
+        px(48, 12, 12, 8, P.hairLight);
+        px(56, 14, 6, 6, P.hairLight);
+
+        // Eyes (selected variant)
+        eyes[config.eyes]();
+
+        // Nose
+        px(46, 44, 4, 10, P.nose);
+        px(44, 52, 8, 2, P.faceDark);
+
+        // Mouth
+        px(40, 58, 16, 2, P.mouth);
+        px(42, 60, 12, 2, P.faceDark);
+
+        // Neck
+        px(38, 68, 20, 10, P.neck);
+
+        // Shoulders
+        px(14, 76, 68, 20, P.shirt);
+        px(38, 76, 20, 4, P.shirtLight);
+
+        // Collar
+        px(40, 72, 16, 8, P.shirt);
+        px(44, 68, 8, 6, P.neck);
+
+        // Ear hints
+        px(24, 36, 4, 12, P.faceDark);
+        px(68, 36, 4, 12, P.faceDark);
+
+        // Apply overlays
+        if (config.overlays.crack) overlays.crack();
+        if (config.overlays.static) overlays.static();
+      }
+
+      // Update button states
+      function updateButtons() {
+        // Head buttons
+        document.querySelectorAll('[data-group="head"]').forEach(btn => {
+          btn.classList.toggle('active', parseInt(btn.dataset.value) === config.head);
+        });
+        // Eye buttons
+        document.querySelectorAll('[data-group="eyes"]').forEach(btn => {
+          btn.classList.toggle('active', parseInt(btn.dataset.value) === config.eyes);
+        });
+        // Overlay toggles
+        document.querySelectorAll('[data-overlay]').forEach(btn => {
+          btn.classList.toggle('active', config.overlays[btn.dataset.overlay]);
+        });
+      }
+
+      // Event listeners
+      document.querySelectorAll('.ctrl-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const group = btn.dataset.group;
+          const value = parseInt(btn.dataset.value);
+          config[group] = value;
+          saveConfig();
+          updateButtons();
+          render();
+        });
+      });
+
+      document.querySelectorAll('.ctrl-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const overlay = btn.dataset.overlay;
+          config.overlays[overlay] = !config.overlays[overlay];
+          saveConfig();
+          updateButtons();
+          render();
+        });
+      });
+
+      // Confirm button - mark avatar as set and redirect
+      document.getElementById('avatar-confirm').addEventListener('click', function() {
+        saveConfig();
+        AuthState.setAvatar();
+        window.location.href = 'forum.html?notify=' + encodeURIComponent('IDENT.SAVED') + '&notify_type=info';
+      });
+
+      // Initialize
+      loadConfig();
+      updateButtons();
+      render();
+
+    })();
+  </script>
+
+</body>
+</html>

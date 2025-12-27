@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASPD Forum — Register</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise"></div>
+
+  <!-- Auth Layout -->
+  <main class="auth-container" data-page="register">
+    <div class="auth-content">
+      <h1 class="auth-title">NEW IDENT</h1>
+      
+      <form class="auth-form" id="register-form" data-form="register">
+        <div class="auth-field">
+          <label class="auth-label" for="alias">ALIAS</label>
+          <input type="text" id="alias" name="alias" class="auth-input" required autocomplete="username">
+        </div>
+        
+        <div class="auth-field">
+          <label class="auth-label" for="pass">PASS</label>
+          <input type="password" id="pass" name="pass" class="auth-input" required autocomplete="new-password">
+        </div>
+        
+        <div class="auth-field">
+          <label class="auth-label" for="pass-confirm">CONFIRM</label>
+          <input type="password" id="pass-confirm" name="pass-confirm" class="auth-input" required autocomplete="new-password">
+        </div>
+        
+        <button type="submit" class="auth-btn">REGISTER</button>
+      </form>
+      
+      <div class="auth-links">
+        <a href="login.html" class="auth-link">EXISTING IDENT</a>
+        <span class="auth-sep">|</span>
+        <a href="index.html" class="auth-link">← EXIT</a>
+      </div>
+    </div>
+    
+    <div class="auth-footer">
+      <span>REG.SYS</span>
+      <span>CONN.SECURE</span>
+    </div>
+  </main>
+
+  <script src="js/auth-state.js"></script>
+  <script>
+    (function() {
+      'use strict';
+      var form = document.getElementById('register-form');
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var alias = document.getElementById('alias').value.trim();
+        var password = document.getElementById('pass').value;
+        var passConfirm = document.getElementById('pass-confirm').value;
+
+        if (password !== passConfirm) {
+          return;
+        }
+
+        fetch(AuthState.API_BASE + '/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alias: alias, password: password })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success) {
+            // Auto-login after register
+            return fetch(AuthState.API_BASE + '/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ alias: alias, password: password })
+            });
+          }
+          return Promise.reject(new Error(data.error));
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success && data.token) {
+            AuthState.setToken(data.token);
+            AuthState.register(alias);
+            window.location.href = 'avatar.html';
+          }
+        })
+        .catch(function() {});
+      });
+    })();
+  </script>
+
+</body>
+</html>

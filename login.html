@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASPD Forum — Access</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise"></div>
+
+  <!-- Auth Layout -->
+  <main class="auth-container" data-page="login">
+    <div class="auth-content">
+      <h1 class="auth-title">ACCESS</h1>
+      
+      <form class="auth-form" id="login-form" data-form="login">
+        <div class="auth-field">
+          <label class="auth-label" for="alias">ALIAS</label>
+          <input type="text" id="alias" name="alias" class="auth-input" required autocomplete="username">
+        </div>
+        
+        <div class="auth-field">
+          <label class="auth-label" for="pass">PASS</label>
+          <input type="password" id="pass" name="pass" class="auth-input" required autocomplete="current-password">
+        </div>
+        
+        <button type="submit" class="auth-btn">AUTHENTICATE</button>
+      </form>
+      
+      <div class="auth-links">
+        <a href="register.html" class="auth-link">NEW IDENT</a>
+        <span class="auth-sep">|</span>
+        <a href="index.html" class="auth-link">← EXIT</a>
+      </div>
+    </div>
+    
+    <div class="auth-footer">
+      <span>AUTH.SYS</span>
+      <span>CONN.SECURE</span>
+    </div>
+  </main>
+
+  <script src="js/auth-state.js"></script>
+  <script src="js/notify.js"></script>
+  <script>
+    (function() {
+      'use strict';
+      Notify.checkUrlNotify();
+      var form = document.getElementById('login-form');
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var alias = document.getElementById('alias').value;
+        var password = document.getElementById('pass').value;
+
+        fetch(AuthState.API_BASE + '/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alias: alias, password: password })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success && data.token) {
+            AuthState.setToken(data.token);
+            AuthState.login(alias);
+            window.location.href = 'forum.html?notify=' + encodeURIComponent('AUTH.OK') + '&notify_type=info';
+          }
+        })
+        .catch(function() {});
+      });
+    })();
+  </script>
+
+</body>
+</html>
