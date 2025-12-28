@@ -480,7 +480,35 @@ var Utils = (function() {
     batchUpdate: batchUpdate,
     createFragment: createFragment,
     copyToClipboard: copyToClipboard,
-    initMentions: initMentions
+    initMentions: initMentions,
+    
+    /**
+     * Initialize theme toggle functionality
+     * Call this from any page with a theme-toggle button
+     */
+    initTheme: function() {
+      var themeToggle = document.getElementById('theme-toggle');
+      if (!themeToggle) return;
+      
+      var savedTheme = storage.get('forum_theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      themeToggle.setAttribute('aria-pressed', savedTheme === 'light');
+      themeToggle.setAttribute('aria-label', savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+      themeToggle.textContent = savedTheme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+      
+      themeToggle.addEventListener('click', function() {
+        var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        storage.set('forum_theme', newTheme);
+        themeToggle.setAttribute('aria-pressed', newTheme === 'light');
+        themeToggle.setAttribute('aria-label', newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+        themeToggle.textContent = newTheme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+        if (typeof Notify !== 'undefined') {
+          Notify.show('THEME: ' + newTheme.toUpperCase(), 'info');
+        }
+      });
+    }
   };
 
 })();

@@ -77,6 +77,16 @@
           return;
         }
 
+        if (alias.length < 3 || alias.length > 20) {
+          Notify.show('ALIAS MUST BE 3-20 CHARACTERS', 'error');
+          return;
+        }
+
+        if (!/^[a-zA-Z0-9_]+$/.test(alias)) {
+          Notify.show('ALIAS: LETTERS, NUMBERS, UNDERSCORES ONLY', 'error');
+          return;
+        }
+
         if (password !== passConfirm) {
           Notify.show('PASSWORDS DO NOT MATCH', 'error');
           return;
