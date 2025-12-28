@@ -254,6 +254,31 @@ const UIComponents = (function() {
         <div class="entry-actions">${ownerActionsHtml}${commonActionsHtml}
         </div>` : '';
     
+    // Format content with @mentions highlighted
+    const formattedContent = content.replace(/@([a-zA-Z0-9_]+)/g, '<a href="profile.html?alias=$1" class="mention-link">@$1</a>');
+    
+    // Reactions row
+    const reactions = entry.reactions || {};
+    const reactionsHtml = `
+          <div class="entry-reactions" data-entry-id="${id}">
+            <button class="reaction-btn" data-reaction="like" title="Like">
+              <span class="reaction-icon">👍</span>
+              <span class="reaction-count">${reactions.like || 0}</span>
+            </button>
+            <button class="reaction-btn" data-reaction="dislike" title="Dislike">
+              <span class="reaction-icon">👎</span>
+              <span class="reaction-count">${reactions.dislike || 0}</span>
+            </button>
+            <button class="reaction-btn" data-reaction="fire" title="Fire">
+              <span class="reaction-icon">🔥</span>
+              <span class="reaction-count">${reactions.fire || 0}</span>
+            </button>
+            <button class="reaction-btn" data-reaction="thinking" title="Thinking">
+              <span class="reaction-icon">🤔</span>
+              <span class="reaction-count">${reactions.thinking || 0}</span>
+            </button>
+          </div>`;
+    
     return `
       <div class="${entryClass}" data-entry-id="${id}" data-user-id="${userId || ''}" data-avatar-config="${avatarConfig}">
         <div class="entry-avatar">
@@ -266,8 +291,9 @@ const UIComponents = (function() {
             ${actionsHtml}
           </div>
           <div class="entry-content">
-            <p>${content}</p>
+            <p>${formattedContent}</p>
           </div>
+          ${reactionsHtml}
         </div>
       </div>`;
   }

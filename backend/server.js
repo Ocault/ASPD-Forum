@@ -411,7 +411,8 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     const total = parseInt(countResult.rows[0].count);
     
     const entriesResult = await db.query(
-      `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, e.avatar_config,
+      `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
+              COALESCE(u.avatar_config, e.avatar_config) AS avatar_config,
               e.created_at, e.edited_at,
               LENGTH(e.content) > $2 AS "exceedsCharLimit"
        FROM entries e
@@ -422,6 +423,33 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
       [thread.id, CONTENT_CHAR_LIMIT, limit, offset]
     );
     
+    // Fetch reactions for all entries
+    const entryIds = entriesResult.rows.map(e => e.id);
+    let reactionsMap = {};
+    
+    if (entryIds.length > 0) {
+      const reactionsResult = await db.query(
+        `SELECT entry_id, reaction_type, COUNT(*) as count
+         FROM reactions
+         WHERE entry_id = ANY($1)
+         GROUP BY entry_id, reaction_type`,
+        [entryIds]
+      );
+      
+      reactionsResult.rows.forEach(row => {
+        if (!reactionsMap[row.entry_id]) {
+          reactionsMap[row.entry_id] = {};
+        }
+        reactionsMap[row.entry_id][row.reaction_type] = parseInt(row.count);
+      });
+    }
+    
+    // Attach reactions to entries
+    const entriesWithReactions = entriesResult.rows.map(entry => ({
+      ...entry,
+      reactions: reactionsMap[entry.id] || {}
+    }));
+    
     res.json({
       success: true,
       thread: {
@@ -430,7 +458,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
         roomId: thread.room_slug,
         slowModeInterval: thread.slow_mode_interval || null
       },
-      entries: entriesResult.rows,
+      entries: entriesWithReactions,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
   } catch (err) {
@@ -562,6 +590,37 @@ app.post('/api/entries', authMiddleware, entriesLimiter, async (req, res) => {
       );
     } catch (auditErr) {
       // Silent fail - audit should not break posting
+    }
+
+    // Process @mentions and create notifications
+    try {
+      const mentionRegex = /@([a-zA-Z0-9_]+)/g;
+      const mentions = [...content.matchAll(mentionRegex)].map(m => m[1]);
+      const uniqueMentions = [...new Set(mentions)];
+      
+      for (const mentionedAlias of uniqueMentions) {
+        // Find the mentioned user
+        const mentionedUser = await db.query(
+          'SELECT id FROM users WHERE LOWER(alias) = LOWER($1)',
+          [mentionedAlias]
+        );
+        
+        if (mentionedUser.rows.length > 0 && mentionedUser.rows[0].id !== userId) {
+          const mentionedUserId = mentionedUser.rows[0].id;
+          
+          await db.query(
+            `INSERT INTO notifications (user_id, type, title, message, link, related_entry_id, related_user_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [mentionedUserId, 'mention', `${entryAlias} mentioned you`, 
+             content.substring(0, 100) + (content.length > 100 ? '...' : ''),
+             `thread.html?id=${threadDbId}`,
+             entryId, userId]
+          );
+        }
+      }
+    } catch (mentionErr) {
+      // Silent fail - mentions should not break posting
+      console.error('[MENTION NOTIFICATION ERROR]', mentionErr.message);
     }
 
     res.json({ success: true, entry: insertResult.rows[0] });
@@ -791,6 +850,199 @@ app.put('/api/admin/reports/:id', authMiddleware, adminMiddleware, async (req, r
     res.json({ success: true });
   } catch (err) {
     console.error('[RESOLVE REPORT ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// REACTIONS SYSTEM
+// ========================================
+
+const VALID_REACTIONS = ['like', 'dislike', 'fire', 'thinking'];
+
+// Toggle reaction on an entry
+app.post('/api/entries/:id/react', authMiddleware, async (req, res) => {
+  const entryId = parseInt(req.params.id);
+  const { reaction_type } = req.body;
+  const userId = req.user.userId;
+
+  if (!reaction_type || !VALID_REACTIONS.includes(reaction_type)) {
+    return res.status(400).json({ success: false, error: 'invalid_reaction' });
+  }
+
+  try {
+    // Check if entry exists
+    const entryResult = await db.query(
+      'SELECT id, user_id FROM entries WHERE id = $1 AND (is_deleted = FALSE OR is_deleted IS NULL)',
+      [entryId]
+    );
+    if (entryResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'entry_not_found' });
+    }
+
+    // Check if user already has this reaction
+    const existingReaction = await db.query(
+      'SELECT id FROM reactions WHERE entry_id = $1 AND user_id = $2 AND reaction_type = $3',
+      [entryId, userId, reaction_type]
+    );
+
+    if (existingReaction.rows.length > 0) {
+      // Remove reaction (toggle off)
+      await db.query('DELETE FROM reactions WHERE id = $1', [existingReaction.rows[0].id]);
+      res.json({ success: true, action: 'removed' });
+    } else {
+      // Add reaction
+      await db.query(
+        'INSERT INTO reactions (entry_id, user_id, reaction_type) VALUES ($1, $2, $3)',
+        [entryId, userId, reaction_type]
+      );
+
+      // Create notification for entry owner (if not self)
+      const entryOwner = entryResult.rows[0].user_id;
+      if (entryOwner && entryOwner !== userId) {
+        // Get reactor alias
+        const reactorResult = await db.query('SELECT alias FROM users WHERE id = $1', [userId]);
+        const reactorAlias = reactorResult.rows[0]?.alias || 'Someone';
+        
+        // Get thread info for link
+        const threadResult = await db.query(
+          'SELECT t.id FROM threads t JOIN entries e ON e.thread_id = t.id WHERE e.id = $1',
+          [entryId]
+        );
+        const threadId = threadResult.rows[0]?.id;
+
+        await db.query(
+          `INSERT INTO notifications (user_id, type, title, message, link, related_entry_id, related_user_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [entryOwner, 'reaction', `${reactorAlias} reacted to your post`, 
+           `${reaction_type.toUpperCase()} reaction`, 
+           threadId ? `thread.html?id=${threadId}` : null,
+           entryId, userId]
+        );
+      }
+
+      res.json({ success: true, action: 'added' });
+    }
+  } catch (err) {
+    console.error('[REACTION ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get reactions for an entry
+app.get('/api/entries/:id/reactions', async (req, res) => {
+  const entryId = parseInt(req.params.id);
+
+  try {
+    const result = await db.query(
+      `SELECT reaction_type, COUNT(*) as count
+       FROM reactions WHERE entry_id = $1
+       GROUP BY reaction_type`,
+      [entryId]
+    );
+
+    const reactions = {};
+    result.rows.forEach(row => {
+      reactions[row.reaction_type] = parseInt(row.count);
+    });
+
+    res.json({ success: true, reactions });
+  } catch (err) {
+    console.error('[GET REACTIONS ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// NOTIFICATIONS SYSTEM
+// ========================================
+
+// Get user notifications
+app.get('/api/notifications', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+  const offset = (page - 1) * limit;
+
+  try {
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM notifications WHERE user_id = $1',
+      [userId]
+    );
+    const total = parseInt(countResult.rows[0].count);
+
+    const unreadResult = await db.query(
+      'SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = FALSE',
+      [userId]
+    );
+    const unreadCount = parseInt(unreadResult.rows[0].count);
+
+    const result = await db.query(
+      `SELECT id, type, title, message, link, is_read, created_at
+       FROM notifications
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      notifications: result.rows,
+      unreadCount,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
+  } catch (err) {
+    console.error('[GET NOTIFICATIONS ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Mark notification as read
+app.put('/api/notifications/:id/read', authMiddleware, async (req, res) => {
+  const notificationId = parseInt(req.params.id);
+  const userId = req.user.userId;
+
+  try {
+    await db.query(
+      'UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2',
+      [notificationId, userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[MARK READ ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Mark all notifications as read
+app.put('/api/notifications/read-all', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    await db.query(
+      'UPDATE notifications SET is_read = TRUE WHERE user_id = $1',
+      [userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[MARK ALL READ ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get unread notification count
+app.get('/api/notifications/unread-count', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      'SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = FALSE',
+      [userId]
+    );
+    res.json({ success: true, count: parseInt(result.rows[0].count) });
+  } catch (err) {
+    console.error('[UNREAD COUNT ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -1133,6 +1385,28 @@ async function migrate() {
         status VARCHAR(20) DEFAULT 'pending',
         resolved_by INTEGER REFERENCES users(id),
         resolved_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS reactions (
+        id SERIAL PRIMARY KEY,
+        entry_id INTEGER REFERENCES entries(id),
+        user_id INTEGER REFERENCES users(id),
+        reaction_type VARCHAR(20) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(entry_id, user_id, reaction_type)
+      );
+      
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        type VARCHAR(50) NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT,
+        link TEXT,
+        is_read BOOLEAN DEFAULT FALSE,
+        related_entry_id INTEGER REFERENCES entries(id),
+        related_user_id INTEGER REFERENCES users(id),
         created_at TIMESTAMP DEFAULT NOW()
       );
       
