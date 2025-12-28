@@ -679,6 +679,16 @@
         if (editAvatarConfig.customImage) {
           delete editAvatarConfig.customImage;
         }
+        // Ensure head and eyes are properly initialized as numbers
+        if (typeof editAvatarConfig.head !== 'number' || isNaN(editAvatarConfig.head)) {
+          editAvatarConfig.head = 0;
+        }
+        if (typeof editAvatarConfig.eyes !== 'number' || isNaN(editAvatarConfig.eyes)) {
+          editAvatarConfig.eyes = 0;
+        }
+        if (!editAvatarConfig.overlays) {
+          editAvatarConfig.overlays = { static: false, crack: false };
+        }
         // Show builder section when using builder
         avatarBuilderSection.style.display = 'block';
         updateAvatarPreview();
