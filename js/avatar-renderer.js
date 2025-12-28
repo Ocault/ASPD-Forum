@@ -192,6 +192,22 @@ const AvatarRenderer = (function() {
     const ctx = canvas.getContext('2d');
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
+    
+    // Check for custom image (admin uploaded)
+    if (config && config.customImage) {
+      const img = new Image();
+      img.onload = function() {
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+        ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+      };
+      img.onerror = function() {
+        // Fall back to placeholder on error
+        renderPlaceholder(canvas);
+      };
+      img.src = config.customImage;
+      return;
+    }
+    
     const scale = options.scale || (canvasWidth / 96);
     const staticDensity = options.staticDensity || (scale < 1 ? 15 : 80);
 
@@ -293,7 +309,10 @@ const AvatarRenderer = (function() {
         config = loadFromStorage();
       }
 
-      if (config && (config.head !== undefined || config.eyes !== undefined)) {
+      if (config && config.customImage) {
+        // Custom image uploaded by admin
+        render(canvas, config);
+      } else if (config && (config.head !== undefined || config.eyes !== undefined)) {
         render(canvas, config);
       } else {
         renderPlaceholder(canvas);

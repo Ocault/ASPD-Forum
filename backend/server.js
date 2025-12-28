@@ -22,7 +22,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 // Serve static frontend files from parent directory
 app.use(express.static(path.join(__dirname, '..')));
@@ -261,7 +261,7 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
 // API: Update own profile
 app.put('/api/profile', authMiddleware, async (req, res) => {
   const userId = req.user.userId;
-  const { bio, avatar_config } = req.body;
+  const { bio, avatar_config, custom_avatar } = req.body;
   
   try {
     // Validate bio length
@@ -269,9 +269,33 @@ app.put('/api/profile', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, error: 'bio_too_long', message: 'Bio must be 500 characters or less' });
     }
     
+    // Check if user is admin for custom avatar upload
+    let finalAvatarConfig = avatar_config || null;
+    
+    if (custom_avatar) {
+      // Only admins can upload custom avatars
+      const adminCheck = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+      if (!adminCheck.rows[0]?.is_admin) {
+        return res.status(403).json({ success: false, error: 'admin_only', message: 'Custom avatars are admin-only' });
+      }
+      
+      // Validate base64 image (should be data:image/...)
+      if (!custom_avatar.startsWith('data:image/')) {
+        return res.status(400).json({ success: false, error: 'invalid_image', message: 'Invalid image format' });
+      }
+      
+      // Limit size (roughly 1.5MB base64 = 1MB image)
+      if (custom_avatar.length > 2000000) {
+        return res.status(400).json({ success: false, error: 'image_too_large', message: 'Image must be under 1.5MB' });
+      }
+      
+      // Store custom avatar in avatar_config
+      finalAvatarConfig = { customImage: custom_avatar };
+    }
+    
     const result = await db.query(
       'UPDATE users SET bio = $1, avatar_config = $2 WHERE id = $3 RETURNING id, alias, bio, avatar_config',
-      [bio || '', avatar_config || null, userId]
+      [bio || '', finalAvatarConfig, userId]
     );
     
     if (result.rows.length === 0) {

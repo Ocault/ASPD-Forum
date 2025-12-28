@@ -85,8 +85,23 @@
         <!-- Avatar Editor -->
         <div class="form-group avatar-editor-group">
           <label>AVATAR</label>
-          <div class="avatar-editor">
-            <canvas id="edit-avatar-preview" class="avatar-large" width="80" height="80"></canvas>
+          
+          <!-- Admin Custom Upload (hidden by default) -->
+          <div class="admin-avatar-upload" id="admin-avatar-section" style="display: none;">
+            <div class="avatar-preview-container">
+              <img id="custom-avatar-preview" class="custom-avatar-preview" src="" alt="Custom Avatar" style="display: none;">
+              <canvas id="edit-avatar-preview" class="avatar-large" width="80" height="80"></canvas>
+            </div>
+            <div class="avatar-upload-controls">
+              <input type="file" id="avatar-file-input" accept="image/*" style="display: none;">
+              <button type="button" class="avatar-upload-btn" id="upload-avatar-btn">UPLOAD IMAGE</button>
+              <button type="button" class="avatar-upload-btn secondary" id="use-builder-btn">USE BUILDER</button>
+            </div>
+          </div>
+          
+          <!-- Standard Avatar Builder -->
+          <div class="avatar-editor" id="avatar-builder-section">
+            <canvas id="builder-avatar-preview" class="avatar-large" width="80" height="80"></canvas>
             <div class="avatar-controls">
               <div class="avatar-control-row">
                 <span class="control-label">HEAD</span>
@@ -173,10 +188,29 @@
         statThreads.textContent = profile.stats.threads;
         document.title = 'ASPD Forum — ' + profile.alias;
 
-        // Render avatar
-        if (profile.avatarConfig) {
+        // Render avatar (handle custom image for admins)
+        if (profile.avatarConfig && profile.avatarConfig.customImage) {
+          // Custom image uploaded by admin
+          profileAvatar.style.display = 'none';
+          var existingImg = document.getElementById('profile-custom-avatar');
+          if (!existingImg) {
+            existingImg = document.createElement('img');
+            existingImg.id = 'profile-custom-avatar';
+            existingImg.className = 'profile-avatar-img';
+            profileAvatar.parentNode.insertBefore(existingImg, profileAvatar);
+          }
+          existingImg.src = profile.avatarConfig.customImage;
+          existingImg.style.display = 'block';
+        } else if (profile.avatarConfig) {
+          // Standard avatar builder
+          var existingImg = document.getElementById('profile-custom-avatar');
+          if (existingImg) existingImg.style.display = 'none';
+          profileAvatar.style.display = 'block';
           AvatarRenderer.render(profileAvatar, profile.avatarConfig);
         } else {
+          var existingImg = document.getElementById('profile-custom-avatar');
+          if (existingImg) existingImg.style.display = 'none';
+          profileAvatar.style.display = 'block';
           AvatarRenderer.render(profileAvatar, AvatarRenderer.DEFAULT_CONFIG);
         }
 
@@ -246,20 +280,86 @@
 
       // Avatar editor state
       var editAvatarPreview = document.getElementById('edit-avatar-preview');
+      var builderAvatarPreview = document.getElementById('builder-avatar-preview');
       var headValueEl = document.getElementById('head-value');
       var eyesValueEl = document.getElementById('eyes-value');
       var overlayStatic = document.getElementById('overlay-static');
       var overlayCrack = document.getElementById('overlay-crack');
       var editAvatarConfig = { head: 0, eyes: 0, overlays: { static: false, crack: false } };
+      
+      // Admin custom upload elements
+      var adminAvatarSection = document.getElementById('admin-avatar-section');
+      var avatarBuilderSection = document.getElementById('avatar-builder-section');
+      var customAvatarPreview = document.getElementById('custom-avatar-preview');
+      var avatarFileInput = document.getElementById('avatar-file-input');
+      var uploadAvatarBtn = document.getElementById('upload-avatar-btn');
+      var useBuilderBtn = document.getElementById('use-builder-btn');
+      var customAvatarData = null; // Will hold base64 data
 
       // Number of avatar variations (check avatar-renderer for actual limits)
       var HEAD_COUNT = 5;
       var EYES_COUNT = 5;
 
       function updateAvatarPreview() {
-        AvatarRenderer.render(editAvatarPreview, editAvatarConfig);
+        var previewCanvas = AuthState.isAdmin() ? editAvatarPreview : builderAvatarPreview;
+        AvatarRenderer.render(previewCanvas, editAvatarConfig);
+        if (builderAvatarPreview) {
+          AvatarRenderer.render(builderAvatarPreview, editAvatarConfig);
+        }
         headValueEl.textContent = editAvatarConfig.head;
         eyesValueEl.textContent = editAvatarConfig.eyes;
+      }
+      
+      function showCustomAvatarPreview(base64) {
+        customAvatarPreview.src = base64;
+        customAvatarPreview.style.display = 'block';
+        editAvatarPreview.style.display = 'none';
+      }
+      
+      function showBuilderPreview() {
+        customAvatarPreview.style.display = 'none';
+        editAvatarPreview.style.display = 'block';
+        customAvatarData = null;
+        updateAvatarPreview();
+      }
+      
+      // Admin upload handlers
+      if (uploadAvatarBtn) {
+        uploadAvatarBtn.addEventListener('click', function() {
+          avatarFileInput.click();
+        });
+      }
+      
+      if (avatarFileInput) {
+        avatarFileInput.addEventListener('change', function(e) {
+          var file = e.target.files[0];
+          if (!file) return;
+          
+          // Check file size (max 1.5MB)
+          if (file.size > 1.5 * 1024 * 1024) {
+            Notify.show('IMAGE TOO LARGE (MAX 1.5MB)', 'error');
+            return;
+          }
+          
+          // Check file type
+          if (!file.type.startsWith('image/')) {
+            Notify.show('INVALID FILE TYPE', 'error');
+            return;
+          }
+          
+          var reader = new FileReader();
+          reader.onload = function(evt) {
+            customAvatarData = evt.target.result;
+            showCustomAvatarPreview(customAvatarData);
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+      
+      if (useBuilderBtn) {
+        useBuilderBtn.addEventListener('click', function() {
+          showBuilderPreview();
+        });
       }
 
       // Edit profile handlers
@@ -276,8 +376,25 @@
         editAvatarConfig.overlays = editAvatarConfig.overlays || { static: false, crack: false };
         overlayStatic.checked = editAvatarConfig.overlays.static || false;
         overlayCrack.checked = editAvatarConfig.overlays.crack || false;
-        updateAvatarPreview();
         
+        // Handle admin section
+        if (AuthState.isAdmin()) {
+          adminAvatarSection.style.display = 'block';
+          avatarBuilderSection.style.display = 'block';
+          
+          // Check if user has custom image
+          if (currentProfile.avatarConfig && currentProfile.avatarConfig.customImage) {
+            customAvatarData = currentProfile.avatarConfig.customImage;
+            showCustomAvatarPreview(customAvatarData);
+          } else {
+            showBuilderPreview();
+          }
+        } else {
+          adminAvatarSection.style.display = 'none';
+          avatarBuilderSection.style.display = 'block';
+        }
+        
+        updateAvatarPreview();
         editModal.style.display = 'flex';
       });
 
@@ -322,17 +439,26 @@
         
         saveBtn.disabled = true;
         saveBtn.textContent = 'SAVING...';
+        
+        var requestBody = { bio: bio, avatar_config: editAvatarConfig };
+        
+        // If admin has custom avatar, send it
+        if (AuthState.isAdmin() && customAvatarData) {
+          requestBody.custom_avatar = customAvatarData;
+        }
 
         AuthState.apiRequest('/api/profile', {
           method: 'PUT',
-          body: JSON.stringify({ bio: bio, avatar_config: editAvatarConfig })
+          body: JSON.stringify(requestBody)
         })
         .then(function(data) {
           if (data.success) {
             Notify.show('PROFILE UPDATED', 'info');
             editModal.style.display = 'none';
-            // Also save to localStorage for immediate use
-            AvatarRenderer.saveToStorage(editAvatarConfig);
+            // Also save to localStorage for immediate use (only if not using custom)
+            if (!customAvatarData) {
+              AvatarRenderer.saveToStorage(editAvatarConfig);
+            }
             // Refresh profile
             fetchProfile(AuthState.getAlias());
           } else {
