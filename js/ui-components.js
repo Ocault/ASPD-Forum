@@ -196,18 +196,30 @@ const UIComponents = (function() {
    * @param {Object} entry
    * @param {string} entry.id - Entry ID
    * @param {string} entry.content - Entry text content
-   * @param {string} entry.userId - User ID for avatar
+   * @param {string} entry.user_id - User ID who created entry
    * @param {string} entry.alias - Alias for anonymous posts
    * @param {Object} entry.avatar_config - Avatar configuration (optional)
    * @param {boolean} entry.exceedsCharLimit - Whether content exceeds character limit
+   * @param {string} entry.created_at - Creation timestamp
+   * @param {string} entry.edited_at - Edit timestamp (if edited)
+   * @param {number} currentUserId - Current logged-in user's ID
    * @returns {string} HTML string
    */
-  function entryElement(entry) {
+  function entryElement(entry, currentUserId) {
     const id = entry.id || '';
     const content = entry.content || '';
     const alias = entry.alias || null;
+    const userId = entry.user_id || null;
     const avatarConfig = entry.avatar_config ? JSON.stringify(entry.avatar_config).replace(/"/g, '&quot;') : '';
     const exceedsLimit = entry.exceedsCharLimit || false;
+    const createdAt = entry.created_at ? new Date(entry.created_at) : null;
+    const editedAt = entry.edited_at ? new Date(entry.edited_at) : null;
+    
+    // Check if current user owns this entry (for edit/delete buttons)
+    const isOwner = currentUserId && userId && currentUserId === userId;
+    
+    // Check if within 15-minute edit window
+    const canEdit = isOwner && createdAt && ((new Date() - createdAt) / (1000 * 60) < 15);
     
     // Determine entry type: anonymous (has alias) or system (no alias)
     const isAnonymous = alias !== null;
@@ -216,13 +228,28 @@ const UIComponents = (function() {
     const identityLabel = isAnonymous ? alias : 'ARCHIVE';
     const identityClass = isAnonymous ? 'entry-alias' : 'entry-system-label';
     
+    // Format timestamp
+    const timeStr = createdAt ? createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
+    const editedStr = editedAt ? ' (edited)' : '';
+    
+    // Edit/Delete buttons (only show if owner)
+    const actionsHtml = isOwner ? `
+        <div class="entry-actions">
+          ${canEdit ? `<button class="entry-action-btn entry-edit-btn" data-entry-id="${id}" title="Edit">EDIT</button>` : ''}
+          <button class="entry-action-btn entry-delete-btn" data-entry-id="${id}" title="Delete">DEL</button>
+        </div>` : '';
+    
     return `
-      <div class="${entryClass}" data-entry-id="${id}" data-avatar-config="${avatarConfig}">
+      <div class="${entryClass}" data-entry-id="${id}" data-user-id="${userId || ''}" data-avatar-config="${avatarConfig}">
         <div class="entry-avatar">
           <canvas class="avatar-mini" width="28" height="28"></canvas>
         </div>
         <div class="entry-body">
-          <span class="${identityClass}">${identityLabel}</span>
+          <div class="entry-header">
+            <span class="${identityClass}">${identityLabel}</span>
+            <span class="entry-time">${timeStr}${editedStr}</span>
+            ${actionsHtml}
+          </div>
           <div class="entry-content">
             <p>${content}</p>
           </div>

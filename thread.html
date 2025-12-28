@@ -100,6 +100,18 @@
       var currentPage = 1;
       var currentPagination = null;
       var currentSignalId = null;
+      
+      // Get current user ID from JWT token
+      var currentUserId = null;
+      try {
+        var token = AuthState.getToken();
+        if (token) {
+          var payload = JSON.parse(atob(token.split('.')[1]));
+          currentUserId = payload.userId;
+        }
+      } catch (e) {}
+      var currentPagination = null;
+      var currentSignalId = null;
 
       function getSignalIdFromUrl() {
         var params = new URLSearchParams(window.location.search);
@@ -145,7 +157,7 @@
           return;
         }
         entriesContainer.innerHTML = entries.map(function(entry) {
-          return UIComponents.entryElement(entry);
+          return UIComponents.entryElement(entry, currentUserId);
         }).join('');
         entryCountEl.textContent = pagination ? pagination.total : entries.length;
 
@@ -158,6 +170,24 @@
             if (btn.disabled) return;
             currentPage = parseInt(btn.dataset.page);
             fetchThread(currentSignalId, currentPage);
+          });
+        });
+
+        // Bind edit button events
+        entriesContainer.querySelectorAll('.entry-edit-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var entryId = btn.dataset.entryId;
+            var entryEl = btn.closest('.entry');
+            var content = entryEl.querySelector('.entry-content p').textContent;
+            showEditModal(entryId, content);
+          });
+        });
+
+        // Bind delete button events
+        entriesContainer.querySelectorAll('.entry-delete-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var entryId = btn.dataset.entryId;
+            showDeleteConfirm(entryId);
           });
         });
 
@@ -179,6 +209,128 @@
             // Fall back to localStorage
             return AvatarRenderer.loadFromStorage();
           }
+        });
+      }
+
+      // Edit modal
+      function showEditModal(entryId, currentContent) {
+        var overlay = document.createElement('div');
+        overlay.className = 'edit-modal-overlay';
+        overlay.innerHTML = `
+          <div class="edit-modal">
+            <div class="edit-modal-title">EDIT ENTRY</div>
+            <textarea class="edit-modal-textarea">${currentContent}</textarea>
+            <div class="edit-modal-actions">
+              <button class="cancel-btn" id="edit-cancel">CANCEL</button>
+              <button class="reply-submit" id="edit-save">SAVE</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        var textarea = overlay.querySelector('.edit-modal-textarea');
+        var cancelBtn = overlay.querySelector('#edit-cancel');
+        var saveBtn = overlay.querySelector('#edit-save');
+
+        cancelBtn.addEventListener('click', function() {
+          overlay.remove();
+        });
+
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) overlay.remove();
+        });
+
+        saveBtn.addEventListener('click', function() {
+          var newContent = textarea.value.trim();
+          if (!newContent) return;
+
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'SAVING...';
+
+          AuthState.apiRequest('/api/entries/' + entryId, {
+            method: 'PUT',
+            body: JSON.stringify({ content: newContent })
+          })
+          .then(function(data) {
+            if (data.success) {
+              Notify.show('ENTRY UPDATED', 'info');
+              overlay.remove();
+              fetchThread(currentSignalId, currentPage).then(function(data) {
+                if (data.success) {
+                  allEntries = data.entries || [];
+                  currentPagination = data.pagination || null;
+                  renderEntries(allEntries, allAvatarConfigs, currentPagination);
+                }
+              });
+            } else {
+              Notify.show(data.message || data.error || 'UPDATE FAILED', 'error');
+              saveBtn.disabled = false;
+              saveBtn.textContent = 'SAVE';
+            }
+          })
+          .catch(function(err) {
+            Notify.show(err.message || 'ERROR', 'error');
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'SAVE';
+          });
+        });
+      }
+
+      // Delete confirmation
+      function showDeleteConfirm(entryId) {
+        var overlay = document.createElement('div');
+        overlay.className = 'edit-modal-overlay';
+        overlay.innerHTML = `
+          <div class="confirm-modal">
+            <div class="confirm-modal-text">DELETE THIS ENTRY?</div>
+            <div class="confirm-modal-actions">
+              <button class="cancel-btn" id="delete-cancel">CANCEL</button>
+              <button class="confirm-delete-btn" id="delete-confirm">DELETE</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        var cancelBtn = overlay.querySelector('#delete-cancel');
+        var confirmBtn = overlay.querySelector('#delete-confirm');
+
+        cancelBtn.addEventListener('click', function() {
+          overlay.remove();
+        });
+
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) overlay.remove();
+        });
+
+        confirmBtn.addEventListener('click', function() {
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = 'DELETING...';
+
+          AuthState.apiRequest('/api/entries/' + entryId, {
+            method: 'DELETE'
+          })
+          .then(function(data) {
+            if (data.success) {
+              Notify.show('ENTRY DELETED', 'info');
+              overlay.remove();
+              fetchThread(currentSignalId, currentPage).then(function(data) {
+                if (data.success) {
+                  allEntries = data.entries || [];
+                  currentPagination = data.pagination || null;
+                  renderEntries(allEntries, allAvatarConfigs, currentPagination);
+                }
+              });
+            } else {
+              Notify.show(data.error || 'DELETE FAILED', 'error');
+              confirmBtn.disabled = false;
+              confirmBtn.textContent = 'DELETE';
+            }
+          })
+          .catch(function(err) {
+            Notify.show(err.message || 'ERROR', 'error');
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'DELETE';
+          });
         });
       }
 

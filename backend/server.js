@@ -255,19 +255,20 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     
     const thread = threadResult.rows[0];
 
-    // Count total entries
+    // Count total entries (exclude deleted)
     const countResult = await db.query(
-      `SELECT COUNT(*) FROM entries WHERE thread_id = $1 AND (shadow_banned = FALSE OR shadow_banned IS NULL)`,
+      `SELECT COUNT(*) FROM entries WHERE thread_id = $1 AND (shadow_banned = FALSE OR shadow_banned IS NULL) AND (is_deleted = FALSE OR is_deleted IS NULL)`,
       [thread.id]
     );
     const total = parseInt(countResult.rows[0].count);
     
     const entriesResult = await db.query(
-      `SELECT e.id, COALESCE(u.alias, e.alias) AS alias, e.content, e.avatar_config,
+      `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, e.avatar_config,
+              e.created_at, e.edited_at,
               LENGTH(e.content) > $2 AS "exceedsCharLimit"
        FROM entries e
        LEFT JOIN users u ON u.id = e.user_id
-       WHERE e.thread_id = $1 AND (e.shadow_banned = FALSE OR e.shadow_banned IS NULL)
+       WHERE e.thread_id = $1 AND (e.shadow_banned = FALSE OR e.shadow_banned IS NULL) AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)
        ORDER BY e.created_at
        LIMIT $3 OFFSET $4`,
       [thread.id, CONTENT_CHAR_LIMIT, limit, offset]
@@ -417,6 +418,98 @@ app.post('/api/entries', authMiddleware, entriesLimiter, async (req, res) => {
 
     res.json({ success: true, entry: insertResult.rows[0] });
   } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Edit entry (owner only, within 15 minutes)
+app.put('/api/entries/:id', authMiddleware, async (req, res) => {
+  const entryId = parseInt(req.params.id);
+  const { content } = req.body;
+  const userId = req.user.userId;
+
+  if (!content || content.trim().length === 0) {
+    return res.status(400).json({ success: false, error: 'content_required' });
+  }
+
+  try {
+    // Get entry and check ownership
+    const entryResult = await db.query(
+      'SELECT id, user_id, created_at FROM entries WHERE id = $1',
+      [entryId]
+    );
+
+    if (entryResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'entry_not_found' });
+    }
+
+    const entry = entryResult.rows[0];
+
+    // Check ownership
+    if (entry.user_id !== userId) {
+      return res.status(403).json({ success: false, error: 'not_owner' });
+    }
+
+    // Check edit window (15 minutes)
+    const createdAt = new Date(entry.created_at);
+    const now = new Date();
+    const minutesElapsed = (now - createdAt) / (1000 * 60);
+    
+    if (minutesElapsed > 15) {
+      return res.status(403).json({ success: false, error: 'edit_window_expired', message: 'Posts can only be edited within 15 minutes' });
+    }
+
+    // Update entry
+    await db.query(
+      'UPDATE entries SET content = $1, edited_at = NOW() WHERE id = $2',
+      [content.trim(), entryId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[EDIT ENTRY ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Delete entry (owner or admin)
+app.delete('/api/entries/:id', authMiddleware, async (req, res) => {
+  const entryId = parseInt(req.params.id);
+  const userId = req.user.userId;
+
+  try {
+    // Get entry and check ownership
+    const entryResult = await db.query(
+      'SELECT id, user_id FROM entries WHERE id = $1',
+      [entryId]
+    );
+
+    if (entryResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'entry_not_found' });
+    }
+
+    const entry = entryResult.rows[0];
+
+    // Check if user is owner or admin
+    const userResult = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+    const isAdmin = userResult.rows[0]?.is_admin || false;
+
+    if (entry.user_id !== userId && !isAdmin) {
+      return res.status(403).json({ success: false, error: 'not_authorized' });
+    }
+
+    // Soft delete - mark as deleted instead of removing
+    await db.query(
+      'UPDATE entries SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $1 WHERE id = $2',
+      [userId, entryId]
+    );
+
+    // Audit log
+    await logAuditAction('delete_entry', 'entry', entryId, userId, { reason: isAdmin ? 'admin_delete' : 'owner_delete' });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[DELETE ENTRY ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -668,8 +761,18 @@ async function migrate() {
         user_id INTEGER REFERENCES users(id),
         content TEXT NOT NULL,
         is_hidden BOOLEAN DEFAULT FALSE,
+        is_deleted BOOLEAN DEFAULT FALSE,
+        edited_at TIMESTAMP,
+        deleted_at TIMESTAMP,
+        deleted_by INTEGER REFERENCES users(id),
         created_at TIMESTAMP DEFAULT NOW()
       );
+      
+      -- Add columns if they don't exist (for existing databases)
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP;
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS deleted_by INTEGER REFERENCES users(id);
       
       CREATE TABLE IF NOT EXISTS audit_log (
         id SERIAL PRIMARY KEY,

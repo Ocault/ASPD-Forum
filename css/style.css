@@ -1584,3 +1584,148 @@ ul {
   border-color: var(--border-hover);
   color: var(--text-primary);
 }
+
+/* ========================================
+   ENTRY ACTIONS (EDIT/DELETE)
+======================================== */
+
+.entry-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.entry-time {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.entry-actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--spacing-xs);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.entry:hover .entry-actions {
+  opacity: 1;
+}
+
+.entry-action-btn {
+  padding: 2px 6px;
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.entry-action-btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.entry-delete-btn:hover {
+  border-color: #6a4a4a;
+  color: #8a6a6a;
+}
+
+/* Edit Modal */
+.edit-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.edit-modal {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-lg);
+  width: 90%;
+  max-width: 500px;
+}
+
+.edit-modal-title {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--spacing-md);
+}
+
+.edit-modal-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: var(--spacing-sm);
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  resize: vertical;
+  margin-bottom: var(--spacing-md);
+}
+
+.edit-modal-textarea:focus {
+  outline: none;
+  border-color: var(--border-hover);
+}
+
+.edit-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+}
+
+/* Confirm Delete Modal */
+.confirm-modal {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-lg);
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.confirm-modal-text {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-lg);
+}
+
+.confirm-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-md);
+}
+
+.confirm-delete-btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: transparent;
+  border: 1px solid #6a4a4a;
+  color: #8a6a6a;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.confirm-delete-btn:hover {
+  background-color: #2a1a1a;
+}
