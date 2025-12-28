@@ -2651,6 +2651,190 @@ ul {
   color: var(--text-secondary);
 }
 
+/* ========================================
+   ANIMATED BORDER SELECTOR
+======================================== */
+.border-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.border-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--spacing-xs);
+  background-color: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 60px;
+}
+
+.border-option:hover {
+  border-color: var(--border-hover);
+}
+
+.border-option.border-selected {
+  border-color: var(--text-primary);
+  background-color: var(--bg-panel);
+}
+
+.border-option.border-locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.border-option.border-locked:hover {
+  border-color: var(--border-color);
+}
+
+.border-preview {
+  width: 36px;
+  height: 36px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.border-preview-avatar {
+  width: 28px;
+  height: 28px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  position: relative;
+  z-index: 1;
+}
+
+.border-name {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.border-req {
+  font-family: var(--font-mono);
+  font-size: 0.4375rem;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.border-locked .border-req {
+  color: #ff4444;
+}
+
+/* Border preview animations */
+.border-preview-none {
+  /* No border effect */
+}
+
+.border-preview-active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+  animation: active-pulse 3s ease-in-out infinite;
+  box-shadow: 0 0 3px rgba(60, 60, 60, 0.4);
+}
+
+.border-preview-member::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #1a1a1a, #3a3a3a, #2a2a2a, #3a3a3a, #1a1a1a);
+  background-size: 200% 200%;
+  animation: member-shimmer 4s ease-in-out infinite;
+  box-shadow: 0 0 4px rgba(80, 80, 80, 0.3);
+}
+
+.border-preview-regular::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: conic-gradient(from 0deg, #1a1a1a, #2a2a2a, #3a3a3a, #2a2a2a, #1a1a1a);
+  animation: regular-rotate 4s linear infinite;
+  box-shadow: 0 0 5px rgba(90, 90, 90, 0.4);
+}
+
+.border-preview-expert::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #1a1a1a, #3a3a3a, #505050, #3a3a3a, #1a1a1a);
+  background-size: 300% 100%;
+  animation: expert-sweep 2.5s linear infinite;
+}
+
+.border-preview-veteran::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: conic-gradient(from 0deg, #000000, #1a1a1a, #3a3a3a, #505050, #3a3a3a, #1a1a1a, #000000);
+  animation: veteran-spin 2s linear infinite;
+}
+
+.border-preview-owner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: conic-gradient(from 0deg, #000000, #1a1a1a, #2a2a2a, #ffffff, #2a2a2a, #1a1a1a, #000000);
+  animation: owner-spin 1.5s linear infinite;
+}
+
+.border-preview-owner::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  border-radius: 6px;
+  background: conic-gradient(from 180deg, transparent 0%, transparent 30%, rgba(255, 255, 255, 0.6) 45%, #ffffff 50%, rgba(255, 255, 255, 0.6) 55%, transparent 70%, transparent 100%);
+  animation: owner-spin-reverse 2s linear infinite;
+  z-index: -1;
+}
+
+.border-option-owner {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.border-option-owner .border-name {
+  color: var(--text-primary);
+}
+
 .profile-avatar-img {
   width: 120px;
   height: 120px;

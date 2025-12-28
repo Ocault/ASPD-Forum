@@ -200,6 +200,61 @@
           <input type="text" id="edit-signature" class="edit-signature-input" maxlength="200" placeholder="Your signature appears under posts...">
           <span class="char-count" id="sig-char-count">0/200</span>
         </div>
+        
+        <!-- Animated Border Selector -->
+        <div class="form-group">
+          <label>ANIMATED BORDER</label>
+          <div class="border-selector" id="border-selector">
+            <div class="border-option" data-border="none" title="No border">
+              <div class="border-preview border-preview-none">
+                <div class="border-preview-avatar"></div>
+              </div>
+              <span class="border-name">NONE</span>
+            </div>
+            <div class="border-option" data-border="active" data-required="10" title="Active • 10+ posts">
+              <div class="border-preview border-preview-active">
+                <div class="border-preview-avatar"></div>
+              </div>
+              <span class="border-name">ACTIVE</span>
+              <span class="border-req">10+ posts</span>
+            </div>
+            <div class="border-option" data-border="member" data-required="50" title="Member • 50+ posts">
+              <div class="border-preview border-preview-member">
+                <div class="border-preview-avatar"></div>
+              </div>
+              <span class="border-name">MEMBER</span>
+              <span class="border-req">50+ posts</span>
+            </div>
+            <div class="border-option" data-border="regular" data-required="100" title="Regular • 100+ posts">
+              <div class="border-preview border-preview-regular">
+                <div class="border-preview-avatar"></div>
+              </div>
+              <span class="border-name">REGULAR</span>
+              <span class="border-req">100+ posts</span>
+            </div>
+            <div class="border-option" data-border="expert" data-required="200" title="Expert • 200+ posts">
+              <div class="border-preview border-preview-expert">
+                <div class="border-preview-avatar"></div>
+              </div>
+              <span class="border-name">EXPERT</span>
+              <span class="border-req">200+ posts</span>
+            </div>
+            <div class="border-option" data-border="veteran" data-required="500" title="Veteran • 500+ posts">
+              <div class="border-preview border-preview-veteran">
+                <div class="border-preview-avatar"></div>
+              </div>
+              <span class="border-name">VETERAN</span>
+              <span class="border-req">500+ posts</span>
+            </div>
+            <div class="border-option border-option-owner" data-border="owner" data-required="owner" title="Owner exclusive" style="display: none;">
+              <div class="border-preview border-preview-owner">
+                <div class="border-preview-avatar"></div>
+              </div>
+              <span class="border-name">OWNER</span>
+            </div>
+          </div>
+        </div>
+        
         <div class="form-actions">
           <button type="button" class="cancel-btn" id="edit-cancel">CANCEL</button>
           <button type="submit" class="reply-submit" id="edit-save">SAVE</button>
@@ -346,15 +401,20 @@
         }
         statRep.textContent = profile.reputation || 0;
 
-        // Apply animated border to profile avatar based on rank/admin status
+        // Apply animated border to profile avatar based on selected border preference
         var avatarWrapper = document.getElementById('profile-avatar-wrapper');
         // Remove any existing rank classes
         avatarWrapper.className = 'profile-avatar-section';
-        if (profile.isAdmin) {
+        
+        // Check if user has a selected border preference
+        var selectedBorderPref = profile.avatarConfig && profile.avatarConfig.selectedBorder;
+        if (selectedBorderPref && selectedBorderPref !== 'none') {
+          avatarWrapper.classList.add('avatar-rank-' + selectedBorderPref);
+        } else if (profile.isAdmin) {
+          // Default for admin if no preference set
           avatarWrapper.classList.add('avatar-rank-owner');
-        } else if (profile.rank) {
-          avatarWrapper.classList.add('avatar-rank-' + profile.rank.toLowerCase());
         }
+        // If no preference and not admin, no border is shown
 
         // Display signature
         var profileSignature = document.getElementById('profile-signature');
@@ -581,6 +641,10 @@
       var uploadAvatarBtn = document.getElementById('upload-avatar-btn');
       var useBuilderBtn = document.getElementById('use-builder-btn');
       var customAvatarData = null; // Will hold base64 data
+      
+      // Border selector state
+      var borderSelector = document.getElementById('border-selector');
+      var selectedBorder = 'none'; // Default to no border
 
       // Number of avatar variations (check avatar-renderer for actual limits)
       var HEAD_COUNT = 5;
@@ -653,6 +717,14 @@
         editBio.value = currentProfile ? currentProfile.bio || '' : '';
         bioCharCount.textContent = editBio.value.length + '/500';
         
+        // Load signature
+        var editSignature = document.getElementById('edit-signature');
+        var sigCharCount = document.getElementById('sig-char-count');
+        if (editSignature) {
+          editSignature.value = currentProfile ? currentProfile.signature || '' : '';
+          sigCharCount.textContent = editSignature.value.length + '/200';
+        }
+        
         // Load current avatar config
         if (currentProfile && currentProfile.avatarConfig) {
           editAvatarConfig = JSON.parse(JSON.stringify(currentProfile.avatarConfig));
@@ -680,8 +752,75 @@
           avatarBuilderSection.style.display = 'block';
         }
         
+        // Initialize border selector
+        initBorderSelector();
+        
         updateAvatarPreview();
         editModal.style.display = 'flex';
+      });
+      
+      // Border selector initialization and handlers
+      function initBorderSelector() {
+        var userPosts = currentProfile ? currentProfile.stats.posts : 0;
+        var isAdmin = AuthState.isAdmin();
+        
+        // Load current selected border
+        selectedBorder = (currentProfile && currentProfile.avatarConfig && currentProfile.avatarConfig.selectedBorder) || 'none';
+        
+        // Update all border options
+        document.querySelectorAll('.border-option').forEach(function(option) {
+          var border = option.dataset.border;
+          var required = option.dataset.required;
+          
+          // Show owner option only for admin
+          if (border === 'owner') {
+            option.style.display = isAdmin ? 'flex' : 'none';
+          }
+          
+          // Check if locked
+          var isLocked = false;
+          if (required && required !== 'owner') {
+            var requiredPosts = parseInt(required);
+            isLocked = !isAdmin && userPosts < requiredPosts;
+          }
+          
+          // Apply locked state
+          if (isLocked) {
+            option.classList.add('border-locked');
+            option.classList.remove('border-selected');
+          } else {
+            option.classList.remove('border-locked');
+          }
+          
+          // Apply selected state
+          if (border === selectedBorder && !isLocked) {
+            option.classList.add('border-selected');
+          } else {
+            option.classList.remove('border-selected');
+          }
+        });
+      }
+      
+      // Border option click handler
+      borderSelector.addEventListener('click', function(e) {
+        var option = e.target.closest('.border-option');
+        if (!option) return;
+        
+        // Check if locked
+        if (option.classList.contains('border-locked')) {
+          var required = option.dataset.required;
+          Notify.show('REQUIRES ' + required + '+ POSTS', 'error');
+          return;
+        }
+        
+        // Select this border
+        selectedBorder = option.dataset.border;
+        
+        // Update UI
+        document.querySelectorAll('.border-option').forEach(function(opt) {
+          opt.classList.remove('border-selected');
+        });
+        option.classList.add('border-selected');
       });
 
       // Avatar control buttons
@@ -709,6 +848,15 @@
       editBio.addEventListener('input', function() {
         bioCharCount.textContent = editBio.value.length + '/500';
       });
+      
+      // Signature character count
+      var editSignatureInput = document.getElementById('edit-signature');
+      var sigCharCountEl = document.getElementById('sig-char-count');
+      if (editSignatureInput) {
+        editSignatureInput.addEventListener('input', function() {
+          sigCharCountEl.textContent = editSignatureInput.value.length + '/200';
+        });
+      }
 
       editCancel.addEventListener('click', function() {
         editModal.style.display = 'none';
@@ -721,12 +869,16 @@
       editForm.addEventListener('submit', function(e) {
         e.preventDefault();
         var bio = editBio.value.trim();
+        var signature = document.getElementById('edit-signature').value.trim();
         var saveBtn = document.getElementById('edit-save');
         
         saveBtn.disabled = true;
         saveBtn.textContent = 'SAVING...';
         
-        var requestBody = { bio: bio, avatar_config: editAvatarConfig };
+        // Include selected border in avatar config
+        editAvatarConfig.selectedBorder = selectedBorder;
+        
+        var requestBody = { bio: bio, signature: signature, avatar_config: editAvatarConfig };
         
         // If admin has custom avatar, send it
         if (AuthState.isAdmin() && customAvatarData) {
