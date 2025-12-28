@@ -20,4 +20,4 @@ Disallow: /search.html
 Disallow: /backend/
 
 # Sitemap location
-Sitemap: https://aspdforum.com/sitemap.xml
+Sitemap: https://www.aspdforum.com/sitemap.xml
