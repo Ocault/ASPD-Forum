@@ -43,9 +43,9 @@ const UIComponents = (function() {
    * @returns {string} HTML string
    */
   function forumFooter(options = {}) {
-    const version = options.version || 'SYS.1.0.0';
-    const nodeCount = options.nodeCount || 'NODES: 0';
-    const connectionStatus = options.connectionStatus || 'CONN.ACTIVE';
+    const version = options.version || 'v1.0';
+    const nodeCount = options.nodeCount || 'FORUMS: 0';
+    const connectionStatus = options.connectionStatus || 'ONLINE';
     
     return `
     <footer class="forum-footer">
@@ -66,7 +66,7 @@ const UIComponents = (function() {
    */
   function roomHeader(options = {}) {
     const backHref = options.backHref || 'forum.html';
-    const backText = options.backText || '← NODES';
+    const backText = options.backText || '← FORUMS';
     const roomName = options.roomName || 'NODE.000';
     const signalCount = options.signalCount || '0 SIGNALS';
     
@@ -92,7 +92,7 @@ const UIComponents = (function() {
   function roomFooter(options = {}) {
     const nodeId = options.nodeId || 'NODE.000';
     const viewType = options.viewType || 'INDEX';
-    const connectionStatus = options.connectionStatus || 'CONN.ACTIVE';
+    const connectionStatus = options.connectionStatus || 'ONLINE';
     
     return `
     <footer class="room-footer">
@@ -139,7 +139,7 @@ const UIComponents = (function() {
   function threadFooter(options = {}) {
     const signalId = options.signalId || 'SIG.000';
     const viewType = options.viewType || 'RECORD VIEW';
-    const connectionStatus = options.connectionStatus || 'CONN.ACTIVE';
+    const connectionStatus = options.connectionStatus || 'ONLINE';
     
     return `
     <footer class="thread-footer">
