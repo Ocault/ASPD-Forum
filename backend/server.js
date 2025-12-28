@@ -7,14 +7,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const http = require('http');
-const WebSocket = require('ws');
 const db = require('./db');
 
 const app = express();
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
-
 const PORT = process.env.PORT || 3001;
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -32,152 +27,6 @@ app.use(express.json({ limit: '2mb' }));
 
 // Serve static frontend files from parent directory
 app.use(express.static(path.join(__dirname, '..')));
-
-// ========================================
-// WEBSOCKET REAL-TIME UPDATES
-// ========================================
-
-// Track connected clients by room/thread they're viewing
-const wsClients = new Map(); // Map<clientId, { ws, userId, rooms: Set, threads: Set }>
-let wsClientIdCounter = 0;
-
-// Verify JWT token for WebSocket connections
-function verifyWsToken(token) {
-  try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (err) {
-    return null;
-  }
-}
-
-// Broadcast to all clients subscribed to a specific thread
-function broadcastToThread(threadId, event, data, excludeClientId = null) {
-  wsClients.forEach((client, clientId) => {
-    if (client.threads.has(threadId) && clientId !== excludeClientId) {
-      if (client.ws.readyState === WebSocket.OPEN) {
-        client.ws.send(JSON.stringify({ event, threadId, data }));
-      }
-    }
-  });
-}
-
-// Broadcast to all clients subscribed to a specific room
-function broadcastToRoom(roomId, event, data, excludeClientId = null) {
-  wsClients.forEach((client, clientId) => {
-    if (client.rooms.has(roomId) && clientId !== excludeClientId) {
-      if (client.ws.readyState === WebSocket.OPEN) {
-        client.ws.send(JSON.stringify({ event, roomId, data }));
-      }
-    }
-  });
-}
-
-// Broadcast to all connected clients
-function broadcastToAll(event, data) {
-  wsClients.forEach((client) => {
-    if (client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(JSON.stringify({ event, data }));
-    }
-  });
-}
-
-// Handle WebSocket connections
-wss.on('connection', (ws, req) => {
-  const clientId = ++wsClientIdCounter;
-  const client = { 
-    ws, 
-    userId: null, 
-    rooms: new Set(), 
-    threads: new Set(),
-    lastPing: Date.now()
-  };
-  wsClients.set(clientId, client);
-  
-  console.log(`[WS] Client ${clientId} connected (${wsClients.size} total)`);
-
-  ws.on('message', (message) => {
-    try {
-      const msg = JSON.parse(message.toString());
-      
-      switch (msg.type) {
-        case 'auth':
-          // Authenticate the connection
-          const decoded = verifyWsToken(msg.token);
-          if (decoded) {
-            client.userId = decoded.userId;
-            ws.send(JSON.stringify({ event: 'authenticated', userId: decoded.userId }));
-          } else {
-            ws.send(JSON.stringify({ event: 'auth_error', error: 'Invalid token' }));
-          }
-          break;
-          
-        case 'subscribe_thread':
-          // Subscribe to thread updates
-          if (msg.threadId) {
-            client.threads.add(parseInt(msg.threadId));
-            ws.send(JSON.stringify({ event: 'subscribed_thread', threadId: msg.threadId }));
-          }
-          break;
-          
-        case 'unsubscribe_thread':
-          // Unsubscribe from thread updates
-          if (msg.threadId) {
-            client.threads.delete(parseInt(msg.threadId));
-          }
-          break;
-          
-        case 'subscribe_room':
-          // Subscribe to room updates
-          if (msg.roomId) {
-            client.rooms.add(parseInt(msg.roomId));
-            ws.send(JSON.stringify({ event: 'subscribed_room', roomId: msg.roomId }));
-          }
-          break;
-          
-        case 'unsubscribe_room':
-          // Unsubscribe from room updates
-          if (msg.roomId) {
-            client.rooms.delete(parseInt(msg.roomId));
-          }
-          break;
-          
-        case 'ping':
-          client.lastPing = Date.now();
-          ws.send(JSON.stringify({ event: 'pong' }));
-          break;
-      }
-    } catch (err) {
-      console.error('[WS] Message parse error:', err.message);
-    }
-  });
-
-  ws.on('close', () => {
-    wsClients.delete(clientId);
-    console.log(`[WS] Client ${clientId} disconnected (${wsClients.size} remaining)`);
-  });
-
-  ws.on('error', (err) => {
-    console.error(`[WS] Client ${clientId} error:`, err.message);
-    wsClients.delete(clientId);
-  });
-});
-
-// Cleanup stale connections every 30 seconds
-setInterval(() => {
-  const now = Date.now();
-  wsClients.forEach((client, clientId) => {
-    // Disconnect clients that haven't pinged in 2 minutes
-    if (now - client.lastPing > 120000) {
-      console.log(`[WS] Closing stale client ${clientId}`);
-      client.ws.terminate();
-      wsClients.delete(clientId);
-    }
-  });
-}, 30000);
-
-// ========================================
-// END WEBSOCKET
-// ========================================
 
 // Auth middleware
 function authMiddleware(req, res, next) {
@@ -1472,18 +1321,6 @@ app.post('/api/threads', authMiddleware, ipBanMiddleware, userBanMiddleware, asy
     // Log activity
     await logActivity(userId, 'created_thread', 'thread', threadId, filteredTitle);
 
-    // Broadcast new thread via WebSocket
-    try {
-      broadcastToRoom(roomDbId, 'new_thread', {
-        threadId: threadId,
-        title: filteredTitle,
-        roomId: roomDbId,
-        userId: userId
-      });
-    } catch (wsErr) {
-      // Silent fail
-    }
-
     res.json({ success: true, threadId: threadId });
   } catch (err) {
     console.error('[CREATE THREAD ERROR]', err.message);
@@ -1658,19 +1495,6 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
       console.error('[SUBSCRIPTION NOTIFICATION ERROR]', subErr.message);
     }
 
-    // Broadcast new entry via WebSocket
-    try {
-      const wsEntry = {
-        ...insertResult.rows[0],
-        alias: entryAlias,
-        avatar_config: avatar_config || null,
-        user_id: userId
-      };
-      broadcastToThread(threadDbId, 'new_entry', wsEntry);
-    } catch (wsErr) {
-      // Silent fail - WS should not break the API
-    }
-
     res.json({ success: true, entry: insertResult.rows[0] });
   } catch (err) {
     console.error('[CREATE ENTRY ERROR]', err.message);
@@ -1716,22 +1540,10 @@ app.put('/api/entries/:id', authMiddleware, async (req, res) => {
     }
 
     // Update entry
-    const updateResult = await db.query(
-      'UPDATE entries SET content = $1, edited_at = NOW() WHERE id = $2 RETURNING thread_id',
+    await db.query(
+      'UPDATE entries SET content = $1, edited_at = NOW() WHERE id = $2',
       [content.trim(), entryId]
     );
-
-    // Broadcast edit via WebSocket
-    try {
-      const threadId = updateResult.rows[0].thread_id;
-      broadcastToThread(threadId, 'entry_edited', { 
-        entryId, 
-        content: content.trim(),
-        editedAt: new Date().toISOString()
-      });
-    } catch (wsErr) {
-      // Silent fail
-    }
 
     res.json({ success: true });
   } catch (err) {
@@ -1766,10 +1578,6 @@ app.delete('/api/entries/:id', authMiddleware, async (req, res) => {
       return res.status(403).json({ success: false, error: 'not_authorized' });
     }
 
-    // Get thread_id before deleting
-    const threadIdResult = await db.query('SELECT thread_id FROM entries WHERE id = $1', [entryId]);
-    const threadId = threadIdResult.rows[0]?.thread_id;
-
     // Soft delete - mark as deleted instead of removing
     await db.query(
       'UPDATE entries SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $1 WHERE id = $2',
@@ -1778,15 +1586,6 @@ app.delete('/api/entries/:id', authMiddleware, async (req, res) => {
 
     // Audit log
     await logAuditAction('delete_entry', 'entry', entryId, userId, { reason: isAdmin ? 'admin_delete' : 'owner_delete' });
-
-    // Broadcast delete via WebSocket
-    try {
-      if (threadId) {
-        broadcastToThread(threadId, 'entry_deleted', { entryId });
-      }
-    } catch (wsErr) {
-      // Silent fail
-    }
 
     res.json({ success: true });
   } catch (err) {
@@ -4059,10 +3858,9 @@ async function migrate() {
   }
 }
 
-// Start server (use http server for WebSocket support)
+// Start server
 migrate().then(() => {
-  server.listen(PORT, () => {
+  app.listen(PORT, () => {
     console.log('[SERVER] Port ' + PORT);
-    console.log('[WS] WebSocket server ready');
   });
 });

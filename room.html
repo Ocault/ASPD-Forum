@@ -155,7 +155,6 @@
   <script src="js/notify.js"></script>
   <script src="js/notifications.js"></script>
   <script src="js/ui-components.js"></script>
-  <script src="js/ws-manager.js"></script>
   <script>
     (function() {
       'use strict';
@@ -634,63 +633,6 @@
       
       window.addEventListener('scroll', updateScrollProgress, { passive: true });
       
-      // ===== WebSocket Real-time Updates =====
-      var connectionStatus = document.querySelector('[data-bind="connection-status"]');
-      var wsSubscribedRoom = null;
-
-      function initWebSocket() {
-        if (typeof WSManager === 'undefined') return;
-
-        WSManager.on('connected', function() {
-          if (connectionStatus) {
-            connectionStatus.textContent = 'CONN.LIVE';
-            connectionStatus.classList.add('ws-connected');
-          }
-          // Subscribe to current room for new thread notifications
-          if (currentRoomId) {
-            wsSubscribedRoom = currentRoomId;
-            WSManager.subscribeRoom(currentRoomId);
-          }
-        });
-
-        WSManager.on('disconnected', function() {
-          if (connectionStatus) {
-            connectionStatus.textContent = 'CONN.OFFLINE';
-            connectionStatus.classList.remove('ws-connected');
-          }
-        });
-
-        // Handle new thread in real-time
-        WSManager.on('new_thread', function(data) {
-          // Only show if we're viewing the room this thread belongs to
-          if (String(data.roomId) !== String(currentRoomId)) return;
-          
-          // Refresh the thread list to show the new thread
-          // Could also insert dynamically, but a refresh ensures proper order
-          Notify.show('NEW SIGNAL DETECTED', 'info');
-          
-          // Fetch updated list
-          fetchRoom(currentRoomId, 1, currentSearch).then(function(res) {
-            if (res.success) {
-              allSignals = res.signals || [];
-              currentPagination = res.pagination || null;
-              renderSignals(allSignals, currentPagination);
-              
-              // Highlight the new thread
-              var newThreadEl = signalsContainer.querySelector('.signal-row');
-              if (newThreadEl) {
-                newThreadEl.classList.add('thread-row-new');
-                setTimeout(function() {
-                  newThreadEl.classList.remove('thread-row-new');
-                }, 3000);
-              }
-            }
-          });
-        });
-      }
-
-      initWebSocket();
-
       // Initialize theme
       initTheme();
 
