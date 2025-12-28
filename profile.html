@@ -667,12 +667,16 @@
         customAvatarPreview.src = base64;
         customAvatarPreview.style.display = 'block';
         editAvatarPreview.style.display = 'none';
+        // Hide builder section when showing custom image
+        avatarBuilderSection.style.display = 'none';
       }
       
       function showBuilderPreview() {
         customAvatarPreview.style.display = 'none';
         editAvatarPreview.style.display = 'block';
         customAvatarData = null;
+        // Show builder section when using builder
+        avatarBuilderSection.style.display = 'block';
         updateAvatarPreview();
       }
       
@@ -741,14 +745,15 @@
         // Handle admin section
         if (AuthState.isAdmin()) {
           adminAvatarSection.style.display = 'block';
-          avatarBuilderSection.style.display = 'block';
           
           // Check if user has custom image
           if (currentProfile.avatarConfig && currentProfile.avatarConfig.customImage) {
             customAvatarData = currentProfile.avatarConfig.customImage;
             showCustomAvatarPreview(customAvatarData);
+            // Builder section hidden by showCustomAvatarPreview
           } else {
             showBuilderPreview();
+            // Builder section shown by showBuilderPreview
           }
         } else {
           adminAvatarSection.style.display = 'none';
