@@ -396,6 +396,8 @@ const UIComponents = (function() {
     const avatarConfigObj = entry.avatar_config || {};
     const selectedBorder = avatarConfigObj.selectedBorder;
     
+    console.log('Entry:', entry.alias, 'Rank:', rank, 'isAdmin:', isAdmin, 'selectedBorder:', selectedBorder);
+    
     if (selectedBorder && selectedBorder !== 'none') {
       // User has a selected border preference
       avatarRankClass = ` avatar-rank-${selectedBorder}`;
@@ -406,6 +408,7 @@ const UIComponents = (function() {
       // Use the user's rank for border (newcomers get no border)
       avatarRankClass = ` avatar-rank-${rank.toLowerCase()}`;
     }
+    console.log('Avatar rank class:', avatarRankClass);
     // If no preference and newcomer, no border is shown
     
     return `
