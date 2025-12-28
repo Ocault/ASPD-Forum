@@ -155,7 +155,6 @@
   <script src="js/notify.js"></script>
   <script src="js/notifications.js"></script>
   <script src="js/ui-components.js"></script>
-  <script src="js/data-loader.js"></script>
   <script>
     (function() {
       'use strict';
@@ -364,6 +363,9 @@
       var cancelThread = document.getElementById('cancel-thread');
       var threadTitleInput = document.getElementById('thread-title');
       var threadContentInput = document.getElementById('thread-content');
+      
+      // Initialize @mentions autocomplete on thread content
+      Utils.initMentions(threadContentInput, AuthState.apiRequest);
       
       // Poll creation elements
       var addPollCheckbox = document.getElementById('add-poll-checkbox');

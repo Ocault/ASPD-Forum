@@ -116,7 +116,7 @@
   </div>
 
   <!-- Theme Toggle -->
-  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">☽</button>
+  <button class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode" aria-pressed="false" title="Toggle theme">☀️</button>
 
   <!-- Keyboard Shortcuts Modal -->
   <div class="shortcuts-modal-overlay" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
@@ -152,7 +152,6 @@
   <script src="js/notifications.js"></script>
   <script src="js/avatar-renderer.js"></script>
   <script src="js/ui-components.js"></script>
-  <script src="js/data-loader.js"></script>
   <script>
     (function() {
       'use strict';
@@ -1056,6 +1055,9 @@
       draftIndicator.textContent = 'Draft saved';
       draftIndicator.style.display = 'none';
       replyForm.querySelector('.reply-submit').parentNode.insertBefore(draftIndicator, replyForm.querySelector('.reply-submit'));
+      
+      // Initialize @mentions autocomplete
+      Utils.initMentions(replyContent, AuthState.apiRequest);
       
       // Draft auto-save with debounce
       var draftKey = 'thread_' + getSignalIdFromUrl();

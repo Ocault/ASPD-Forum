@@ -1,0 +1,134 @@
+// Service Worker for ASPD Forum
+const CACHE_NAME = 'aspd-forum-v1';
+const STATIC_ASSETS = [
+  '/',
+  '/index.html',
+  '/login.html',
+  '/register.html',
+  '/forum.html',
+  '/room.html',
+  '/thread.html',
+  '/profile.html',
+  '/messages.html',
+  '/search.html',
+  '/activity.html',
+  '/history.html',
+  '/admin.html',
+  '/avatar.html',
+  '/css/style.css',
+  '/js/utils.js',
+  '/js/auth-state.js',
+  '/js/notify.js',
+  '/js/notifications.js',
+  '/js/ui-components.js',
+  '/js/avatar-renderer.js',
+  '/favicon.svg'
+];
+
+// Install event - cache static assets
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => {
+        console.log('[SW] Caching static assets');
+        return cache.addAll(STATIC_ASSETS);
+      })
+      .then(() => self.skipWaiting())
+  );
+});
+
+// Activate event - clean up old caches
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames
+          .filter((name) => name !== CACHE_NAME)
+          .map((name) => caches.delete(name))
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+
+// Fetch event - network first, cache fallback for HTML/CSS/JS
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Skip non-GET requests
+  if (request.method !== 'GET') return;
+
+  // Skip API calls (always fetch fresh)
+  if (url.pathname.startsWith('/api/') || 
+      url.pathname.startsWith('/login') ||
+      url.pathname.startsWith('/register')) {
+    return;
+  }
+
+  // For static assets and HTML, use stale-while-revalidate strategy
+  event.respondWith(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.match(request).then((cachedResponse) => {
+        const fetchPromise = fetch(request)
+          .then((networkResponse) => {
+            // Cache successful responses
+            if (networkResponse && networkResponse.status === 200) {
+              cache.put(request, networkResponse.clone());
+            }
+            return networkResponse;
+          })
+          .catch(() => {
+            // Network failed, try cache
+            return cachedResponse;
+          });
+
+        // Return cached response immediately if available, or wait for network
+        return cachedResponse || fetchPromise;
+      });
+    })
+  );
+});
+
+// Handle push notifications (future use)
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  const data = event.data.json();
+  const options = {
+    body: data.body || 'New notification',
+    icon: '/favicon.svg',
+    badge: '/favicon.svg',
+    vibrate: [100, 50, 100],
+    data: {
+      url: data.url || '/forum.html'
+    }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'ASPD Forum', options)
+  );
+});
+
+// Handle notification clicks
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then((clientList) => {
+      // Focus existing window if open
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          if (event.notification.data && event.notification.data.url) {
+            client.navigate(event.notification.data.url);
+          }
+          return;
+        }
+      }
+      // Open new window
+      if (clients.openWindow) {
+        return clients.openWindow(event.notification.data?.url || '/forum.html');
+      }
+    })
+  );
+});

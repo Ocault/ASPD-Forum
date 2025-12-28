@@ -3,8 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta name="description" content="ASPD Forum - Dark, clinical forum interface">
   <title>ASPD Forum — Rooms</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="favicon.svg">
+  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -70,7 +74,7 @@
   </div>
 
   <!-- Theme Toggle -->
-  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">☽</button>
+  <button class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode" aria-pressed="false" title="Toggle theme">☀️</button>
 
   <!-- Keyboard Shortcuts Modal -->
   <div class="shortcuts-modal-overlay" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
@@ -100,7 +104,6 @@
   <script src="js/notify.js"></script>
   <script src="js/notifications.js"></script>
   <script src="js/ui-components.js"></script>
-  <script src="js/data-loader.js"></script>
   <script>
     (function() {
       'use strict';
@@ -284,24 +287,21 @@
       // Theme toggle
       function initTheme() {
         var themeToggle = document.getElementById('theme-toggle');
-        var savedTheme = Utils.storage.get('aspd_theme', 'dark');
-        
-        if (savedTheme === 'light') {
-          document.documentElement.setAttribute('data-theme', 'light');
-          themeToggle.textContent = '☀';
-        }
+        var savedTheme = Utils.storage.get('forum_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        themeToggle.setAttribute('aria-pressed', savedTheme === 'light');
+        themeToggle.setAttribute('aria-label', savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+        themeToggle.innerHTML = savedTheme === 'dark' ? '☀️' : '🌙';
         
         themeToggle.addEventListener('click', function() {
-          var current = document.documentElement.getAttribute('data-theme');
-          if (current === 'light') {
-            document.documentElement.removeAttribute('data-theme');
-            Utils.storage.set('aspd_theme', 'dark');
-            themeToggle.textContent = '☽';
-          } else {
-            document.documentElement.setAttribute('data-theme', 'light');
-            Utils.storage.set('aspd_theme', 'light');
-            themeToggle.textContent = '☀';
-          }
+          var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+          var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          Utils.storage.set('forum_theme', newTheme);
+          themeToggle.setAttribute('aria-pressed', newTheme === 'light');
+          themeToggle.setAttribute('aria-label', newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+          themeToggle.innerHTML = newTheme === 'dark' ? '☀️' : '🌙';
+          Notify.show('THEME: ' + newTheme.toUpperCase(), 'info');
         });
       }
 

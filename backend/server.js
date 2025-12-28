@@ -423,6 +423,38 @@ app.get('/api/me', authMiddleware, async (req, res) => {
   }
 });
 
+// API: Autocomplete user search for @mentions
+app.get('/api/users/autocomplete', authMiddleware, async (req, res) => {
+  const query = req.query.q || '';
+  
+  if (query.length < 1) {
+    return res.json({ success: true, users: [] });
+  }
+  
+  try {
+    const result = await db.query(
+      `SELECT id, alias, avatar_config 
+       FROM users 
+       WHERE alias ILIKE $1 AND is_banned = FALSE
+       ORDER BY alias ASC
+       LIMIT 8`,
+      [query + '%']
+    );
+    
+    res.json({
+      success: true,
+      users: result.rows.map(u => ({
+        id: u.id,
+        alias: u.alias,
+        avatarConfig: u.avatar_config
+      }))
+    });
+  } catch (err) {
+    console.error('[USER AUTOCOMPLETE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // API: Get user profile by alias
 app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
   const alias = req.params.alias;
