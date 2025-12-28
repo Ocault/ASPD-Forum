@@ -82,6 +82,35 @@
     <div class="edit-profile-modal">
       <div class="modal-title">EDIT PROFILE</div>
       <form id="edit-profile-form">
+        <!-- Avatar Editor -->
+        <div class="form-group avatar-editor-group">
+          <label>AVATAR</label>
+          <div class="avatar-editor">
+            <canvas id="edit-avatar-preview" class="avatar-large" width="80" height="80"></canvas>
+            <div class="avatar-controls">
+              <div class="avatar-control-row">
+                <span class="control-label">HEAD</span>
+                <button type="button" class="avatar-btn" data-part="head" data-dir="-1">◄</button>
+                <span class="control-value" id="head-value">0</span>
+                <button type="button" class="avatar-btn" data-part="head" data-dir="1">►</button>
+              </div>
+              <div class="avatar-control-row">
+                <span class="control-label">EYES</span>
+                <button type="button" class="avatar-btn" data-part="eyes" data-dir="-1">◄</button>
+                <span class="control-value" id="eyes-value">0</span>
+                <button type="button" class="avatar-btn" data-part="eyes" data-dir="1">►</button>
+              </div>
+              <div class="avatar-overlay-row">
+                <label class="overlay-toggle">
+                  <input type="checkbox" id="overlay-static"> STATIC
+                </label>
+                <label class="overlay-toggle">
+                  <input type="checkbox" id="overlay-crack"> CRACK
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="form-group">
           <label for="edit-bio">BIO (500 chars max)</label>
           <textarea id="edit-bio" class="edit-bio-input" rows="4" maxlength="500" placeholder="Tell us about yourself..."></textarea>
@@ -215,11 +244,63 @@
         }
       }
 
+      // Avatar editor state
+      var editAvatarPreview = document.getElementById('edit-avatar-preview');
+      var headValueEl = document.getElementById('head-value');
+      var eyesValueEl = document.getElementById('eyes-value');
+      var overlayStatic = document.getElementById('overlay-static');
+      var overlayCrack = document.getElementById('overlay-crack');
+      var editAvatarConfig = { head: 0, eyes: 0, overlays: { static: false, crack: false } };
+
+      // Number of avatar variations (check avatar-renderer for actual limits)
+      var HEAD_COUNT = 5;
+      var EYES_COUNT = 5;
+
+      function updateAvatarPreview() {
+        AvatarRenderer.render(editAvatarPreview, editAvatarConfig);
+        headValueEl.textContent = editAvatarConfig.head;
+        eyesValueEl.textContent = editAvatarConfig.eyes;
+      }
+
       // Edit profile handlers
       editProfileBtn.addEventListener('click', function() {
         editBio.value = currentProfile ? currentProfile.bio || '' : '';
         bioCharCount.textContent = editBio.value.length + '/500';
+        
+        // Load current avatar config
+        if (currentProfile && currentProfile.avatarConfig) {
+          editAvatarConfig = JSON.parse(JSON.stringify(currentProfile.avatarConfig));
+        } else {
+          editAvatarConfig = { head: 0, eyes: 0, overlays: { static: false, crack: false } };
+        }
+        editAvatarConfig.overlays = editAvatarConfig.overlays || { static: false, crack: false };
+        overlayStatic.checked = editAvatarConfig.overlays.static || false;
+        overlayCrack.checked = editAvatarConfig.overlays.crack || false;
+        updateAvatarPreview();
+        
         editModal.style.display = 'flex';
+      });
+
+      // Avatar control buttons
+      document.querySelectorAll('.avatar-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var part = btn.dataset.part;
+          var dir = parseInt(btn.dataset.dir);
+          var maxCount = part === 'head' ? HEAD_COUNT : EYES_COUNT;
+          
+          editAvatarConfig[part] = (editAvatarConfig[part] + dir + maxCount) % maxCount;
+          updateAvatarPreview();
+        });
+      });
+
+      overlayStatic.addEventListener('change', function() {
+        editAvatarConfig.overlays.static = overlayStatic.checked;
+        updateAvatarPreview();
+      });
+
+      overlayCrack.addEventListener('change', function() {
+        editAvatarConfig.overlays.crack = overlayCrack.checked;
+        updateAvatarPreview();
       });
 
       editBio.addEventListener('input', function() {
@@ -244,12 +325,14 @@
 
         AuthState.apiRequest('/api/profile', {
           method: 'PUT',
-          body: JSON.stringify({ bio: bio })
+          body: JSON.stringify({ bio: bio, avatar_config: editAvatarConfig })
         })
         .then(function(data) {
           if (data.success) {
             Notify.show('PROFILE UPDATED', 'info');
             editModal.style.display = 'none';
+            // Also save to localStorage for immediate use
+            AvatarRenderer.saveToStorage(editAvatarConfig);
             // Refresh profile
             fetchProfile(AuthState.getAlias());
           } else {
