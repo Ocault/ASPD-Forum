@@ -462,7 +462,7 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
   try {
     // Get user info
     const userResult = await db.query(
-      'SELECT id, alias, bio, avatar_config, signature, reputation, custom_title, created_at FROM users WHERE alias = $1',
+      'SELECT id, alias, bio, avatar_config, signature, reputation, custom_title, is_admin, created_at FROM users WHERE alias = $1',
       [alias]
     );
     
@@ -516,6 +516,7 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
         avatarConfig: user.avatar_config || null,
         reputation: user.reputation || 0,
         rank: rank,
+        isAdmin: user.is_admin || false,
         createdAt: user.created_at,
         stats: {
           posts: postCount,

@@ -35,7 +35,7 @@
       
       <!-- Profile Card -->
       <article class="profile-card" aria-label="User profile information">
-        <div class="profile-avatar-section">
+        <div class="profile-avatar-section" id="profile-avatar-wrapper">
           <canvas id="profile-avatar" class="avatar-large" width="80" height="80" aria-label="User avatar"></canvas>
         </div>
         <div class="profile-info">
@@ -345,6 +345,16 @@
           }
         }
         statRep.textContent = profile.reputation || 0;
+
+        // Apply animated border to profile avatar based on rank/admin status
+        var avatarWrapper = document.getElementById('profile-avatar-wrapper');
+        // Remove any existing rank classes
+        avatarWrapper.className = 'profile-avatar-section';
+        if (profile.isAdmin) {
+          avatarWrapper.classList.add('avatar-rank-owner');
+        } else if (profile.rank) {
+          avatarWrapper.classList.add('avatar-rank-' + profile.rank.toLowerCase());
+        }
 
         // Display signature
         var profileSignature = document.getElementById('profile-signature');

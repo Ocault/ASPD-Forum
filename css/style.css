@@ -2061,6 +2061,27 @@ ul {
 
 .profile-avatar-section {
   flex-shrink: 0;
+  position: relative;
+  border-radius: 50%;
+  padding: 8px; /* Space for the animated border */
+}
+
+/* Profile avatar animated border support */
+.profile-avatar-section[class*="avatar-rank-"]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  z-index: 0;
+}
+
+.profile-avatar-section .avatar-large {
+  position: relative;
+  z-index: 1;
+  border-radius: 50%;
 }
 
 .avatar-large {
@@ -6358,7 +6379,11 @@ img.loaded {
 .avatar-rank-regular .avatar-mini,
 .avatar-rank-expert .avatar-mini,
 .avatar-rank-veteran .avatar-mini,
-.avatar-rank-owner .avatar-mini {
+.avatar-rank-owner .avatar-mini,
+.avatar-rank-regular .avatar-large,
+.avatar-rank-expert .avatar-large,
+.avatar-rank-veteran .avatar-large,
+.avatar-rank-owner .avatar-large {
   position: relative;
   z-index: 2;
 }
