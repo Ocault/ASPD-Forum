@@ -82,8 +82,23 @@
           return;
         }
 
-        if (password.length < 4) {
-          Notify.show('PASSWORD TOO SHORT', 'error');
+        if (password.length < 8) {
+          Notify.show('PASSWORD MUST BE AT LEAST 8 CHARACTERS', 'error');
+          return;
+        }
+
+        if (!/[A-Z]/.test(password)) {
+          Notify.show('PASSWORD MUST CONTAIN AN UPPERCASE LETTER', 'error');
+          return;
+        }
+
+        if (!/[a-z]/.test(password)) {
+          Notify.show('PASSWORD MUST CONTAIN A LOWERCASE LETTER', 'error');
+          return;
+        }
+
+        if (!/[0-9]/.test(password)) {
+          Notify.show('PASSWORD MUST CONTAIN A NUMBER', 'error');
           return;
         }
 
