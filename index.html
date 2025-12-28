@@ -10,8 +10,171 @@
   <link rel="apple-touch-icon" href="favicon.svg">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css?v=20251228">
+  <style>
+    /* Boot Sequence Animation */
+    .boot-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0a0a0a;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: var(--font-mono, 'JetBrains Mono', monospace);
+      overflow: hidden;
+    }
+    
+    .boot-screen.fade-out {
+      animation: bootFadeOut 0.8s ease-out forwards;
+    }
+    
+    @keyframes bootFadeOut {
+      0% { opacity: 1; }
+      100% { opacity: 0; pointer-events: none; }
+    }
+    
+    .boot-terminal {
+      width: 90%;
+      max-width: 600px;
+      color: #4a9;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+      line-height: 1.6;
+    }
+    
+    .boot-line {
+      opacity: 0;
+      transform: translateY(5px);
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    
+    .boot-line.visible {
+      animation: bootLineIn 0.15s ease-out forwards;
+    }
+    
+    @keyframes bootLineIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .boot-line.error { color: #c66; }
+    .boot-line.warning { color: #ca6; }
+    .boot-line.success { color: #4a9; }
+    .boot-line.system { color: #68a; }
+    .boot-line.dim { color: #445; }
+    
+    .boot-progress {
+      width: 100%;
+      height: 2px;
+      background: #1a1a1a;
+      margin-top: 20px;
+      overflow: hidden;
+      border-radius: 1px;
+    }
+    
+    .boot-progress-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #4a9, #6cf);
+      transition: width 0.1s ease-out;
+      box-shadow: 0 0 10px #4a9;
+    }
+    
+    .boot-logo {
+      font-size: 2rem;
+      font-weight: bold;
+      letter-spacing: 0.3em;
+      color: #4a9;
+      margin-bottom: 30px;
+      opacity: 0;
+      text-shadow: 0 0 20px rgba(68, 170, 153, 0.5);
+    }
+    
+    .boot-logo.visible {
+      animation: logoGlitch 0.5s ease-out forwards, logoGlow 2s ease-in-out infinite;
+    }
+    
+    @keyframes logoGlitch {
+      0% { opacity: 0; transform: scale(0.9) translateX(-10px); filter: blur(10px); }
+      20% { opacity: 1; transform: scale(1.02) translateX(5px); filter: blur(0); }
+      40% { transform: scale(0.98) translateX(-3px); }
+      60% { transform: scale(1.01) translateX(2px); }
+      80% { transform: scale(0.99) translateX(-1px); }
+      100% { opacity: 1; transform: scale(1) translateX(0); }
+    }
+    
+    @keyframes logoGlow {
+      0%, 100% { text-shadow: 0 0 20px rgba(68, 170, 153, 0.5); }
+      50% { text-shadow: 0 0 30px rgba(68, 170, 153, 0.8), 0 0 60px rgba(68, 170, 153, 0.3); }
+    }
+    
+    .boot-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: #4a9;
+      margin-left: 2px;
+      animation: cursorBlink 0.6s infinite;
+    }
+    
+    @keyframes cursorBlink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+    
+    .scanline-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.1) 2px,
+        rgba(0, 0, 0, 0.1) 4px
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+    
+    .glitch-line {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: rgba(68, 170, 153, 0.3);
+      opacity: 0;
+      z-index: 2;
+    }
+    
+    .landing {
+      opacity: 0;
+      transition: opacity 0.5s ease-out;
+    }
+    
+    .landing.visible {
+      opacity: 1;
+    }
+  </style>
 </head>
 <body>
+
+  <!-- Boot Sequence Screen -->
+  <div class="boot-screen" id="boot-screen" aria-hidden="true">
+    <div class="scanline-overlay"></div>
+    <div class="glitch-line" id="glitch-line"></div>
+    <div class="boot-logo" id="boot-logo">ASPD.FORUM</div>
+    <div class="boot-terminal" id="boot-terminal"></div>
+    <div class="boot-progress">
+      <div class="boot-progress-bar" id="boot-progress"></div>
+    </div>
+  </div>
 
   <!-- Skip to main content -->
   <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -37,6 +200,116 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js');
     }
+    
+    // Boot Sequence Animation
+    (function() {
+      var bootScreen = document.getElementById('boot-screen');
+      var bootTerminal = document.getElementById('boot-terminal');
+      var bootProgress = document.getElementById('boot-progress');
+      var bootLogo = document.getElementById('boot-logo');
+      var glitchLine = document.getElementById('glitch-line');
+      var landing = document.getElementById('main-content');
+      
+      // Skip intro if already seen this session
+      if (sessionStorage.getItem('boot_complete')) {
+        bootScreen.style.display = 'none';
+        landing.classList.add('visible');
+        return;
+      }
+      
+      var bootSequence = [
+        { text: '> INITIALIZING SYSTEM...', delay: 100, class: 'system' },
+        { text: '[OK] Core modules loaded', delay: 150, class: 'dim' },
+        { text: '[OK] Memory allocation: 64MB', delay: 100, class: 'dim' },
+        { text: '> ESTABLISHING SECURE CONNECTION...', delay: 200, class: 'system' },
+        { text: '[OK] TLS 1.3 handshake complete', delay: 150, class: 'dim' },
+        { text: '[OK] Certificate verified', delay: 100, class: 'dim' },
+        { text: '> LOADING DATABASE INTERFACE...', delay: 200, class: 'system' },
+        { text: '[OK] PostgreSQL connection pool active', delay: 150, class: 'dim' },
+        { text: '[OK] 847 users indexed', delay: 100, class: 'dim' },
+        { text: '[OK] 12,493 posts cached', delay: 100, class: 'dim' },
+        { text: '> SECURITY PROTOCOLS...', delay: 200, class: 'system' },
+        { text: '[OK] JWT authentication enabled', delay: 100, class: 'dim' },
+        { text: '[OK] Rate limiting active', delay: 100, class: 'dim' },
+        { text: '[OK] XSS protection verified', delay: 100, class: 'dim' },
+        { text: '> RUNNING DIAGNOSTICS...', delay: 200, class: 'system' },
+        { text: '[WARN] Elevated access detected', delay: 150, class: 'warning' },
+        { text: '[OK] System integrity: NOMINAL', delay: 150, class: 'success' },
+        { text: '', delay: 100 },
+        { text: '> BOOT SEQUENCE COMPLETE', delay: 200, class: 'success' },
+        { text: '> WELCOME TO ASPD.FORUM', delay: 300, class: 'success' }
+      ];
+      
+      var currentLine = 0;
+      var progress = 0;
+      
+      // Random glitch effect
+      function triggerGlitch() {
+        var y = Math.random() * 100;
+        glitchLine.style.top = y + '%';
+        glitchLine.style.opacity = '1';
+        setTimeout(function() {
+          glitchLine.style.opacity = '0';
+        }, 50);
+      }
+      
+      // Add a line to terminal
+      function addLine(text, lineClass) {
+        var line = document.createElement('div');
+        line.className = 'boot-line' + (lineClass ? ' ' + lineClass : '');
+        line.innerHTML = text + '<span class="boot-cursor"></span>';
+        bootTerminal.appendChild(line);
+        
+        // Remove cursor from previous lines
+        var lines = bootTerminal.querySelectorAll('.boot-line');
+        for (var i = 0; i < lines.length - 1; i++) {
+          var cursor = lines[i].querySelector('.boot-cursor');
+          if (cursor) cursor.remove();
+        }
+        
+        // Animate in
+        setTimeout(function() {
+          line.classList.add('visible');
+        }, 10);
+        
+        // Random glitch
+        if (Math.random() > 0.7) {
+          triggerGlitch();
+        }
+      }
+      
+      // Process boot sequence
+      function processLine() {
+        if (currentLine >= bootSequence.length) {
+          // Boot complete
+          setTimeout(function() {
+            sessionStorage.setItem('boot_complete', '1');
+            bootScreen.classList.add('fade-out');
+            landing.classList.add('visible');
+            setTimeout(function() {
+              bootScreen.style.display = 'none';
+            }, 800);
+          }, 500);
+          return;
+        }
+        
+        var item = bootSequence[currentLine];
+        addLine(item.text, item.class);
+        
+        // Update progress
+        progress = ((currentLine + 1) / bootSequence.length) * 100;
+        bootProgress.style.width = progress + '%';
+        
+        currentLine++;
+        setTimeout(processLine, item.delay + Math.random() * 100);
+      }
+      
+      // Show logo first, then start boot
+      setTimeout(function() {
+        bootLogo.classList.add('visible');
+        setTimeout(processLine, 600);
+      }, 300);
+    })();
   </script>
 </body>
 </html>
