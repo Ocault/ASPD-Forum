@@ -118,12 +118,11 @@ app.post('/register', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error('[REGISTER ERROR]', err.message, err.code, err.stack);
+    console.error('[REGISTER ERROR]', err.message);
     if (err.code === '23505') {
       return res.status(409).json({ success: false, error: 'alias_exists' });
     }
-    // Return detailed error in response for debugging
-    res.status(500).json({ success: false, error: 'server_error', detail: err.message });
+    res.status(500).json({ success: false, error: 'server_error' });
   }
 });
 
