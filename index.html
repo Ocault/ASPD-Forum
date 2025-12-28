@@ -4,148 +4,146 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0a0a0a">
-  <meta name="description" content="Dark, clinical forum interface for data exchange">
+  <meta name="description" content="Forum for individuals with ASPD">
   <title>ASPD Forum</title>
   <link rel="icon" type="image/png" href="sigil.png">
   <link rel="apple-touch-icon" href="favicon.svg">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css?v=20251228">
   <style>
-    /* Boot Sequence Animation - Monochrome Theme */
-    .boot-screen {
+    /* Minimalist 3D Intro */
+    .intro-screen {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: var(--bg-primary, #0a0a0a);
+      background: #0a0a0a;
       z-index: 9999;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      font-family: var(--font-mono, 'Consolas', 'Monaco', monospace);
-      overflow: hidden;
+      perspective: 1000px;
     }
     
-    .boot-screen.fade-out {
-      animation: bootFadeOut 0.8s ease-out forwards;
+    .intro-screen.fade-out {
+      animation: introFadeOut 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     }
     
-    @keyframes bootFadeOut {
+    @keyframes introFadeOut {
       0% { opacity: 1; }
       100% { opacity: 0; pointer-events: none; }
     }
     
-    .boot-terminal {
-      width: 90%;
-      max-width: 600px;
-      color: var(--text-secondary, #707070);
-      font-size: 0.7rem;
-      letter-spacing: 0.05em;
-      line-height: 1.6;
+    /* 3D Cube */
+    .cube-container {
+      width: 80px;
+      height: 80px;
+      position: relative;
+      transform-style: preserve-3d;
+      animation: cubeRotate 8s linear infinite;
     }
     
-    .boot-line {
-      opacity: 0;
-      transform: translateY(5px);
-      white-space: nowrap;
-      overflow: hidden;
+    @keyframes cubeRotate {
+      0% { transform: rotateX(-20deg) rotateY(0deg); }
+      100% { transform: rotateX(-20deg) rotateY(360deg); }
     }
     
-    .boot-line.visible {
-      animation: bootLineIn 0.15s ease-out forwards;
+    .cube-face {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      border: 1px solid rgba(100, 100, 100, 0.3);
+      background: rgba(20, 20, 20, 0.4);
+      backdrop-filter: blur(2px);
     }
     
-    @keyframes bootLineIn {
-      to { opacity: 1; transform: translateY(0); }
+    .cube-face.front  { transform: translateZ(40px); }
+    .cube-face.back   { transform: rotateY(180deg) translateZ(40px); }
+    .cube-face.right  { transform: rotateY(90deg) translateZ(40px); }
+    .cube-face.left   { transform: rotateY(-90deg) translateZ(40px); }
+    .cube-face.top    { transform: rotateX(90deg) translateZ(40px); }
+    .cube-face.bottom { transform: rotateX(-90deg) translateZ(40px); }
+    
+    /* Inner structure lines */
+    .cube-inner {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      top: 50%;
+      left: 50%;
+      transform-style: preserve-3d;
+      transform: translate(-50%, -50%);
+      animation: innerRotate 6s linear infinite reverse;
     }
     
-    .boot-line.error { color: #8a5a5a; }
-    .boot-line.warning { color: #8a7a5a; }
-    .boot-line.success { color: var(--text-primary, #c8c8c8); }
-    .boot-line.system { color: var(--text-secondary, #707070); }
-    .boot-line.dim { color: var(--text-muted, #4a4a4a); }
+    @keyframes innerRotate {
+      0% { transform: translate(-50%, -50%) rotateX(0deg) rotateZ(0deg); }
+      100% { transform: translate(-50%, -50%) rotateX(360deg) rotateZ(360deg); }
+    }
     
-    .boot-progress {
+    .cube-inner::before,
+    .cube-inner::after {
+      content: '';
+      position: absolute;
       width: 100%;
+      height: 100%;
+      border: 1px solid rgba(150, 150, 150, 0.2);
+    }
+    
+    .cube-inner::before {
+      transform: rotateX(45deg);
+    }
+    
+    .cube-inner::after {
+      transform: rotateY(45deg);
+    }
+    
+    /* Title */
+    .intro-title {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.75rem;
+      font-weight: 400;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      color: #505050;
+      margin-top: 60px;
+      opacity: 0;
+      animation: titleFade 1s ease-out 0.5s forwards;
+    }
+    
+    @keyframes titleFade {
+      0% { opacity: 0; transform: translateY(10px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Subtle progress line */
+    .intro-progress {
+      position: absolute;
+      bottom: 80px;
+      width: 120px;
       height: 1px;
-      background: var(--border-color, #252525);
-      margin-top: 20px;
+      background: #1a1a1a;
       overflow: hidden;
     }
     
-    .boot-progress-bar {
+    .intro-progress-bar {
       width: 0%;
       height: 100%;
-      background: var(--text-secondary, #707070);
-      transition: width 0.1s ease-out;
+      background: #404040;
+      animation: progressFill 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     }
     
-    .boot-logo {
-      font-size: 1.5rem;
-      font-weight: 400;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-      color: var(--text-primary, #c8c8c8);
-      margin-bottom: 30px;
-      opacity: 0;
+    @keyframes progressFill {
+      0% { width: 0%; }
+      100% { width: 100%; }
     }
     
-    .boot-logo.visible {
-      animation: logoReveal 0.6s ease-out forwards;
-    }
-    
-    @keyframes logoReveal {
-      0% { opacity: 0; letter-spacing: 0.5em; }
-      50% { opacity: 0.5; }
-      100% { opacity: 1; letter-spacing: 0.3em; }
-    }
-    
-    .boot-cursor {
-      display: inline-block;
-      width: 6px;
-      height: 12px;
-      background: var(--text-muted, #4a4a4a);
-      margin-left: 2px;
-      animation: cursorBlink 0.8s infinite;
-    }
-    
-    @keyframes cursorBlink {
-      0%, 50% { opacity: 1; }
-      51%, 100% { opacity: 0; }
-    }
-    
-    .scanline-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 2px,
-        rgba(0, 0, 0, 0.05) 2px,
-        rgba(0, 0, 0, 0.05) 4px
-      );
-      pointer-events: none;
-      z-index: 1;
-    }
-    
-    .glitch-line {
-      position: absolute;
-      left: 0;
-      width: 100%;
-      height: 1px;
-      background: rgba(200, 200, 200, 0.1);
-      opacity: 0;
-      z-index: 2;
-    }
-    
+    /* Landing page */
     .landing {
       opacity: 0;
-      transition: opacity 0.5s ease-out;
+      transition: opacity 0.8s ease-out;
     }
     
     .landing.visible {
@@ -155,14 +153,20 @@
 </head>
 <body>
 
-  <!-- Boot Sequence Screen -->
-  <div class="boot-screen" id="boot-screen" aria-hidden="true">
-    <div class="scanline-overlay"></div>
-    <div class="glitch-line" id="glitch-line"></div>
-    <div class="boot-logo" id="boot-logo">ASPD.FORUM</div>
-    <div class="boot-terminal" id="boot-terminal"></div>
-    <div class="boot-progress">
-      <div class="boot-progress-bar" id="boot-progress"></div>
+  <!-- Intro Screen -->
+  <div class="intro-screen" id="intro-screen" aria-hidden="true">
+    <div class="cube-container">
+      <div class="cube-face front"></div>
+      <div class="cube-face back"></div>
+      <div class="cube-face right"></div>
+      <div class="cube-face left"></div>
+      <div class="cube-face top"></div>
+      <div class="cube-face bottom"></div>
+      <div class="cube-inner"></div>
+    </div>
+    <div class="intro-title">ASPD</div>
+    <div class="intro-progress">
+      <div class="intro-progress-bar"></div>
     </div>
   </div>
 
@@ -175,13 +179,12 @@
   <!-- Landing Content -->
   <main class="landing" data-page="index" role="main" id="main-content">
     <div class="landing-content">
-      <h1 class="landing-title" data-bind="site-title">ASPD.FORUM</h1>
-      <p class="landing-desc" data-bind="site-description">Restricted access point.<br>Clinical data exchange. No affect. No performance.</p>
-      <a href="login.html" class="enter-btn" data-action="enter" role="button" aria-label="Enter the forum">PROCEED</a>
+      <h1 class="landing-title" data-bind="site-title">ASPD</h1>
+      <p class="landing-desc" data-bind="site-description">A space for discussion.</p>
+      <a href="login.html" class="enter-btn" data-action="enter" role="button" aria-label="Enter the forum">ENTER</a>
     </div>
     <footer class="landing-footer" role="contentinfo">
-      <span data-bind="version">v1.0.0</span>
-      <span data-bind="connection-status" aria-live="polite">CONN.SECURE</span>
+      <span data-bind="version">v1.0</span>
     </footer>
   </main>
 
@@ -191,114 +194,28 @@
       navigator.serviceWorker.register('/sw.js');
     }
     
-    // Boot Sequence Animation
+    // Minimal Intro Animation
     (function() {
-      var bootScreen = document.getElementById('boot-screen');
-      var bootTerminal = document.getElementById('boot-terminal');
-      var bootProgress = document.getElementById('boot-progress');
-      var bootLogo = document.getElementById('boot-logo');
-      var glitchLine = document.getElementById('glitch-line');
+      var introScreen = document.getElementById('intro-screen');
       var landing = document.getElementById('main-content');
       
       // Skip intro if already seen this session
-      if (sessionStorage.getItem('boot_complete')) {
-        bootScreen.style.display = 'none';
+      if (sessionStorage.getItem('intro_seen')) {
+        introScreen.style.display = 'none';
         landing.classList.add('visible');
         return;
       }
       
-      var bootSequence = [
-        { text: '> INITIALIZING SYSTEM...', delay: 100, class: 'system' },
-        { text: '[OK] Core modules loaded', delay: 150, class: 'dim' },
-        { text: '[OK] Memory allocation: 64MB', delay: 100, class: 'dim' },
-        { text: '> ESTABLISHING SECURE CONNECTION...', delay: 200, class: 'system' },
-        { text: '[OK] TLS 1.3 handshake complete', delay: 150, class: 'dim' },
-        { text: '[OK] Certificate verified', delay: 100, class: 'dim' },
-        { text: '> LOADING DATABASE INTERFACE...', delay: 200, class: 'system' },
-        { text: '[OK] PostgreSQL connection pool active', delay: 150, class: 'dim' },
-        { text: '[OK] 847 users indexed', delay: 100, class: 'dim' },
-        { text: '[OK] 12,493 posts cached', delay: 100, class: 'dim' },
-        { text: '> SECURITY PROTOCOLS...', delay: 200, class: 'system' },
-        { text: '[OK] JWT authentication enabled', delay: 100, class: 'dim' },
-        { text: '[OK] Rate limiting active', delay: 100, class: 'dim' },
-        { text: '[OK] XSS protection verified', delay: 100, class: 'dim' },
-        { text: '> RUNNING DIAGNOSTICS...', delay: 200, class: 'system' },
-        { text: '[WARN] Elevated access detected', delay: 150, class: 'warning' },
-        { text: '[OK] System integrity: NOMINAL', delay: 150, class: 'success' },
-        { text: '', delay: 100 },
-        { text: '> BOOT SEQUENCE COMPLETE', delay: 200, class: 'success' },
-        { text: '> WELCOME TO ASPD.FORUM', delay: 300, class: 'success' }
-      ];
-      
-      var currentLine = 0;
-      var progress = 0;
-      
-      // Random glitch effect
-      function triggerGlitch() {
-        var y = Math.random() * 100;
-        glitchLine.style.top = y + '%';
-        glitchLine.style.opacity = '1';
-        setTimeout(function() {
-          glitchLine.style.opacity = '0';
-        }, 50);
-      }
-      
-      // Add a line to terminal
-      function addLine(text, lineClass) {
-        var line = document.createElement('div');
-        line.className = 'boot-line' + (lineClass ? ' ' + lineClass : '');
-        line.innerHTML = text + '<span class="boot-cursor"></span>';
-        bootTerminal.appendChild(line);
-        
-        // Remove cursor from previous lines
-        var lines = bootTerminal.querySelectorAll('.boot-line');
-        for (var i = 0; i < lines.length - 1; i++) {
-          var cursor = lines[i].querySelector('.boot-cursor');
-          if (cursor) cursor.remove();
-        }
-        
-        // Animate in
-        setTimeout(function() {
-          line.classList.add('visible');
-        }, 10);
-        
-        // Random glitch
-        if (Math.random() > 0.7) {
-          triggerGlitch();
-        }
-      }
-      
-      // Process boot sequence
-      function processLine() {
-        if (currentLine >= bootSequence.length) {
-          // Boot complete
-          setTimeout(function() {
-            sessionStorage.setItem('boot_complete', '1');
-            bootScreen.classList.add('fade-out');
-            landing.classList.add('visible');
-            setTimeout(function() {
-              bootScreen.style.display = 'none';
-            }, 800);
-          }, 500);
-          return;
-        }
-        
-        var item = bootSequence[currentLine];
-        addLine(item.text, item.class);
-        
-        // Update progress
-        progress = ((currentLine + 1) / bootSequence.length) * 100;
-        bootProgress.style.width = progress + '%';
-        
-        currentLine++;
-        setTimeout(processLine, item.delay + Math.random() * 100);
-      }
-      
-      // Show logo first, then start boot
+      // Wait for animation to complete, then fade out
       setTimeout(function() {
-        bootLogo.classList.add('visible');
-        setTimeout(processLine, 600);
-      }, 300);
+        sessionStorage.setItem('intro_seen', '1');
+        introScreen.classList.add('fade-out');
+        landing.classList.add('visible');
+        
+        setTimeout(function() {
+          introScreen.style.display = 'none';
+        }, 1200);
+      }, 2800);
     })();
   </script>
 </body>
