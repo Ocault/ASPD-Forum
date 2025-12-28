@@ -374,7 +374,18 @@ var AuthState = (function() {
     startHeartbeat();
   }
 
+  /**
+   * Initialize auth state and execute callback
+   * @param {Function} callback - Function to execute after init
+   */
+  function init(callback) {
+    if (typeof callback === 'function') {
+      callback();
+    }
+  }
+
   return {
+    init: init,
     get: get,
     set: set,
     clear: clear,
