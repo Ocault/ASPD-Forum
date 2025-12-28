@@ -675,6 +675,10 @@
         customAvatarPreview.style.display = 'none';
         editAvatarPreview.style.display = 'block';
         customAvatarData = null;
+        // Clear custom image from config so builder avatar is used
+        if (editAvatarConfig.customImage) {
+          delete editAvatarConfig.customImage;
+        }
         // Show builder section when using builder
         avatarBuilderSection.style.display = 'block';
         updateAvatarPreview();
