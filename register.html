@@ -9,38 +9,44 @@
 </head>
 <body>
 
+  <!-- Skip to main content -->
+  <a href="#register-form" class="skip-link">Skip to registration form</a>
+
   <!-- Noise Overlay -->
-  <div class="noise"></div>
+  <div class="noise" aria-hidden="true"></div>
 
   <!-- Auth Layout -->
-  <main class="auth-container" data-page="register">
+  <main class="auth-container" data-page="register" role="main">
     <div class="auth-content">
       <h1 class="auth-title">NEW IDENT</h1>
       
-      <form class="auth-form" id="register-form" data-form="register">
+      <form class="auth-form" id="register-form" data-form="register" aria-label="Registration form">
         <div class="auth-field">
           <label class="auth-label" for="alias">ALIAS</label>
-          <input type="text" id="alias" name="alias" class="auth-input" required autocomplete="username">
+          <input type="text" id="alias" name="alias" class="auth-input" required autocomplete="username" aria-describedby="alias-hint" placeholder="Your username">
+          <span id="alias-hint" class="sr-only">3-20 characters, letters, numbers, and underscores only</span>
         </div>
         
         <div class="auth-field">
           <label class="auth-label" for="pass">PASS</label>
-          <input type="password" id="pass" name="pass" class="auth-input" required autocomplete="new-password">
+          <input type="password" id="pass" name="pass" class="auth-input" required autocomplete="new-password" aria-describedby="pass-hint" placeholder="Password">
+          <span id="pass-hint" class="sr-only">Minimum 8 characters with uppercase, lowercase, and number</span>
         </div>
         
         <div class="auth-field">
           <label class="auth-label" for="pass-confirm">CONFIRM</label>
-          <input type="password" id="pass-confirm" name="pass-confirm" class="auth-input" required autocomplete="new-password">
+          <input type="password" id="pass-confirm" name="pass-confirm" class="auth-input" required autocomplete="new-password" aria-describedby="confirm-hint" placeholder="Confirm password">
+          <span id="confirm-hint" class="sr-only">Re-enter your password to confirm</span>
         </div>
         
-        <button type="submit" class="auth-btn">REGISTER</button>
+        <button type="submit" class="auth-btn" aria-label="Create new account">REGISTER</button>
       </form>
       
-      <div class="auth-links">
+      <nav class="auth-links" aria-label="Account navigation">
         <a href="login.html" class="auth-link">EXISTING IDENT</a>
-        <span class="auth-sep">|</span>
+        <span class="auth-sep" aria-hidden="true">|</span>
         <a href="index.html" class="auth-link">← EXIT</a>
-      </div>
+      </nav>
     </div>
     
     <div class="auth-footer">

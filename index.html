@@ -10,19 +10,19 @@
 <body>
 
   <!-- Noise Overlay -->
-  <div class="noise"></div>
+  <div class="noise" aria-hidden="true"></div>
 
   <!-- Landing Content -->
-  <main class="landing" data-page="index">
+  <main class="landing" data-page="index" role="main">
     <div class="landing-content">
       <h1 class="landing-title" data-bind="site-title">ASPD.FORUM</h1>
       <p class="landing-desc" data-bind="site-description">Restricted access point.<br>Clinical data exchange. No affect. No performance.</p>
-      <a href="login.html" class="enter-btn" data-action="enter">PROCEED</a>
+      <a href="login.html" class="enter-btn" data-action="enter" role="button" aria-label="Enter the forum">PROCEED</a>
     </div>
-    <div class="landing-footer">
+    <footer class="landing-footer" role="contentinfo">
       <span data-bind="version">v1.0.0</span>
-      <span data-bind="connection-status">CONN.SECURE</span>
-    </div>
+      <span data-bind="connection-status" aria-live="polite">CONN.SECURE</span>
+    </footer>
   </main>
 
 </body>

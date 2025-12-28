@@ -9,33 +9,36 @@
 </head>
 <body>
 
+  <!-- Skip to main content -->
+  <a href="#login-form" class="skip-link">Skip to login form</a>
+
   <!-- Noise Overlay -->
-  <div class="noise"></div>
+  <div class="noise" aria-hidden="true"></div>
 
   <!-- Auth Layout -->
-  <main class="auth-container" data-page="login">
+  <main class="auth-container" data-page="login" role="main">
     <div class="auth-content">
       <h1 class="auth-title">ACCESS</h1>
       
-      <form class="auth-form" id="login-form" data-form="login">
+      <form class="auth-form" id="login-form" data-form="login" aria-label="Login form">
         <div class="auth-field">
           <label class="auth-label" for="alias">ALIAS</label>
-          <input type="text" id="alias" name="alias" class="auth-input" required autocomplete="username">
+          <input type="text" id="alias" name="alias" class="auth-input" required autocomplete="username" placeholder="Your username">
         </div>
         
         <div class="auth-field">
           <label class="auth-label" for="pass">PASS</label>
-          <input type="password" id="pass" name="pass" class="auth-input" required autocomplete="current-password">
+          <input type="password" id="pass" name="pass" class="auth-input" required autocomplete="current-password" placeholder="Your password">
         </div>
         
-        <button type="submit" class="auth-btn">AUTHENTICATE</button>
+        <button type="submit" class="auth-btn" aria-label="Sign in to your account">AUTHENTICATE</button>
       </form>
       
-      <div class="auth-links">
+      <nav class="auth-links" aria-label="Account navigation">
         <a href="register.html" class="auth-link">NEW IDENT</a>
-        <span class="auth-sep">|</span>
+        <span class="auth-sep" aria-hidden="true">|</span>
         <a href="index.html" class="auth-link">← EXIT</a>
-      </div>
+      </nav>
     </div>
     
     <div class="auth-footer">

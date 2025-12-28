@@ -9,66 +9,70 @@
 </head>
 <body>
 
+  <!-- Skip to main content -->
+  <a href="#entries-container" class="skip-link">Skip to thread entries</a>
+
   <!-- Noise Overlay -->
-  <div class="noise"></div>
+  <div class="noise" aria-hidden="true"></div>
 
   <!-- Thread Layout -->
   <div class="thread-container" data-page="thread" data-signal-id="">
 
     <!-- Header -->
-    <header class="thread-header" data-component="thread-header">
-      <div class="thread-header-left">
-        <a href="room.html" class="thread-back" data-bind="back-link">← INDEX</a>
-        <span class="thread-divider">/</span>
+    <header class="thread-header" data-component="thread-header" role="banner">
+      <nav class="thread-header-left" aria-label="Breadcrumb">
+        <a href="room.html" class="thread-back" data-bind="back-link" aria-label="Back to room">← INDEX</a>
+        <span class="thread-divider" aria-hidden="true">/</span>
         <span class="thread-room" data-bind="room-name">NODE.000</span>
-      </div>
-      <div class="header-right">
-        <span class="thread-entry-count" data-bind="entry-count"><span id="entry-count">0</span> RECORDS</span>
-        <a href="#" class="header-notifications" id="notif-bell" title="Notifications">
-          <span class="notif-icon">[!]</span>
-          <span class="notif-badge" id="notif-badge" style="display: none;">0</span>
+      </nav>
+      <nav class="header-right" aria-label="User navigation">
+        <span class="thread-entry-count" data-bind="entry-count" aria-live="polite"><span id="entry-count">0</span> RECORDS</span>
+        <a href="#" class="header-notifications" id="notif-bell" title="Notifications" aria-label="View notifications" role="button">
+          <span class="notif-icon" aria-hidden="true">[!]</span>
+          <span class="notif-badge" id="notif-badge" style="display: none;" aria-live="polite">0</span>
         </a>
-        <a href="profile.html" class="header-profile">PROFILE</a>
-        <a href="messages.html" class="header-messages">MSG</a>
-        <a href="#" class="header-exit" data-action="logout">EXIT</a>
-      </div>
+        <a href="profile.html" class="header-profile" aria-label="View profile">PROFILE</a>
+        <a href="messages.html" class="header-messages" aria-label="Messages">MSG</a>
+        <a href="#" class="header-exit" data-action="logout" aria-label="Sign out">EXIT</a>
+      </nav>
     </header>
 
     <!-- Thread Title -->
-    <div class="thread-title-bar">
+    <div class="thread-title-bar" role="heading" aria-level="1">
       <h1 class="thread-title" data-bind="thread-title">Loading...</h1>
-      <span class="thread-status-badges" id="thread-badges"></span>
-      <button class="subscribe-btn" id="subscribe-btn" title="Subscribe to thread">[WATCH]</button>
-      <button class="bookmark-btn" id="bookmark-btn" title="Bookmark this thread">[SAVE]</button>
-      <span class="thread-slow-mode" id="slow-mode-indicator" style="display: none;"></span>
+      <span class="thread-status-badges" id="thread-badges" aria-live="polite"></span>
+      <button class="subscribe-btn" id="subscribe-btn" title="Subscribe to thread" aria-label="Subscribe to this thread" aria-pressed="false">[WATCH]</button>
+      <button class="bookmark-btn" id="bookmark-btn" title="Bookmark this thread" aria-label="Bookmark this thread" aria-pressed="false">[SAVE]</button>
+      <span class="thread-slow-mode" id="slow-mode-indicator" style="display: none;" role="status" aria-live="polite"></span>
       <!-- Admin Controls -->
-      <div class="thread-admin-controls" id="thread-admin-controls" style="display: none;">
-        <button class="admin-btn" id="pin-btn" title="Pin/Unpin thread">[PIN]</button>
-        <button class="admin-btn" id="lock-btn" title="Lock/Unlock thread">[LOCK]</button>
+      <div class="thread-admin-controls" id="thread-admin-controls" style="display: none;" role="group" aria-label="Admin controls">
+        <button class="admin-btn" id="pin-btn" title="Pin/Unpin thread" aria-label="Pin or unpin thread" aria-pressed="false">[PIN]</button>
+        <button class="admin-btn" id="lock-btn" title="Lock/Unlock thread" aria-label="Lock or unlock thread" aria-pressed="false">[LOCK]</button>
       </div>
     </div>
 
     <!-- Filter Bar -->
-    <div class="filter-bar">
-      <input type="text" id="search-input" class="filter-input" placeholder="SEARCH ENTRIES...">
-      <div class="sort-controls">
-        <button class="sort-btn active" data-sort="default">DEFAULT</button>
-        <button class="sort-btn" data-sort="newest">NEWEST</button>
-        <button class="sort-btn" data-sort="oldest">OLDEST</button>
+    <div class="filter-bar" role="search">
+      <label for="search-input" class="sr-only">Search entries in this thread</label>
+      <input type="text" id="search-input" class="filter-input" placeholder="SEARCH ENTRIES..." aria-label="Search entries">
+      <div class="sort-controls" role="group" aria-label="Sort options">
+        <button class="sort-btn active" data-sort="default" aria-pressed="true">DEFAULT</button>
+        <button class="sort-btn" data-sort="newest" aria-pressed="false">NEWEST</button>
+        <button class="sort-btn" data-sort="oldest" aria-pressed="false">OLDEST</button>
       </div>
     </div>
 
     <!-- Poll Container (if thread has a poll) -->
-    <div class="poll-container" id="poll-container" style="display: none;">
-      <div class="poll-question" id="poll-question"></div>
-      <div class="poll-meta" id="poll-meta"></div>
-      <div class="poll-options" id="poll-options"></div>
-      <button class="poll-vote-btn" id="poll-vote-btn" style="display: none;">VOTE</button>
-      <div class="poll-total" id="poll-total"></div>
-    </div>
+    <section class="poll-container" id="poll-container" style="display: none;" aria-label="Thread poll">
+      <h2 class="poll-question" id="poll-question"></h2>
+      <div class="poll-meta" id="poll-meta" aria-live="polite"></div>
+      <div class="poll-options" id="poll-options" role="group" aria-label="Poll options"></div>
+      <button class="poll-vote-btn" id="poll-vote-btn" style="display: none;" aria-label="Submit your vote">VOTE</button>
+      <div class="poll-total" id="poll-total" aria-live="polite"></div>
+    </section>
 
     <!-- Entry List - Container for dynamic entries -->
-    <main class="entry-list" id="entries-container" data-container="entries">
+    <main class="entry-list" id="entries-container" data-container="entries" role="main" aria-label="Thread entries">
       <!-- PLACEHOLDER: Entry elements will be injected here by JS -->
     </main>
 
@@ -76,36 +80,37 @@
     <div id="pagination-container"></div>
 
     <!-- Reply Form -->
-    <div class="reply-form-container" id="reply-form-container">
-      <form id="reply-form" class="reply-form">
+    <section class="reply-form-container" id="reply-form-container" aria-label="Reply to thread">
+      <form id="reply-form" class="reply-form" aria-label="Post a reply">
         <!-- Markdown Toolbar -->
-        <div class="markdown-toolbar">
-          <button type="button" class="md-btn" data-md="bold" title="Bold (**text**)"><strong>B</strong></button>
-          <button type="button" class="md-btn" data-md="italic" title="Italic (*text*)"><em>I</em></button>
-          <button type="button" class="md-btn" data-md="strike" title="Strikethrough (~~text~~)"><del>S</del></button>
-          <button type="button" class="md-btn" data-md="code" title="Code (`code`)">&lt;/&gt;</button>
-          <button type="button" class="md-btn" data-md="link" title="Link ([text](url))">🔗</button>
-          <button type="button" class="md-btn" data-md="quote" title="Quote (> text)">&gt;</button>
-          <button type="button" class="md-btn" data-md="list" title="List (- item)">☰</button>
-          <button type="button" class="md-btn" data-md="h1" title="Heading (#)">H</button>
-          <span class="markdown-help">MARKDOWN SUPPORTED</span>
+        <div class="markdown-toolbar" role="toolbar" aria-label="Text formatting">
+          <button type="button" class="md-btn" data-md="bold" title="Bold (**text**)" aria-label="Bold"><strong>B</strong></button>
+          <button type="button" class="md-btn" data-md="italic" title="Italic (*text*)" aria-label="Italic"><em>I</em></button>
+          <button type="button" class="md-btn" data-md="strike" title="Strikethrough (~~text~~)" aria-label="Strikethrough"><del>S</del></button>
+          <button type="button" class="md-btn" data-md="code" title="Code (`code`)" aria-label="Code">&lt;/&gt;</button>
+          <button type="button" class="md-btn" data-md="link" title="Link ([text](url))" aria-label="Insert link">🔗</button>
+          <button type="button" class="md-btn" data-md="quote" title="Quote (> text)" aria-label="Quote">&gt;</button>
+          <button type="button" class="md-btn" data-md="list" title="List (- item)" aria-label="List">☰</button>
+          <button type="button" class="md-btn" data-md="h1" title="Heading (#)" aria-label="Heading">H</button>
+          <span class="markdown-help" aria-hidden="true">MARKDOWN SUPPORTED</span>
         </div>
-        <textarea id="reply-content" class="reply-textarea" placeholder="ENTER YOUR RESPONSE... (Markdown supported: **bold**, *italic*, `code`, > quote)" rows="3" required></textarea>
-        <button type="submit" class="reply-submit">TRANSMIT</button>
+        <label for="reply-content" class="sr-only">Your reply</label>
+        <textarea id="reply-content" class="reply-textarea" placeholder="ENTER YOUR RESPONSE... (Markdown supported: **bold**, *italic*, `code`, > quote)" rows="3" required aria-label="Write your reply"></textarea>
+        <button type="submit" class="reply-submit" aria-label="Submit reply">TRANSMIT</button>
       </form>
-    </div>
+    </section>
 
     <!-- Jump to Unread Button -->
-    <button class="jump-unread-btn" id="jump-unread-btn" title="Jump to first unread">↓ NEW</button>
+    <button class="jump-unread-btn" id="jump-unread-btn" title="Jump to first unread" aria-label="Jump to first unread post">↓ NEW</button>
 
     <!-- Back to Top Button -->
-    <button class="back-to-top" id="back-to-top" title="Back to top">↑ TOP</button>
+    <button class="back-to-top" id="back-to-top" title="Back to top" aria-label="Scroll to top of page">↑ TOP</button>
 
     <!-- Footer -->
-    <footer class="thread-footer" data-component="thread-footer">
+    <footer class="thread-footer" data-component="thread-footer" role="contentinfo">
       <span data-bind="signal-id">SIG.000</span>
-      <span>RECORD VIEW</span>
-      <span data-bind="connection-status">CONN.ACTIVE</span>
+      <span aria-hidden="true">RECORD VIEW</span>
+      <span data-bind="connection-status" aria-live="polite">CONN.ACTIVE</span>
     </footer>
 
   </div>

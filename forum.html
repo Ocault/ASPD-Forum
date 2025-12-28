@@ -9,58 +9,62 @@
 </head>
 <body>
 
+  <!-- Skip to main content -->
+  <a href="#rooms-container" class="skip-link">Skip to forum rooms</a>
+
   <!-- Noise Overlay -->
-  <div class="noise"></div>
+  <div class="noise" aria-hidden="true"></div>
 
   <!-- Forum Layout -->
   <div class="forum-container" data-page="forum">
 
     <!-- Header -->
-    <header class="forum-header" data-component="forum-header">
-      <a href="index.html" class="forum-logo" data-bind="site-title">ASPD.FORUM</a>
-      <div class="header-right">
-        <span class="forum-status" data-bind="page-status">ROOMS</span>
-        <a href="activity.html" class="header-link" title="Activity Feed">[FEED]</a>
-        <a href="search.html" class="header-search" title="Search">[SEARCH]</a>
-        <a href="#" class="header-notifications" id="notif-bell" title="Notifications">
-          <span class="notif-icon">[!]</span>
-          <span class="notif-badge" id="notif-badge" style="display: none;">0</span>
+    <header class="forum-header" data-component="forum-header" role="banner">
+      <a href="index.html" class="forum-logo" data-bind="site-title" aria-label="ASPD Forum Home">ASPD.FORUM</a>
+      <nav class="header-right" aria-label="Main navigation">
+        <span class="forum-status" data-bind="page-status" aria-hidden="true">ROOMS</span>
+        <a href="activity.html" class="header-link" title="Activity Feed" aria-label="View activity feed">[FEED]</a>
+        <a href="search.html" class="header-search" title="Search" aria-label="Search forum">[SEARCH]</a>
+        <a href="#" class="header-notifications" id="notif-bell" title="Notifications" aria-label="View notifications" role="button">
+          <span class="notif-icon" aria-hidden="true">[!]</span>
+          <span class="notif-badge" id="notif-badge" style="display: none;" aria-live="polite">0</span>
         </a>
-        <a href="messages.html" class="header-messages">MSG</a>
-        <a href="profile.html" class="header-profile" data-action="profile">PROFILE</a>
-        <a href="#" class="header-exit" data-action="logout">EXIT</a>
-      </div>
+        <a href="messages.html" class="header-messages" aria-label="Messages">MSG</a>
+        <a href="profile.html" class="header-profile" data-action="profile" aria-label="View profile">PROFILE</a>
+        <a href="#" class="header-exit" data-action="logout" aria-label="Sign out">EXIT</a>
+      </nav>
     </header>
 
     <!-- Announcements Banner -->
     <div class="announcements-banner" id="announcements-banner" style="display: none;"></div>
 
     <!-- Filter Bar -->
-    <div class="filter-bar">
-      <input type="text" id="filter-input" class="filter-input" placeholder="FILTER BY TITLE...">
+    <div class="filter-bar" role="search">
+      <label for="filter-input" class="sr-only">Filter rooms by title</label>
+      <input type="text" id="filter-input" class="filter-input" placeholder="FILTER BY TITLE..." aria-label="Filter rooms">
     </div>
 
     <!-- Room Grid - Container for dynamic room nodes -->
-    <main class="rooms-grid" id="rooms-container" data-container="rooms">
+    <main class="rooms-grid" id="rooms-container" data-container="rooms" role="main" aria-label="Forum rooms">
       <!-- PLACEHOLDER: Room nodes will be injected here by JS -->
     </main>
 
     <!-- Who's Online Section -->
-    <div class="whos-online-section">
+    <aside class="whos-online-section" aria-label="Online users">
       <div class="whos-online-header">
-        <h3>WHO'S ONLINE</h3>
-        <span class="online-count" id="online-count">0 ONLINE</span>
+        <h3 id="whos-online-title">WHO'S ONLINE</h3>
+        <span class="online-count" id="online-count" aria-live="polite">0 ONLINE</span>
       </div>
-      <div class="online-users-list" id="whos-online-list">
+      <div class="online-users-list" id="whos-online-list" role="list" aria-labelledby="whos-online-title">
         <span style="color: var(--text-muted); font-size: 0.5rem;">Loading...</span>
       </div>
-    </div>
+    </aside>
 
     <!-- Footer -->
-    <footer class="forum-footer" data-component="forum-footer">
+    <footer class="forum-footer" data-component="forum-footer" role="contentinfo">
       <span data-bind="version">SYS.1.0.0</span>
-      <span data-bind="node-count">NODES: <span id="room-count">0</span></span>
-      <span data-bind="connection-status">CONN.ACTIVE</span>
+      <span data-bind="node-count">NODES: <span id="room-count" aria-live="polite">0</span></span>
+      <span data-bind="connection-status" aria-live="polite">CONN.ACTIVE</span>
     </footer>
 
   </div>

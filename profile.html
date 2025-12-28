@@ -9,62 +9,65 @@
 </head>
 <body>
 
+  <!-- Skip to main content -->
+  <a href="#profile-main" class="skip-link">Skip to profile content</a>
+
   <!-- Noise Overlay -->
-  <div class="noise"></div>
+  <div class="noise" aria-hidden="true"></div>
 
   <!-- Profile Layout -->
   <div class="profile-container" data-page="profile">
 
     <!-- Header -->
-    <header class="profile-header">
-      <div class="profile-header-left">
-        <a href="forum.html" class="profile-back">← NODES</a>
-        <span class="profile-divider">/</span>
+    <header class="profile-header" role="banner">
+      <nav class="profile-header-left" aria-label="Breadcrumb">
+        <a href="forum.html" class="profile-back" aria-label="Back to forum">← NODES</a>
+        <span class="profile-divider" aria-hidden="true">/</span>
         <span class="profile-title">USER PROFILE</span>
-      </div>
-      <div class="header-right">
-        <a href="#" class="header-exit" data-action="logout">EXIT</a>
-      </div>
+      </nav>
+      <nav class="header-right" aria-label="User navigation">
+        <a href="#" class="header-exit" data-action="logout" aria-label="Sign out">EXIT</a>
+      </nav>
     </header>
 
     <!-- Profile Content -->
-    <main class="profile-main">
+    <main class="profile-main" id="profile-main" role="main">
       
       <!-- Profile Card -->
-      <div class="profile-card">
+      <article class="profile-card" aria-label="User profile information">
         <div class="profile-avatar-section">
-          <canvas id="profile-avatar" class="avatar-large" width="80" height="80"></canvas>
+          <canvas id="profile-avatar" class="avatar-large" width="80" height="80" aria-label="User avatar"></canvas>
         </div>
         <div class="profile-info">
           <h1 class="profile-alias" id="profile-alias">Loading...</h1>
           <div class="profile-meta">
             <span class="profile-joined" id="profile-joined">JOINED: ---</span>
-            <span class="profile-last-seen" id="profile-last-seen"></span>
+            <span class="profile-last-seen" id="profile-last-seen" aria-live="polite"></span>
           </div>
-          <div class="profile-title" id="profile-custom-title"></div>
-          <div class="profile-rank" id="profile-rank"></div>
-          <div class="profile-bio" id="profile-bio">No bio set.</div>
-          <div class="profile-signature" id="profile-signature"></div>
+          <div class="profile-title" id="profile-custom-title" aria-label="Custom title"></div>
+          <div class="profile-rank" id="profile-rank" aria-label="User rank"></div>
+          <p class="profile-bio" id="profile-bio">No bio set.</p>
+          <div class="profile-signature" id="profile-signature" aria-label="Signature"></div>
         </div>
-        <div class="profile-stats">
+        <div class="profile-stats" role="group" aria-label="User statistics">
           <div class="stat-item">
-            <span class="stat-value" id="stat-posts">0</span>
+            <span class="stat-value" id="stat-posts" aria-label="Post count">0</span>
             <span class="stat-label">POSTS</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value" id="stat-threads">0</span>
+            <span class="stat-value" id="stat-threads" aria-label="Thread count">0</span>
             <span class="stat-label">THREADS</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value" id="stat-rep">0</span>
+            <span class="stat-value" id="stat-rep" aria-label="Reputation">0</span>
             <span class="stat-label">REP</span>
           </div>
         </div>
-      </div>
+      </article>
 
       <!-- Edit Profile Button (own profile only) -->
       <div class="profile-actions" id="profile-actions" style="display: none;">
-        <button class="edit-profile-btn" id="edit-profile-btn">EDIT PROFILE</button>
+        <button class="edit-profile-btn" id="edit-profile-btn" aria-label="Edit your profile">EDIT PROFILE</button>
       </div>
 
       <!-- Account Settings (own profile only) -->
