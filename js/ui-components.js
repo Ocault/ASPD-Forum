@@ -187,7 +187,7 @@ const UIComponents = (function() {
    */
   function signalRow(signal, isAdmin) {
     const id = signal.id || '';
-    const title = signal.title || 'UNTITLED';
+    const title = Utils.escapeHtml(signal.title || 'UNTITLED');
     const href = signal.href || '#';
     const meta = signal.meta || '';
     const isPinned = signal.is_pinned || false;
@@ -204,7 +204,7 @@ const UIComponents = (function() {
     let tagsHtml = '';
     if (tags.length > 0) {
       tagsHtml = '<span class="signal-tags">' + tags.map(function(tag) {
-        return '<span class="signal-tag" style="background-color:' + (tag.color || '#4a9') + '">' + (tag.name || '').toUpperCase() + '</span>';
+        return '<span class="signal-tag" style="background-color:' + (tag.color || '#4a9') + '">' + Utils.escapeHtml((tag.name || '').toUpperCase()) + '</span>';
       }).join('') + '</span>';
     }
     
@@ -271,12 +271,12 @@ const UIComponents = (function() {
     
     // If user has custom title, show that instead of rank
     const badgeHtml = customTitle 
-      ? `<span class="user-title">${customTitle}</span>` 
+      ? `<span class="user-title">${Utils.escapeHtml(customTitle)}</span>` 
       : (rank ? `<span class="entry-rank rank-badge rank-${rank.toLowerCase()}" title="${rankExplanations[rank] || rank}">${rank}<span class="rank-info-tooltip">${rankExplanations[rank] || rank}</span></span>` : '');
     
     // Make alias a clickable link to profile
     const identityLabel = isAnonymous 
-      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${alias}</a>${badgeHtml}` 
+      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${Utils.escapeHtml(alias)}</a>${badgeHtml}` 
       : 'ARCHIVE';
     
     // Format timestamp

@@ -147,9 +147,9 @@
           var fromAlias = folder === 'sent' ? msg.recipient_alias : msg.sender_alias;
           var readClass = msg.is_read ? '' : 'message-item--unread';
           return '<div class="message-item ' + readClass + '" data-msg-id="' + msg.id + '">' +
-            '<div class="message-from">' + fromAlias + '</div>' +
-            '<div class="message-subject">' + (msg.subject || '(No subject)') + '</div>' +
-            '<div class="message-preview">' + msg.content.substring(0, 50) + '</div>' +
+            '<div class="message-from">' + Utils.escapeHtml(fromAlias) + '</div>' +
+            '<div class="message-subject">' + Utils.escapeHtml(msg.subject || '(No subject)') + '</div>' +
+            '<div class="message-preview">' + Utils.escapeHtml(msg.content.substring(0, 50)) + '</div>' +
             '<div class="message-date">' + formatDate(msg.created_at) + '</div>' +
           '</div>';
         }).join('');
@@ -210,11 +210,11 @@
               messageView.innerHTML = 
                 '<div class="message-full">' +
                   '<div class="message-full-header">' +
-                    '<div class="message-full-from">' + (isSent ? 'TO: ' : 'FROM: ') + otherAlias + '</div>' +
+                    '<div class="message-full-from">' + (isSent ? 'TO: ' : 'FROM: ') + Utils.escapeHtml(otherAlias) + '</div>' +
                     '<div class="message-full-date">' + formatDate(msg.created_at) + '</div>' +
                   '</div>' +
-                  '<div class="message-full-subject">' + (msg.subject || '(No subject)') + '</div>' +
-                  '<div class="message-full-content">' + msg.content.replace(/\n/g, '<br>') + '</div>' +
+                  '<div class="message-full-subject">' + Utils.escapeHtml(msg.subject || '(No subject)') + '</div>' +
+                  '<div class="message-full-content">' + Utils.escapeHtml(msg.content).replace(/\n/g, '<br>') + '</div>' +
                   '<div class="message-full-actions">' +
                     (isSent ? '' : '<button class="reply-submit" id="reply-btn">REPLY</button>') +
                     '<button class="cancel-btn" id="delete-msg-btn">DELETE</button>' +
