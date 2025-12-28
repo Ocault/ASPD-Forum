@@ -2062,26 +2062,146 @@ ul {
 .profile-avatar-section {
   flex-shrink: 0;
   position: relative;
-  border-radius: 50%;
-  padding: 8px; /* Space for the animated border */
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* Profile avatar animated border support */
-.profile-avatar-section[class*="avatar-rank-"]::before {
+/* Profile avatar animated border support - override for larger avatar */
+.profile-avatar-section.avatar-rank-owner::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 50%;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  border-radius: 4px;
+  background: conic-gradient(
+    from 0deg,
+    #000000,
+    #1a1a1a,
+    #2a2a2a,
+    #ffffff,
+    #2a2a2a,
+    #1a1a1a,
+    #000000
+  );
+  animation: owner-spin 1.5s linear infinite;
   z-index: 0;
 }
 
-.profile-avatar-section .avatar-large {
+.profile-avatar-section.avatar-rank-owner::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  border-radius: 6px;
+  background: conic-gradient(
+    from 180deg,
+    transparent 0%,
+    transparent 30%,
+    rgba(255, 255, 255, 0.6) 45%,
+    #ffffff 50%,
+    rgba(255, 255, 255, 0.6) 55%,
+    transparent 70%,
+    transparent 100%
+  );
+  animation: owner-spin-reverse 2s linear infinite;
+  z-index: -1;
+}
+
+/* Regular rank borders for profile */
+.profile-avatar-section.avatar-rank-active::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  border-radius: 4px;
+  z-index: 0;
+  background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+  animation: active-pulse 3s ease-in-out infinite;
+  box-shadow: 0 0 3px rgba(60, 60, 60, 0.4);
+}
+
+.profile-avatar-section.avatar-rank-member::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  border-radius: 4px;
+  z-index: 0;
+  background: linear-gradient(135deg, #1a1a1a 0%, #3a3a3a 25%, #2a2a2a 50%, #3a3a3a 75%, #1a1a1a 100%);
+  background-size: 200% 200%;
+  animation: member-shimmer 4s ease-in-out infinite;
+  box-shadow: 0 0 4px rgba(80, 80, 80, 0.3);
+}
+
+.profile-avatar-section.avatar-rank-regular::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  border-radius: 4px;
+  z-index: 0;
+  background: conic-gradient(from 0deg, #1a1a1a, #2a2a2a, #3a3a3a, #2a2a2a, #1a1a1a);
+  animation: regular-rotate 4s linear infinite;
+  box-shadow: 0 0 5px rgba(90, 90, 90, 0.4);
+}
+
+.profile-avatar-section.avatar-rank-expert::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  border-radius: 4px;
+  z-index: 0;
+  background: linear-gradient(90deg, #1a1a1a, #3a3a3a, #505050, #3a3a3a, #1a1a1a);
+  background-size: 300% 100%;
+  animation: expert-sweep 2.5s linear infinite, expert-glow 2s ease-in-out infinite;
+}
+
+.profile-avatar-section.avatar-rank-veteran::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  border-radius: 4px;
+  z-index: 0;
+  background: conic-gradient(from 0deg, #000000, #1a1a1a, #3a3a3a, #505050, #3a3a3a, #1a1a1a, #000000);
+  animation: veteran-spin 2s linear infinite;
+}
+
+.profile-avatar-section.avatar-rank-veteran::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  border-radius: 6px;
+  background: conic-gradient(from 180deg, transparent, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08), transparent);
+  animation: veteran-spin-reverse 3s linear infinite;
+  z-index: -1;
+}
+
+.profile-avatar-section .avatar-large,
+.profile-avatar-section .profile-avatar-img {
   position: relative;
-  z-index: 1;
-  border-radius: 50%;
+  z-index: 2;
 }
 
 .avatar-large {
@@ -2089,6 +2209,14 @@ ul {
   height: 80px;
   border: 1px solid var(--border-color);
   background-color: var(--bg-panel);
+}
+
+.profile-avatar-img {
+  width: 80px;
+  height: 80px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-panel);
+  object-fit: cover;
 }
 
 .profile-info {
@@ -6175,13 +6303,11 @@ img.loaded {
 /* Base avatar with rank styling */
 .entry-avatar {
   position: relative;
-  border-radius: 50%;
 }
 
 .entry-avatar .avatar-mini {
   position: relative;
   z-index: 1;
-  border-radius: 50%;
 }
 
 /* Rank avatar container - adds the animated border effect */
@@ -6192,7 +6318,7 @@ img.loaded {
   left: -3px;
   right: -3px;
   bottom: -3px;
-  border-radius: 50%;
+  border-radius: 4px;
   z-index: 0;
 }
 
@@ -6266,7 +6392,7 @@ img.loaded {
   right: 0;
   bottom: 0;
   background: var(--bg-primary);
-  border-radius: 50%;
+  border-radius: 4px;
   z-index: 0;
 }
 
@@ -6309,7 +6435,7 @@ img.loaded {
   right: 1px;
   bottom: 1px;
   background: var(--bg-primary);
-  border-radius: 50%;
+  border-radius: 4px;
   z-index: 0;
 }
 
@@ -6343,7 +6469,7 @@ img.loaded {
   left: -5px;
   right: -5px;
   bottom: -5px;
-  border-radius: 50%;
+  border-radius: 6px;
   background: conic-gradient(
     from 180deg,
     transparent,
@@ -6402,7 +6528,7 @@ img.loaded {
   left: -4px;
   right: -4px;
   bottom: -4px;
-  border-radius: 50%;
+  border-radius: 4px;
   background: conic-gradient(
     from 0deg,
     #000000,
@@ -6430,7 +6556,7 @@ img.loaded {
   left: -7px;
   right: -7px;
   bottom: -7px;
-  border-radius: 50%;
+  border-radius: 6px;
   background: conic-gradient(
     from 180deg,
     transparent 0%,
