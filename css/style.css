@@ -1739,11 +1739,11 @@ ul {
 
 .new-thread-form-wrapper {
   margin-top: var(--spacing-sm);
-  display: none;
+  display: none !important;
 }
 
 .new-thread-form-wrapper.visible {
-  display: block;
+  display: block !important;
 }
 
 .new-thread-form {

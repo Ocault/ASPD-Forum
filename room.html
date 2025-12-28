@@ -113,6 +113,17 @@
       </div>
     </div>
 
+    <!-- Who's Online Section -->
+    <aside class="whos-online-section" aria-label="Online users">
+      <div class="whos-online-header">
+        <h3 id="whos-online-title">WHO'S ONLINE</h3>
+        <span class="online-count" id="online-count" aria-live="polite">0 ONLINE</span>
+      </div>
+      <div class="online-users-list" id="whos-online-list" role="list" aria-labelledby="whos-online-title">
+        <span class="loading-text">Loading...</span>
+      </div>
+    </aside>
+
     <!-- Back to Top Button -->
     <button class="back-to-top" id="back-to-top" title="Back to top">↑ TOP</button>
 
@@ -387,6 +398,35 @@
       }
 
       /**
+       * Load who's online
+       */
+      function loadWhosOnline() {
+        AuthState.apiRequest('/api/users/online')
+          .then(function(data) {
+            if (data.success) {
+              var container = document.getElementById('whos-online-list');
+              var countEl = document.getElementById('online-count');
+              
+              if (countEl) countEl.textContent = data.count + ' ONLINE';
+              
+              if (container && data.users && data.users.length > 0) {
+                container.innerHTML = data.users.map(function(u) {
+                  var label = u.isAdmin ? 'ADMIN' : (u.isMod ? 'MOD' : '');
+                  return '<a href="profile.html?alias=' + encodeURIComponent(u.alias) + '" class="online-user">' +
+                    '<span class="online-indicator"></span>' +
+                    '<span class="online-alias">' + u.alias + '</span>' +
+                    (label ? '<span class="online-rank">[' + label + ']</span>' : '') +
+                  '</a>';
+                }).join('');
+              } else if (container) {
+                container.innerHTML = '<span class="no-users">No users online</span>';
+              }
+            }
+          })
+          .catch(function() {});
+      }
+
+      /**
        * Initialize page
        */
       function init() {
@@ -395,6 +435,10 @@
 
         // Load available tags for filter
         loadTags();
+        
+        // Load who's online
+        loadWhosOnline();
+        setInterval(loadWhosOnline, 60000); // Update every minute
 
         fetchRoom(roomId, 1)
           .then(function(data) {
