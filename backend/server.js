@@ -288,6 +288,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
   } catch (err) {
+    console.error('[THREAD ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -762,8 +763,12 @@ async function migrate() {
         thread_id INTEGER REFERENCES threads(id),
         user_id INTEGER REFERENCES users(id),
         content TEXT NOT NULL,
+        alias VARCHAR(50),
+        avatar_config JSONB,
+        ip_hash VARCHAR(64),
         is_hidden BOOLEAN DEFAULT FALSE,
         is_deleted BOOLEAN DEFAULT FALSE,
+        shadow_banned BOOLEAN DEFAULT FALSE,
         edited_at TIMESTAMP,
         deleted_at TIMESTAMP,
         deleted_by INTEGER REFERENCES users(id),
@@ -771,6 +776,10 @@ async function migrate() {
       );
       
       -- Add columns if they don't exist (for existing databases)
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS alias VARCHAR(50);
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS avatar_config JSONB;
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS ip_hash VARCHAR(64);
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS shadow_banned BOOLEAN DEFAULT FALSE;
       ALTER TABLE entries ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
       ALTER TABLE entries ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP;
       ALTER TABLE entries ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
