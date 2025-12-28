@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASPD Forum — Post History</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise"></div>
+
+  <!-- Post History Layout -->
+  <div class="post-history-container" data-page="history">
+
+    <!-- Header -->
+    <header class="profile-header">
+      <div class="profile-header-left">
+        <a href="forum.html" class="profile-back">← NODES</a>
+        <span class="profile-divider">/</span>
+        <span class="profile-title">POST HISTORY</span>
+      </div>
+      <div class="header-right">
+        <a href="profile.html" class="header-profile">PROFILE</a>
+        <a href="#" class="header-exit" data-action="logout">EXIT</a>
+      </div>
+    </header>
+
+    <!-- User Info -->
+    <div class="history-user-info" id="user-info">
+      <h1 id="history-alias">Loading...</h1>
+      <p id="history-count">0 posts</p>
+    </div>
+
+    <!-- Post History List -->
+    <main class="post-history-list" id="post-list">
+      <div class="empty-state">Loading posts...</div>
+    </main>
+
+    <!-- Pagination -->
+    <div id="pagination-container"></div>
+
+    <!-- Footer -->
+    <footer class="profile-footer">
+      <span>POST HISTORY</span>
+      <span>USER DATA</span>
+      <span data-bind="connection-status">CONN.ACTIVE</span>
+    </footer>
+
+  </div>
+
+  <script src="js/auth.js"></script>
+  <script src="js/ui-components.js"></script>
+  <script>
+    (function() {
+      'use strict';
+
+      // Get alias from URL
+      var urlParams = new URLSearchParams(window.location.search);
+      var alias = urlParams.get('alias');
+      var currentPage = parseInt(urlParams.get('page')) || 1;
+
+      if (!alias) {
+        window.location.href = 'forum.html';
+        return;
+      }
+
+      var postList = document.getElementById('post-list');
+      var historyAlias = document.getElementById('history-alias');
+      var historyCount = document.getElementById('history-count');
+      var paginationContainer = document.getElementById('pagination-container');
+
+      function formatDate(dateStr) {
+        if (!dateStr) return '';
+        var d = new Date(dateStr);
+        return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + 
+               ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function loadPosts(page) {
+        AuthState.apiRequest('/api/users/' + encodeURIComponent(alias) + '/posts?page=' + page + '&limit=20')
+          .then(function(data) {
+            if (!data.success) {
+              postList.innerHTML = '<div class="empty-state">User not found or no posts.</div>';
+              return;
+            }
+
+            historyAlias.textContent = alias + "'s Posts";
+            historyCount.textContent = data.pagination.total + ' posts total';
+            document.title = 'ASPD Forum — ' + alias + "'s Post History";
+
+            if (!data.posts || data.posts.length === 0) {
+              postList.innerHTML = '<div class="empty-state">No posts yet.</div>';
+              return;
+            }
+
+            postList.innerHTML = data.posts.map(function(post) {
+              var content = escapeHtml(post.content);
+              if (content.length > 500) {
+                content = content.substring(0, 500) + '...';
+              }
+              
+              return '<div class="post-history-item">' +
+                '<div class="post-history-header">' +
+                  '<a href="thread.html?id=' + post.thread.id + '" class="post-history-thread">' + escapeHtml(post.thread.title) + '</a>' +
+                  '<span class="post-history-room">in ' + escapeHtml(post.room.title) + '</span>' +
+                '</div>' +
+                '<div class="post-history-content">' + content + '</div>' +
+                '<div class="post-history-time">' + formatDate(post.createdAt) + (post.editedAt ? ' (edited)' : '') + '</div>' +
+              '</div>';
+            }).join('');
+
+            // Render pagination
+            if (data.pagination.totalPages > 1) {
+              paginationContainer.innerHTML = UIComponents.paginationControls(data.pagination);
+              
+              paginationContainer.querySelectorAll('.pagination-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                  var targetPage = parseInt(this.dataset.page);
+                  if (targetPage && !this.disabled) {
+                    window.location.href = 'history.html?alias=' + encodeURIComponent(alias) + '&page=' + targetPage;
+                  }
+                });
+              });
+            } else {
+              paginationContainer.innerHTML = '';
+            }
+          })
+          .catch(function(err) {
+            postList.innerHTML = '<div class="empty-state">Error loading posts.</div>';
+          });
+      }
+
+      // Logout handler
+      document.querySelector('[data-action="logout"]').addEventListener('click', function(e) {
+        e.preventDefault();
+        AuthState.logout();
+        window.location.href = 'login.html';
+      });
+
+      // Initialize
+      AuthState.init(function() {
+        if (!AuthState.hasToken()) {
+          window.location.href = 'login.html';
+          return;
+        }
+        loadPosts(currentPage);
+      });
+    })();
+  </script>
+</body>
+</html>

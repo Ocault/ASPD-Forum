@@ -41,6 +41,7 @@
             <span class="profile-joined" id="profile-joined">JOINED: ---</span>
             <span class="profile-last-seen" id="profile-last-seen"></span>
           </div>
+          <div class="profile-title" id="profile-custom-title"></div>
           <div class="profile-rank" id="profile-rank"></div>
           <div class="profile-bio" id="profile-bio">No bio set.</div>
           <div class="profile-signature" id="profile-signature"></div>
@@ -114,7 +115,7 @@
 
       <!-- Recent Activity -->
       <div class="profile-section">
-        <h2 class="section-title">RECENT ACTIVITY</h2>
+        <h2 class="section-title">RECENT ACTIVITY <a href="#" id="view-all-posts" class="section-link">[VIEW ALL]</a></h2>
         <div class="recent-posts" id="recent-posts">
           <div class="empty-state">NO RECENT ACTIVITY</div>
         </div>
@@ -281,6 +282,14 @@
         statThreads.textContent = profile.stats.threads;
         document.title = 'ASPD Forum — ' + profile.alias;
 
+        // Display custom title
+        var profileCustomTitle = document.getElementById('profile-custom-title');
+        if (profile.customTitle) {
+          profileCustomTitle.innerHTML = '<span class="user-title">' + profile.customTitle + '</span>';
+        } else {
+          profileCustomTitle.textContent = '';
+        }
+
         // Display rank and reputation
         var profileRank = document.getElementById('profile-rank');
         var statRep = document.getElementById('stat-rep');
@@ -347,6 +356,10 @@
         } else {
           recentPosts.innerHTML = '<div class="empty-state">NO RECENT ACTIVITY</div>';
         }
+
+        // Update view all posts link
+        var viewAllPostsLink = document.getElementById('view-all-posts');
+        viewAllPostsLink.href = 'history.html?alias=' + encodeURIComponent(profile.alias);
 
         // Show edit button and account settings if own profile
         if (isOwnProfile) {

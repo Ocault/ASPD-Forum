@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASPD Forum — Activity Feed</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise"></div>
+
+  <!-- Activity Feed Layout -->
+  <div class="post-history-container" data-page="activity">
+
+    <!-- Header -->
+    <header class="profile-header">
+      <div class="profile-header-left">
+        <a href="forum.html" class="profile-back">← NODES</a>
+        <span class="profile-divider">/</span>
+        <span class="profile-title">ACTIVITY FEED</span>
+      </div>
+      <div class="header-right">
+        <a href="search.html" class="header-link">[SEARCH]</a>
+        <a href="profile.html" class="header-profile">PROFILE</a>
+        <a href="messages.html" class="header-messages">MSG</a>
+        <a href="#" class="header-exit" data-action="logout">EXIT</a>
+      </div>
+    </header>
+
+    <!-- Activity Feed -->
+    <main class="activity-feed" id="activity-feed">
+      <div class="empty-state">Loading activity...</div>
+    </main>
+
+    <!-- Pagination -->
+    <div id="pagination-container"></div>
+
+    <!-- Footer -->
+    <footer class="profile-footer">
+      <span>ACTIVITY</span>
+      <span>LIVE FEED</span>
+      <span data-bind="connection-status">CONN.ACTIVE</span>
+    </footer>
+
+  </div>
+
+  <script src="js/auth.js"></script>
+  <script src="js/avatar-renderer.js"></script>
+  <script src="js/ui-components.js"></script>
+  <script>
+    (function() {
+      'use strict';
+
+      var urlParams = new URLSearchParams(window.location.search);
+      var currentPage = parseInt(urlParams.get('page')) || 1;
+
+      var activityFeed = document.getElementById('activity-feed');
+      var paginationContainer = document.getElementById('pagination-container');
+
+      function formatTimeAgo(dateStr) {
+        if (!dateStr) return '';
+        var d = new Date(dateStr);
+        var now = new Date();
+        var diffMs = now - d;
+        var diffMins = Math.floor(diffMs / 60000);
+        var diffHours = Math.floor(diffMs / 3600000);
+        var diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) return 'just now';
+        if (diffMins < 60) return diffMins + 'm ago';
+        if (diffHours < 24) return diffHours + 'h ago';
+        if (diffDays < 7) return diffDays + 'd ago';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+
+      function getActionText(actionType) {
+        switch (actionType) {
+          case 'created_thread': return 'created a thread';
+          case 'posted_reply': return 'replied in';
+          case 'created_poll': return 'created a poll in';
+          default: return actionType.replace(/_/g, ' ');
+        }
+      }
+
+      function getTargetLink(activity) {
+        if (activity.targetType === 'thread') {
+          return 'thread.html?id=' + activity.targetId;
+        }
+        return '#';
+      }
+
+      function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function loadActivity(page) {
+        AuthState.apiRequest('/api/activity?page=' + page + '&limit=30')
+          .then(function(data) {
+            if (!data.success || !data.activities || data.activities.length === 0) {
+              activityFeed.innerHTML = '<div class="empty-state">No recent activity.</div>';
+              return;
+            }
+
+            activityFeed.innerHTML = data.activities.map(function(activity) {
+              var avatarConfig = activity.user.avatarConfig ? JSON.stringify(activity.user.avatarConfig).replace(/"/g, '&quot;') : '';
+              
+              return '<div class="activity-item" data-avatar-config="' + avatarConfig + '">' +
+                '<div class="activity-avatar">' +
+                  '<canvas class="avatar-mini" width="28" height="28"></canvas>' +
+                '</div>' +
+                '<div class="activity-content">' +
+                  '<div class="activity-header">' +
+                    '<span>' +
+                      '<a href="profile.html?alias=' + encodeURIComponent(activity.user.alias) + '" class="activity-user">' + escapeHtml(activity.user.alias) + '</a>' +
+                      ' <span class="activity-action">' + getActionText(activity.actionType) + '</span>' +
+                    '</span>' +
+                    '<span class="activity-time">' + formatTimeAgo(activity.createdAt) + '</span>' +
+                  '</div>' +
+                  '<a href="' + getTargetLink(activity) + '" class="activity-target">' + escapeHtml(activity.targetTitle || '') + '</a>' +
+                '</div>' +
+              '</div>';
+            }).join('');
+
+            // Render avatars
+            activityFeed.querySelectorAll('.activity-item').forEach(function(item) {
+              var configStr = item.dataset.avatarConfig;
+              var canvas = item.querySelector('.avatar-mini');
+              if (canvas && configStr) {
+                try {
+                  var config = JSON.parse(configStr);
+                  if (config.customImage) {
+                    var img = document.createElement('img');
+                    img.src = config.customImage;
+                    img.className = 'avatar-mini-img';
+                    canvas.parentNode.replaceChild(img, canvas);
+                  } else {
+                    AvatarRenderer.render(canvas, config);
+                  }
+                } catch (e) {
+                  AvatarRenderer.render(canvas, AvatarRenderer.DEFAULT_CONFIG);
+                }
+              } else if (canvas) {
+                AvatarRenderer.render(canvas, AvatarRenderer.DEFAULT_CONFIG);
+              }
+            });
+
+            // Render pagination
+            if (data.pagination.totalPages > 1) {
+              paginationContainer.innerHTML = UIComponents.paginationControls(data.pagination);
+              
+              paginationContainer.querySelectorAll('.pagination-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                  var targetPage = parseInt(this.dataset.page);
+                  if (targetPage && !this.disabled) {
+                    window.location.href = 'activity.html?page=' + targetPage;
+                  }
+                });
+              });
+            } else {
+              paginationContainer.innerHTML = '';
+            }
+          })
+          .catch(function(err) {
+            activityFeed.innerHTML = '<div class="empty-state">Error loading activity.</div>';
+          });
+      }
+
+      // Logout handler
+      document.querySelector('[data-action="logout"]').addEventListener('click', function(e) {
+        e.preventDefault();
+        AuthState.logout();
+        window.location.href = 'login.html';
+      });
+
+      // Initialize
+      AuthState.init(function() {
+        if (!AuthState.hasToken()) {
+          window.location.href = 'login.html';
+          return;
+        }
+        loadActivity(currentPage);
+      });
+    })();
+  </script>
+</body>
+</html>

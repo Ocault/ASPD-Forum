@@ -240,13 +240,15 @@ const UIComponents = (function() {
     if (exceedsLimit) entryClass += ' entry--long';
     const identityClass = isAnonymous ? 'entry-alias' : 'entry-system-label';
     
-    // Get rank badge
+    // Get rank badge and custom title
     const rank = entry.rank || '';
+    const customTitle = entry.custom_title || '';
     const rankBadge = rank ? `<span class="entry-rank rank-badge rank-${rank.toLowerCase()}">${rank}</span>` : '';
+    const titleBadge = customTitle ? `<span class="user-title">${customTitle}</span>` : '';
     
     // Make alias a clickable link to profile
     const identityLabel = isAnonymous 
-      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${alias}</a>${rankBadge}` 
+      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${alias}</a>${titleBadge}${rankBadge}` 
       : 'ARCHIVE';
     
     // Format timestamp

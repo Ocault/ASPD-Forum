@@ -58,6 +58,15 @@
       </div>
     </div>
 
+    <!-- Poll Container (if thread has a poll) -->
+    <div class="poll-container" id="poll-container" style="display: none;">
+      <div class="poll-question" id="poll-question"></div>
+      <div class="poll-meta" id="poll-meta"></div>
+      <div class="poll-options" id="poll-options"></div>
+      <button class="poll-vote-btn" id="poll-vote-btn" style="display: none;">VOTE</button>
+      <div class="poll-total" id="poll-total"></div>
+    </div>
+
     <!-- Entry List - Container for dynamic entries -->
     <main class="entry-list" id="entries-container" data-container="entries">
       <!-- PLACEHOLDER: Entry elements will be injected here by JS -->
@@ -636,6 +645,9 @@
               checkBookmarkStatus(data.thread.id);
               checkSubscriptionStatus(data.thread.id);
               
+              // Load poll if exists
+              loadPoll(data.thread.id);
+              
               // Mark as read with last entry ID
               if (allEntries.length > 0) {
                 var lastEntryId = allEntries[allEntries.length - 1].id;
@@ -756,6 +768,132 @@
           body: JSON.stringify({ last_entry_id: lastEntryId })
         });
       }
+
+      // Poll functionality
+      var pollContainer = document.getElementById('poll-container');
+      var pollQuestion = document.getElementById('poll-question');
+      var pollMeta = document.getElementById('poll-meta');
+      var pollOptions = document.getElementById('poll-options');
+      var pollVoteBtn = document.getElementById('poll-vote-btn');
+      var pollTotal = document.getElementById('poll-total');
+      var currentPoll = null;
+      var selectedOptions = [];
+
+      function loadPoll(threadId) {
+        AuthState.apiRequest('/api/threads/' + threadId + '/poll')
+          .then(function(data) {
+            if (data.success && data.poll) {
+              currentPoll = data.poll;
+              renderPoll(data.poll);
+            }
+          });
+      }
+
+      function renderPoll(poll) {
+        pollContainer.style.display = 'block';
+        pollQuestion.textContent = poll.question;
+        
+        var metaText = 'Created by ' + poll.createdBy;
+        if (poll.endsAt) {
+          var endsAt = new Date(poll.endsAt);
+          metaText += ' • Ends: ' + endsAt.toLocaleDateString();
+          if (poll.isExpired) {
+            metaText += ' (EXPIRED)';
+          }
+        }
+        if (poll.allowMultiple) {
+          metaText += ' • Multiple choice';
+        }
+        pollMeta.textContent = metaText;
+
+        var hasVoted = poll.userVotes && poll.userVotes.length > 0;
+        selectedOptions = poll.userVotes ? poll.userVotes.slice() : [];
+
+        pollOptions.innerHTML = poll.options.map(function(opt) {
+          var isSelected = selectedOptions.includes(opt.id);
+          var votedClass = hasVoted || poll.isExpired ? 'voted' : '';
+          var selectedClass = isSelected ? 'selected' : '';
+          
+          var barWidth = hasVoted || poll.isExpired ? opt.percentage : 0;
+          
+          return '<div class="poll-option-wrapper">' +
+            '<div class="poll-option-bar" style="width: ' + barWidth + '%;"></div>' +
+            '<label class="poll-option ' + votedClass + ' ' + selectedClass + '" data-option-id="' + opt.id + '">' +
+              (hasVoted || poll.isExpired ? '' : '<input type="' + (poll.allowMultiple ? 'checkbox' : 'radio') + '" name="poll-option" value="' + opt.id + '" ' + (isSelected ? 'checked' : '') + '>') +
+              '<span class="poll-option-text">' + escapeHtml(opt.text) + '</span>' +
+              '<span class="poll-option-stats">' + opt.voteCount + ' (' + opt.percentage + '%)</span>' +
+            '</label>' +
+          '</div>';
+        }).join('');
+
+        pollTotal.textContent = poll.totalVoters + ' total voter' + (poll.totalVoters !== 1 ? 's' : '');
+
+        // Show vote button if not voted and not expired
+        if (!hasVoted && !poll.isExpired) {
+          pollVoteBtn.style.display = 'inline-block';
+          pollVoteBtn.disabled = true;
+
+          // Bind option selection
+          pollOptions.querySelectorAll('input').forEach(function(input) {
+            input.addEventListener('change', function() {
+              if (currentPoll.allowMultiple) {
+                if (this.checked) {
+                  selectedOptions.push(parseInt(this.value));
+                } else {
+                  selectedOptions = selectedOptions.filter(function(id) { return id !== parseInt(input.value); });
+                }
+              } else {
+                selectedOptions = [parseInt(this.value)];
+              }
+              pollVoteBtn.disabled = selectedOptions.length === 0;
+              
+              // Update selected styling
+              pollOptions.querySelectorAll('.poll-option').forEach(function(opt) {
+                var optId = parseInt(opt.dataset.optionId);
+                if (selectedOptions.includes(optId)) {
+                  opt.classList.add('selected');
+                } else {
+                  opt.classList.remove('selected');
+                }
+              });
+            });
+          });
+        } else {
+          pollVoteBtn.style.display = 'none';
+        }
+      }
+
+      function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      pollVoteBtn.addEventListener('click', function() {
+        if (!currentPoll || selectedOptions.length === 0) return;
+        pollVoteBtn.disabled = true;
+        pollVoteBtn.textContent = 'VOTING...';
+
+        AuthState.apiRequest('/api/polls/' + currentPoll.id + '/vote', {
+          method: 'POST',
+          body: JSON.stringify({ optionIds: selectedOptions })
+        })
+        .then(function(data) {
+          if (data.success) {
+            Notify.show('VOTE RECORDED', 'info');
+            loadPoll(currentThreadDbId);
+          } else {
+            Notify.show(data.error || 'VOTE FAILED', 'error');
+          }
+        })
+        .catch(function(err) {
+          Notify.show(err.message || 'VOTE ERROR', 'error');
+        })
+        .finally(function() {
+          pollVoteBtn.textContent = 'VOTE';
+          pollVoteBtn.disabled = false;
+        });
+      });
 
       // Reply form handler
       var replyForm = document.getElementById('reply-form');

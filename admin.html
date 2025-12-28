@@ -496,6 +496,7 @@
               <button class="admin-btn" id="btn-temp-ban">TEMP BAN</button>
               <button class="admin-btn" id="btn-unban">UNBAN</button>
               <button class="admin-btn" id="btn-add-note">ADD NOTE</button>
+              <button class="admin-btn" id="btn-set-title">SET TITLE</button>
             </div>
             <div class="user-detail-tabs">
               <button class="user-detail-tab active" data-tab="entries">ENTRIES</button>
@@ -684,6 +685,7 @@
 
       var currentSection = 'dashboard';
       var currentUserId = null;
+      var currentUserAlias = null;
       var currentUserTab = 'entries';
 
       // Navigation
@@ -869,6 +871,7 @@
         AuthState.apiRequest('/api/admin/users/' + userId)
           .then(function(data) {
             if (data.success) {
+              currentUserAlias = data.user.alias;
               var panel = document.getElementById('user-detail-panel');
               panel.classList.add('active');
               document.getElementById('detail-alias').textContent = data.user.alias + ' (#' + data.user.id + ')';
@@ -1011,6 +1014,25 @@
               Notify.show('Note added', 'info');
               loadUserTab('notes');
             }
+          });
+        }
+      });
+
+      document.getElementById('btn-set-title').addEventListener('click', function() {
+        if (!currentUserAlias) return;
+        var title = prompt('Set custom title (leave empty to remove):');
+        if (title !== null) {
+          AuthState.apiRequest('/api/admin/users/' + encodeURIComponent(currentUserAlias) + '/title', {
+            method: 'PUT',
+            body: JSON.stringify({ title: title || null })
+          }).then(function(data) {
+            if (data.success) {
+              Notify.show(title ? 'Title set: ' + title : 'Title removed', 'info');
+            } else {
+              Notify.show(data.error || 'Failed to set title', 'error');
+            }
+          }).catch(function(err) {
+            Notify.show(err.message || 'Error', 'error');
           });
         }
       });

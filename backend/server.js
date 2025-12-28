@@ -293,7 +293,7 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
   try {
     // Get user info
     const userResult = await db.query(
-      'SELECT id, alias, bio, avatar_config, signature, reputation, created_at FROM users WHERE alias = $1',
+      'SELECT id, alias, bio, avatar_config, signature, reputation, custom_title, created_at FROM users WHERE alias = $1',
       [alias]
     );
     
@@ -339,9 +339,11 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
     res.json({
       success: true,
       profile: {
+        id: user.id,
         alias: user.alias,
         bio: user.bio || '',
         signature: user.signature || '',
+        customTitle: user.custom_title || null,
         avatarConfig: user.avatar_config || null,
         reputation: user.reputation || 0,
         rank: rank,
@@ -558,6 +560,398 @@ app.get('/api/search', authMiddleware, async (req, res) => {
   }
 });
 
+// ========================================
+// ACTIVITY FEED
+// ========================================
+
+// Helper: Log activity
+async function logActivity(userId, actionType, targetType, targetId, targetTitle, details = null) {
+  try {
+    await db.query(
+      `INSERT INTO activity_feed (user_id, action_type, target_type, target_id, target_title, details)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [userId, actionType, targetType, targetId, targetTitle, details ? JSON.stringify(details) : null]
+    );
+  } catch (err) {
+    // Silent fail
+  }
+}
+
+// API: Get global activity feed
+app.get('/api/activity', authMiddleware, async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 30, 50);
+  const offset = (page - 1) * limit;
+  const userId = req.query.user_id ? parseInt(req.query.user_id) : null;
+
+  try {
+    let query = `
+      SELECT af.id, af.action_type, af.target_type, af.target_id, af.target_title, af.details, af.created_at,
+             u.alias, u.avatar_config
+      FROM activity_feed af
+      JOIN users u ON u.id = af.user_id
+      WHERE u.is_banned = FALSE
+    `;
+    let params = [];
+    let paramIndex = 1;
+
+    if (userId) {
+      query += ` AND af.user_id = $${paramIndex}`;
+      params.push(userId);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY af.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
+
+    const result = await db.query(query, params);
+
+    // Get total count
+    let countQuery = `SELECT COUNT(*) FROM activity_feed af JOIN users u ON u.id = af.user_id WHERE u.is_banned = FALSE`;
+    let countParams = [];
+    if (userId) {
+      countQuery += ` AND af.user_id = $1`;
+      countParams.push(userId);
+    }
+    const countResult = await db.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      success: true,
+      activities: result.rows.map(a => ({
+        id: a.id,
+        actionType: a.action_type,
+        targetType: a.target_type,
+        targetId: a.target_id,
+        targetTitle: a.target_title,
+        details: a.details,
+        createdAt: a.created_at,
+        user: {
+          alias: a.alias,
+          avatarConfig: a.avatar_config
+        }
+      })),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
+  } catch (err) {
+    console.error('[ACTIVITY ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// USER TITLES (Admin only)
+// ========================================
+
+// API: Set user custom title (admin only)
+app.put('/api/admin/users/:alias/title', authMiddleware, adminMiddleware, async (req, res) => {
+  const alias = req.params.alias;
+  const { title } = req.body;
+
+  if (title && title.length > 50) {
+    return res.status(400).json({ success: false, error: 'title_too_long' });
+  }
+
+  try {
+    const result = await db.query(
+      'UPDATE users SET custom_title = $1 WHERE alias = $2 RETURNING id, alias, custom_title',
+      [title || null, alias]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+
+    await logAudit('set_user_title', 'user', result.rows[0].id, req.user.userId, { title: title || null });
+
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    console.error('[SET TITLE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// POST HISTORY
+// ========================================
+
+// API: Get user's post history (full paginated)
+app.get('/api/users/:alias/posts', authMiddleware, async (req, res) => {
+  const alias = req.params.alias;
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+  const offset = (page - 1) * limit;
+
+  try {
+    // Get user
+    const userResult = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    const userId = userResult.rows[0].id;
+
+    // Get total count
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM entries WHERE user_id = $1 AND (is_deleted = FALSE OR is_deleted IS NULL)',
+      [userId]
+    );
+    const total = parseInt(countResult.rows[0].count);
+
+    // Get posts
+    const postsResult = await db.query(
+      `SELECT e.id, e.content, e.created_at, e.edited_at,
+              t.id AS thread_id, t.title AS thread_title,
+              r.slug AS room_slug, r.title AS room_title
+       FROM entries e
+       JOIN threads t ON t.id = e.thread_id
+       JOIN rooms r ON r.id = t.room_id
+       WHERE e.user_id = $1 AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)
+       ORDER BY e.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      posts: postsResult.rows.map(p => ({
+        id: p.id,
+        content: p.content,
+        createdAt: p.created_at,
+        editedAt: p.edited_at,
+        thread: {
+          id: p.thread_id,
+          title: p.thread_title
+        },
+        room: {
+          slug: p.room_slug,
+          title: p.room_title
+        }
+      })),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
+  } catch (err) {
+    console.error('[POST HISTORY ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// POLLS
+// ========================================
+
+// API: Create a poll for a thread
+app.post('/api/threads/:threadId/poll', authMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.threadId);
+  const { question, options, allowMultiple, endsAt } = req.body;
+
+  if (!question || !options || !Array.isArray(options) || options.length < 2) {
+    return res.status(400).json({ success: false, error: 'invalid_poll_data' });
+  }
+
+  if (options.length > 10) {
+    return res.status(400).json({ success: false, error: 'too_many_options' });
+  }
+
+  try {
+    // Check if thread exists and user is the owner or admin
+    const threadResult = await db.query('SELECT user_id FROM threads WHERE id = $1', [threadId]);
+    if (threadResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'thread_not_found' });
+    }
+
+    const isOwner = threadResult.rows[0].user_id === req.user.userId;
+    const adminCheck = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.user.userId]);
+    const isAdmin = adminCheck.rows.length > 0 && adminCheck.rows[0].is_admin;
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+
+    // Check if poll already exists
+    const existingPoll = await db.query('SELECT id FROM polls WHERE thread_id = $1', [threadId]);
+    if (existingPoll.rows.length > 0) {
+      return res.status(400).json({ success: false, error: 'poll_already_exists' });
+    }
+
+    // Create poll
+    const pollResult = await db.query(
+      `INSERT INTO polls (thread_id, question, allow_multiple, ends_at, created_by)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [threadId, question, allowMultiple || false, endsAt || null, req.user.userId]
+    );
+    const pollId = pollResult.rows[0].id;
+
+    // Create options
+    for (let i = 0; i < options.length; i++) {
+      await db.query(
+        'INSERT INTO poll_options (poll_id, option_text, display_order) VALUES ($1, $2, $3)',
+        [pollId, options[i], i]
+      );
+    }
+
+    // Log activity
+    await logActivity(req.user.userId, 'created_poll', 'thread', threadId, question);
+
+    res.json({ success: true, pollId });
+  } catch (err) {
+    console.error('[CREATE POLL ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Get poll for a thread
+app.get('/api/threads/:threadId/poll', authMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.threadId);
+  const userId = req.user.userId;
+
+  try {
+    const pollResult = await db.query(
+      `SELECT p.id, p.question, p.allow_multiple, p.ends_at, p.created_at,
+              u.alias AS created_by
+       FROM polls p
+       JOIN users u ON u.id = p.created_by
+       WHERE p.thread_id = $1`,
+      [threadId]
+    );
+
+    if (pollResult.rows.length === 0) {
+      return res.json({ success: true, poll: null });
+    }
+
+    const poll = pollResult.rows[0];
+    const isExpired = poll.ends_at && new Date(poll.ends_at) < new Date();
+
+    // Get options with vote counts
+    const optionsResult = await db.query(
+      `SELECT po.id, po.option_text, po.display_order,
+              COUNT(pv.id) AS vote_count
+       FROM poll_options po
+       LEFT JOIN poll_votes pv ON pv.option_id = po.id
+       WHERE po.poll_id = $1
+       GROUP BY po.id
+       ORDER BY po.display_order`,
+      [poll.id]
+    );
+
+    // Get user's votes
+    const userVotesResult = await db.query(
+      'SELECT option_id FROM poll_votes WHERE poll_id = $1 AND user_id = $2',
+      [poll.id, userId]
+    );
+    const userVotes = userVotesResult.rows.map(v => v.option_id);
+
+    // Total votes
+    const totalVotesResult = await db.query(
+      'SELECT COUNT(DISTINCT user_id) FROM poll_votes WHERE poll_id = $1',
+      [poll.id]
+    );
+    const totalVoters = parseInt(totalVotesResult.rows[0].count);
+
+    res.json({
+      success: true,
+      poll: {
+        id: poll.id,
+        question: poll.question,
+        allowMultiple: poll.allow_multiple,
+        endsAt: poll.ends_at,
+        isExpired: isExpired,
+        createdBy: poll.created_by,
+        createdAt: poll.created_at,
+        totalVoters: totalVoters,
+        userVotes: userVotes,
+        options: optionsResult.rows.map(o => ({
+          id: o.id,
+          text: o.option_text,
+          voteCount: parseInt(o.vote_count),
+          percentage: totalVoters > 0 ? Math.round((parseInt(o.vote_count) / totalVoters) * 100) : 0
+        }))
+      }
+    });
+  } catch (err) {
+    console.error('[GET POLL ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Vote on a poll
+app.post('/api/polls/:pollId/vote', authMiddleware, async (req, res) => {
+  const pollId = parseInt(req.params.pollId);
+  const { optionIds } = req.body;
+  const userId = req.user.userId;
+
+  if (!optionIds || !Array.isArray(optionIds) || optionIds.length === 0) {
+    return res.status(400).json({ success: false, error: 'no_options_selected' });
+  }
+
+  try {
+    // Get poll
+    const pollResult = await db.query(
+      'SELECT id, allow_multiple, ends_at FROM polls WHERE id = $1',
+      [pollId]
+    );
+
+    if (pollResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'poll_not_found' });
+    }
+
+    const poll = pollResult.rows[0];
+
+    // Check if expired
+    if (poll.ends_at && new Date(poll.ends_at) < new Date()) {
+      return res.status(400).json({ success: false, error: 'poll_expired' });
+    }
+
+    // Check multiple votes
+    if (!poll.allow_multiple && optionIds.length > 1) {
+      return res.status(400).json({ success: false, error: 'single_vote_only' });
+    }
+
+    // Clear existing votes
+    await db.query('DELETE FROM poll_votes WHERE poll_id = $1 AND user_id = $2', [pollId, userId]);
+
+    // Add new votes
+    for (const optionId of optionIds) {
+      await db.query(
+        'INSERT INTO poll_votes (poll_id, option_id, user_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [pollId, optionId, userId]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[VOTE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Delete a poll (owner or admin only)
+app.delete('/api/polls/:pollId', authMiddleware, async (req, res) => {
+  const pollId = parseInt(req.params.pollId);
+
+  try {
+    const pollResult = await db.query('SELECT created_by FROM polls WHERE id = $1', [pollId]);
+    if (pollResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'poll_not_found' });
+    }
+
+    const isOwner = pollResult.rows[0].created_by === req.user.userId;
+    const adminCheck = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.user.userId]);
+    const isAdmin = adminCheck.rows.length > 0 && adminCheck.rows[0].is_admin;
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+
+    await db.query('DELETE FROM polls WHERE id = $1', [pollId]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[DELETE POLL ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // API: Get threads in a room (with pagination)
 app.get('/api/room/:id', authMiddleware, async (req, res) => {
   const roomSlug = req.params.id;
@@ -650,7 +1044,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     const entriesResult = await db.query(
       `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
               COALESCE(u.avatar_config, e.avatar_config) AS avatar_config,
-              u.signature, u.reputation,
+              u.signature, u.reputation, u.custom_title,
               e.created_at, e.edited_at,
               (SELECT COUNT(*) FROM entries WHERE user_id = e.user_id AND is_deleted = FALSE) AS post_count,
               LENGTH(e.content) > $2 AS "exceedsCharLimit"
@@ -752,6 +1146,9 @@ app.post('/api/threads', authMiddleware, ipBanMiddleware, userBanMiddleware, asy
       'INSERT INTO entries (thread_id, user_id, content) VALUES ($1, $2, $3)',
       [threadId, userId, filteredContent]
     );
+
+    // Log activity
+    await logActivity(userId, 'created_thread', 'thread', threadId, filteredTitle);
 
     res.json({ success: true, threadId: threadId });
   } catch (err) {
@@ -890,6 +1287,15 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
     } catch (mentionErr) {
       // Silent fail - mentions should not break posting
       console.error('[MENTION NOTIFICATION ERROR]', mentionErr.message);
+    }
+
+    // Log activity
+    try {
+      const threadTitleResult = await db.query('SELECT title FROM threads WHERE id = $1', [threadDbId]);
+      const threadTitle = threadTitleResult.rows[0]?.title || 'Unknown thread';
+      await logActivity(userId, 'posted_reply', 'thread', threadDbId, threadTitle);
+    } catch (actErr) {
+      // Silent fail
     }
 
     res.json({ success: true, entry: insertResult.rows[0] });
@@ -3107,6 +3513,50 @@ async function migrate() {
       -- Add reputation system columns
       ALTER TABLE users ADD COLUMN IF NOT EXISTS reputation INTEGER DEFAULT 0;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS post_count INTEGER DEFAULT 0;
+      
+      -- Add user custom title (admin-assignable)
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_title VARCHAR(50);
+      
+      -- Polls table
+      CREATE TABLE IF NOT EXISTS polls (
+        id SERIAL PRIMARY KEY,
+        thread_id INTEGER REFERENCES threads(id) UNIQUE,
+        question VARCHAR(300) NOT NULL,
+        allow_multiple BOOLEAN DEFAULT FALSE,
+        ends_at TIMESTAMP,
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS poll_options (
+        id SERIAL PRIMARY KEY,
+        poll_id INTEGER REFERENCES polls(id) ON DELETE CASCADE,
+        option_text VARCHAR(200) NOT NULL,
+        display_order INTEGER DEFAULT 0
+      );
+      
+      CREATE TABLE IF NOT EXISTS poll_votes (
+        id SERIAL PRIMARY KEY,
+        poll_id INTEGER REFERENCES polls(id) ON DELETE CASCADE,
+        option_id INTEGER REFERENCES poll_options(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(poll_id, user_id, option_id)
+      );
+      
+      -- Activity feed table
+      CREATE TABLE IF NOT EXISTS activity_feed (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        action_type VARCHAR(50) NOT NULL,
+        target_type VARCHAR(50),
+        target_id INTEGER,
+        target_title TEXT,
+        details JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_activity_feed_created ON activity_feed(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_activity_feed_user ON activity_feed(user_id);
       
       INSERT INTO rooms (slug, title) VALUES 
         ('general', 'General Discussion'),

@@ -60,6 +60,31 @@
         <form id="new-thread-form" class="new-thread-form">
           <input type="text" id="thread-title" class="thread-title-input" placeholder="SIGNAL TITLE..." required>
           <textarea id="thread-content" class="reply-textarea" placeholder="INITIAL ENTRY..." rows="3" required></textarea>
+          
+          <!-- Poll Creation Toggle -->
+          <div class="poll-toggle-container">
+            <label class="poll-toggle-label">
+              <input type="checkbox" id="add-poll-checkbox"> Add a poll to this thread
+            </label>
+          </div>
+          
+          <!-- Poll Creation Form (hidden by default) -->
+          <div id="poll-create-section" class="poll-create-form" style="display: none;">
+            <input type="text" id="poll-question" placeholder="Poll question..." maxlength="300">
+            <div id="poll-options-container" class="poll-options-list">
+              <div class="poll-option-input">
+                <input type="text" class="poll-option-field" placeholder="Option 1..." maxlength="200">
+              </div>
+              <div class="poll-option-input">
+                <input type="text" class="poll-option-field" placeholder="Option 2..." maxlength="200">
+              </div>
+            </div>
+            <button type="button" id="add-poll-option" class="add-poll-option-btn">+ ADD OPTION</button>
+            <label class="poll-toggle-label" style="margin-top: 8px;">
+              <input type="checkbox" id="poll-allow-multiple"> Allow multiple choices
+            </label>
+          </div>
+          
           <div class="form-actions">
             <button type="button" id="cancel-thread" class="cancel-btn">CANCEL</button>
             <button type="submit" class="reply-submit">CREATE SIGNAL</button>
@@ -293,6 +318,37 @@
       var cancelThread = document.getElementById('cancel-thread');
       var threadTitleInput = document.getElementById('thread-title');
       var threadContentInput = document.getElementById('thread-content');
+      
+      // Poll creation elements
+      var addPollCheckbox = document.getElementById('add-poll-checkbox');
+      var pollCreateSection = document.getElementById('poll-create-section');
+      var pollQuestionInput = document.getElementById('poll-question');
+      var pollOptionsContainer = document.getElementById('poll-options-container');
+      var addPollOptionBtn = document.getElementById('add-poll-option');
+      var pollAllowMultiple = document.getElementById('poll-allow-multiple');
+
+      // Toggle poll section
+      addPollCheckbox.addEventListener('change', function() {
+        pollCreateSection.style.display = this.checked ? 'block' : 'none';
+      });
+
+      // Add poll option
+      addPollOptionBtn.addEventListener('click', function() {
+        var optionCount = pollOptionsContainer.querySelectorAll('.poll-option-input').length;
+        if (optionCount >= 10) {
+          Notify.show('Maximum 10 options allowed', 'error');
+          return;
+        }
+        var newOption = document.createElement('div');
+        newOption.className = 'poll-option-input';
+        newOption.innerHTML = '<input type="text" class="poll-option-field" placeholder="Option ' + (optionCount + 1) + '..." maxlength="200">' +
+                              '<button type="button" class="remove-poll-option">×</button>';
+        pollOptionsContainer.appendChild(newOption);
+        
+        newOption.querySelector('.remove-poll-option').addEventListener('click', function() {
+          newOption.remove();
+        });
+      });
 
       newThreadToggle.addEventListener('click', function() {
         newThreadFormWrapper.style.display = newThreadFormWrapper.style.display === 'none' ? 'block' : 'none';
@@ -304,6 +360,11 @@
         newThreadToggle.style.display = 'block';
         threadTitleInput.value = '';
         threadContentInput.value = '';
+        addPollCheckbox.checked = false;
+        pollCreateSection.style.display = 'none';
+        pollQuestionInput.value = '';
+        pollOptionsContainer.innerHTML = '<div class="poll-option-input"><input type="text" class="poll-option-field" placeholder="Option 1..." maxlength="200"></div><div class="poll-option-input"><input type="text" class="poll-option-field" placeholder="Option 2..." maxlength="200"></div>';
+        pollAllowMultiple.checked = false;
       });
 
       newThreadForm.addEventListener('submit', function(e) {
@@ -311,6 +372,34 @@
         var title = threadTitleInput.value.trim();
         var content = threadContentInput.value.trim();
         if (!title || !content) return;
+
+        // Check if poll is being created
+        var createPoll = addPollCheckbox.checked;
+        var pollData = null;
+        
+        if (createPoll) {
+          var question = pollQuestionInput.value.trim();
+          var options = [];
+          pollOptionsContainer.querySelectorAll('.poll-option-field').forEach(function(input) {
+            var val = input.value.trim();
+            if (val) options.push(val);
+          });
+          
+          if (!question) {
+            Notify.show('Poll question is required', 'error');
+            return;
+          }
+          if (options.length < 2) {
+            Notify.show('At least 2 poll options are required', 'error');
+            return;
+          }
+          
+          pollData = {
+            question: question,
+            options: options,
+            allowMultiple: pollAllowMultiple.checked
+          };
+        }
 
         var submitBtn = newThreadForm.querySelector('.reply-submit');
         submitBtn.disabled = true;
@@ -326,16 +415,33 @@
         })
         .then(function(data) {
           if (data.success) {
-            Notify.show('SIGNAL CREATED', 'info');
-            threadTitleInput.value = '';
-            threadContentInput.value = '';
-            newThreadFormWrapper.style.display = 'none';
-            newThreadToggle.style.display = 'block';
-            // Redirect to new thread
-            window.location.href = 'thread.html?id=' + data.threadId + '&room=' + currentRoomId;
+            var threadId = data.threadId;
+            
+            // Create poll if needed
+            if (pollData) {
+              return AuthState.apiRequest('/api/threads/' + threadId + '/poll', {
+                method: 'POST',
+                body: JSON.stringify(pollData)
+              }).then(function() {
+                return { success: true, threadId: threadId };
+              });
+            }
+            return { success: true, threadId: threadId };
           } else {
-            Notify.show(data.error || 'CREATION FAILED', 'error');
+            throw new Error(data.error || 'CREATION FAILED');
           }
+        })
+        .then(function(result) {
+          Notify.show('SIGNAL CREATED', 'info');
+          threadTitleInput.value = '';
+          threadContentInput.value = '';
+          newThreadFormWrapper.style.display = 'none';
+          newThreadToggle.style.display = 'block';
+          // Reset poll form
+          addPollCheckbox.checked = false;
+          pollCreateSection.style.display = 'none';
+          // Redirect to new thread
+          window.location.href = 'thread.html?id=' + result.threadId + '&room=' + currentRoomId;
         })
         .catch(function(err) {
           Notify.show(err.message || 'CONNECTION ERROR', 'error');
