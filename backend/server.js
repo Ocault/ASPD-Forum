@@ -206,14 +206,14 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
     const total = parseInt(countResult.rows[0].count);
     
     // Get paginated threads
-    let threadsQuery = `SELECT t.slug AS id, t.title, COUNT(e.id) FILTER (WHERE e.shadow_banned = FALSE OR e.shadow_banned IS NULL)::int AS "entriesCount"
+    let threadsQuery = `SELECT t.id, t.title, COUNT(e.id) FILTER (WHERE e.shadow_banned = FALSE OR e.shadow_banned IS NULL)::int AS "entriesCount"
        FROM threads t
        LEFT JOIN entries e ON e.thread_id = t.id
        WHERE t.room_id = $1`;
     let queryParams = [room.id];
     
     if (search) {
-      threadsQuery += ` AND (t.title ILIKE $2 OR t.slug ILIKE $2)`;
+      threadsQuery += ` AND t.title ILIKE $2`;
       queryParams.push('%' + search + '%');
     }
     
@@ -235,18 +235,20 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
 
 // API: Get entries in a thread (with pagination)
 app.get('/api/thread/:id', authMiddleware, async (req, res) => {
-  const threadSlug = req.params.id;
+  const threadId = req.params.id;
   const page = parseInt(req.query.page) || 1;
   const limit = Math.min(parseInt(req.query.limit) || 30, 100);
   const offset = (page - 1) * limit;
   
   try {
+    // Support both numeric ID and slug lookup
+    const isNumeric = /^\d+$/.test(threadId);
     const threadResult = await db.query(
-      `SELECT t.id, t.slug, t.title, t.slow_mode_interval, r.slug AS room_slug
+      `SELECT t.id, t.title, t.slow_mode_interval, r.slug AS room_slug
        FROM threads t
        JOIN rooms r ON r.id = t.room_id
-       WHERE t.slug = $1`,
-      [threadSlug]
+       WHERE ${isNumeric ? 't.id = $1' : 't.slug = $1'}`,
+      [isNumeric ? parseInt(threadId) : threadId]
     );
     
     if (threadResult.rows.length === 0) {
@@ -277,7 +279,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     res.json({
       success: true,
       thread: {
-        id: thread.slug,
+        id: thread.id,
         title: thread.title,
         roomId: thread.room_slug,
         slowModeInterval: thread.slow_mode_interval || null
