@@ -389,9 +389,12 @@ const UIComponents = (function() {
             </button>
           </div>`;
     
+    // Avatar rank class for animated borders
+    const avatarRankClass = rank ? ` avatar-rank-${rank.toLowerCase()}` : '';
+    
     return `
       <div class="${entryClass}" data-entry-id="${id}" data-user-id="${userId || ''}" data-avatar-config="${avatarConfig}">
-        <div class="entry-avatar">
+        <div class="entry-avatar${avatarRankClass}">
           <canvas class="avatar-mini" width="28" height="28"></canvas>
         </div>
         <div class="entry-body">
