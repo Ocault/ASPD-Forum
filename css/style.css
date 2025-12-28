@@ -2115,11 +2115,11 @@ ul {
   right: 6px;
   bottom: 6px;
   z-index: 0;
-  background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+  background: linear-gradient(180deg, #252525 0%, #151515 100%);
   animation: active-breathe 3s ease-in-out infinite;
   box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 0 8px rgba(60, 60, 60, 0.4);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 0 12px rgba(120, 120, 120, 0.5);
 }
 
 /* MEMBER - Horizontal scanner line */
@@ -2131,10 +2131,10 @@ ul {
   right: 6px;
   bottom: 6px;
   z-index: 0;
-  background: #0d0d0d;
+  background: #1a1a1a;
   box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 0 6px rgba(80, 80, 80, 0.3);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 14px rgba(130, 130, 130, 0.5);
 }
 
 .profile-avatar-section.avatar-rank-member::after {
@@ -2143,16 +2143,17 @@ ul {
   top: 6px;
   left: 6px;
   right: 6px;
-  height: 3px;
+  height: 4px;
   background: linear-gradient(90deg, 
     transparent 0%, 
-    rgba(255, 255, 255, 0.3) 20%,
-    rgba(255, 255, 255, 0.8) 50%,
-    rgba(255, 255, 255, 0.3) 80%,
+    rgba(255, 255, 255, 0.5) 20%,
+    rgba(255, 255, 255, 1) 50%,
+    rgba(255, 255, 255, 0.5) 80%,
     transparent 100%
   );
   animation: member-scan-profile 2.5s ease-in-out infinite;
   z-index: 1;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
 }
 
 @keyframes member-scan-profile {
@@ -2175,10 +2176,10 @@ ul {
   right: 6px;
   bottom: 6px;
   z-index: 0;
-  background: #0a0a0a;
+  background: #1a1a1a;
   box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 0 8px rgba(80, 80, 80, 0.3);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 0 16px rgba(140, 140, 140, 0.5);
 }
 
 .profile-avatar-section.avatar-rank-regular::after {
@@ -2191,13 +2192,13 @@ ul {
   border: 2px solid transparent;
   border-image: linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.6) 0%,
-    transparent 20%,
-    transparent 30%,
-    rgba(255, 255, 255, 0.6) 50%,
-    transparent 70%,
-    transparent 80%,
-    rgba(255, 255, 255, 0.6) 100%
+    rgba(255, 255, 255, 0.9) 0%,
+    transparent 15%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.9) 50%,
+    transparent 65%,
+    transparent 85%,
+    rgba(255, 255, 255, 0.9) 100%
   ) 1;
   animation: regular-corner-pulse 2s ease-in-out infinite;
   z-index: 0;

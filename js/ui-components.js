@@ -393,7 +393,15 @@ const UIComponents = (function() {
     
     // Avatar rank class for animated borders (use selectedBorder from avatar_config if set, otherwise use rank)
     let avatarRankClass = '';
-    const avatarConfigObj = entry.avatar_config || {};
+    // Handle avatar_config whether it's a string or object
+    let avatarConfigObj = entry.avatar_config || {};
+    if (typeof avatarConfigObj === 'string') {
+      try {
+        avatarConfigObj = JSON.parse(avatarConfigObj);
+      } catch (e) {
+        avatarConfigObj = {};
+      }
+    }
     const selectedBorder = avatarConfigObj.selectedBorder;
     
     if (selectedBorder && selectedBorder !== 'none') {
