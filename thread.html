@@ -30,6 +30,7 @@
     <!-- Thread Title -->
     <div class="thread-title-bar">
       <h1 class="thread-title" data-bind="thread-title">Loading...</h1>
+      <span class="thread-slow-mode" id="slow-mode-indicator" style="display: none;"></span>
     </div>
 
     <!-- Filter Bar -->
@@ -46,6 +47,9 @@
     <main class="entry-list" id="entries-container" data-container="entries">
       <!-- PLACEHOLDER: Entry elements will be injected here by JS -->
     </main>
+
+    <!-- Pagination -->
+    <div id="pagination-container"></div>
 
     <!-- Footer -->
     <footer class="thread-footer" data-component="thread-footer">
@@ -70,7 +74,9 @@
       if (!AuthState.gateProtected()) return;
 
       var entriesContainer = document.getElementById('entries-container');
+      var paginationContainer = document.getElementById('pagination-container');
       var entryCountEl = document.getElementById('entry-count');
+      var slowModeIndicator = document.getElementById('slow-mode-indicator');
       var threadContainer = document.querySelector('[data-page="thread"]');
       var threadTitleEl = document.querySelector('[data-bind="thread-title"]');
       var roomNameEl = document.querySelector('[data-bind="room-name"]');
@@ -83,10 +89,22 @@
       var allAvatarConfigs = {};
       var currentSort = 'default';
       var currentSearch = '';
+      var currentPage = 1;
+      var currentPagination = null;
+      var currentSignalId = null;
 
       function getSignalIdFromUrl() {
         var params = new URLSearchParams(window.location.search);
         return params.get('id');
+      }
+
+      function updateSlowModeIndicator(interval) {
+        if (interval && interval > 0) {
+          slowModeIndicator.textContent = 'SLOW MODE: ' + interval + 's';
+          slowModeIndicator.style.display = 'inline';
+        } else {
+          slowModeIndicator.style.display = 'none';
+        }
       }
 
       function updateSignalMeta(signalMeta) {
@@ -101,35 +119,55 @@
           backLinkEl.href = 'room.html?id=' + roomId;
         }
         document.title = 'ASPD Forum — ' + (signalMeta.title || 'Thread');
+        updateSlowModeIndicator(signalMeta.slowModeInterval);
       }
 
       /**
        * Render entries to the list
        * @param {Array} entries - Array of entry objects
        * @param {Object} avatarConfigs - Map of userId to avatar config (from backend)
+       * @param {Object} pagination - Pagination info
        */
-      function renderEntries(entries, avatarConfigs) {
+      function renderEntries(entries, avatarConfigs, pagination) {
         avatarConfigs = avatarConfigs || {};
         if (!entries || !entries.length) {
           entriesContainer.innerHTML = '<div class="empty-state" data-empty="entries">NO RECORDS AVAILABLE</div>';
           entryCountEl.textContent = '0';
+          paginationContainer.innerHTML = '';
           return;
         }
         entriesContainer.innerHTML = entries.map(function(entry) {
           return UIComponents.entryElement(entry);
         }).join('');
-        entryCountEl.textContent = entries.length;
+        entryCountEl.textContent = pagination ? pagination.total : entries.length;
 
-        // Initialize avatars - accepts external config or falls back to localStorage
+        // Render pagination
+        paginationContainer.innerHTML = UIComponents.paginationControls(pagination);
+        
+        // Bind pagination events
+        paginationContainer.querySelectorAll('.pagination-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            if (btn.disabled) return;
+            currentPage = parseInt(btn.dataset.page);
+            fetchThread(currentSignalId, currentPage);
+          });
+        });
+
+        // Initialize avatars - uses avatar_config from entry data attribute
         AvatarRenderer.initAvatars({
           selector: '.avatar-mini',
           configSource: function(canvas) {
             var entryEl = canvas.closest('.entry');
-            var userId = entryEl ? entryEl.getAttribute('data-user-id') : null;
-            // Check external config first (from backend)
-            if (userId && avatarConfigs[userId]) {
-              return avatarConfigs[userId];
+            if (!entryEl) return AvatarRenderer.loadFromStorage();
+            
+            // Try to get avatar_config from data attribute (from backend)
+            var configAttr = entryEl.getAttribute('data-avatar-config');
+            if (configAttr) {
+              try {
+                return JSON.parse(configAttr);
+              } catch (e) {}
             }
+            
             // Fall back to localStorage
             return AvatarRenderer.loadFromStorage();
           }
@@ -139,7 +177,7 @@
       function applyFilters() {
         var filtered = allEntries.slice();
         
-        // Search
+        // Search (client-side for current page)
         if (currentSearch) {
           var q = currentSearch.toLowerCase();
           filtered = filtered.filter(function(e) {
@@ -154,7 +192,7 @@
           // default order is oldest first
         }
         
-        renderEntries(filtered, allAvatarConfigs);
+        renderEntries(filtered, allAvatarConfigs, currentPagination);
       }
 
       searchInput.addEventListener('input', function() {
@@ -174,8 +212,11 @@
       /**
        * Fetch thread data from API
        */
-      function fetchThread(signalId) {
-        return AuthState.apiRequest('/api/thread/' + signalId)
+      function fetchThread(signalId, page) {
+        page = page || 1;
+        var url = '/api/thread/' + signalId + '?page=' + page;
+        
+        return AuthState.apiRequest(url)
           .then(function(data) {
             if (data.success && data.thread) {
               var params = new URLSearchParams(window.location.search);
@@ -187,8 +228,8 @@
               data.avatarConfigs = {};
               if (data.entries) {
                 data.entries.forEach(function(entry) {
-                  if (entry.userId && entry.avatarConfig) {
-                    data.avatarConfigs[entry.userId] = entry.avatarConfig;
+                  if (entry.avatarConfig) {
+                    data.avatarConfigs[entry.id] = entry.avatarConfig;
                   }
                 });
               }
@@ -202,25 +243,29 @@
        */
       function init() {
         var signalId = getSignalIdFromUrl();
+        currentSignalId = signalId;
 
-        fetchThread(signalId)
+        fetchThread(signalId, 1)
           .then(function(data) {
             if (data.success) {
               updateSignalMeta(data.thread);
               roomNameEl.textContent = data.thread.roomName || 'NODE.001';
               allEntries = data.entries || [];
               allAvatarConfigs = data.avatarConfigs || {};
-              applyFilters();
+              currentPagination = data.pagination || null;
+              renderEntries(allEntries, allAvatarConfigs, currentPagination);
             } else {
               allEntries = [];
               allAvatarConfigs = {};
-              renderEntries([], {});
+              currentPagination = null;
+              renderEntries([], {}, null);
             }
           })
           .catch(function() {
             allEntries = [];
             allAvatarConfigs = {};
-            renderEntries([], {});
+            currentPagination = null;
+            renderEntries([], {}, null);
           });
       }
 

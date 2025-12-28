@@ -1,3 +1,11 @@
+INSERT INTO users (id, alias, password_hash)
+VALUES (
+  1,
+  'observer@local',
+  '$2b$10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- Seed data for forum tables
 -- Run after 002_forum_tables.sql
 

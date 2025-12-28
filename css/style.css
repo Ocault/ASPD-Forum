@@ -859,6 +859,10 @@ ul {
   padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid var(--border-color);
   background-color: var(--bg-panel);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
 }
 
 .thread-title {
@@ -868,6 +872,18 @@ ul {
   letter-spacing: 0.03em;
   color: var(--text-secondary);
   text-transform: none;
+}
+
+.thread-slow-mode {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  background-color: var(--bg-secondary);
+  padding: 2px 6px;
+  border: 1px solid var(--border-color);
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 
 .thread-footer {
@@ -962,6 +978,104 @@ ul {
 
 .entry:hover .entry-content p {
   color: var(--text-secondary);
+}
+
+/* Entry Body - wraps identity + content */
+.entry-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Anonymous Entry - Alias Label */
+.entry-alias {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.entry--anonymous:hover .entry-alias {
+  opacity: 0.8;
+}
+
+/* System/Archive Entry - Fixed Label */
+.entry-system-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  color: var(--border-hover);
+  opacity: 0.5;
+}
+
+.entry--system:hover .entry-system-label {
+  opacity: 0.7;
+}
+
+/* System entries have slightly different content styling */
+.entry--system .entry-content p {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.entry--system:hover .entry-content p {
+  color: var(--text-secondary);
+  opacity: 0.9;
+}
+
+/* Long entries (exceeds character limit) - subtle indicator */
+.entry--long {
+  border-left: 2px solid var(--border-color);
+}
+
+.entry--long:hover {
+  border-left-color: var(--border-hover);
+}
+
+/* ========================================
+   PAGINATION
+======================================== */
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+.pagination-btn {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  color: var(--text-secondary);
+  border-color: var(--border-hover);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
 }
 
 /* ========================================

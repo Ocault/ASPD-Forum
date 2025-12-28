@@ -197,22 +197,59 @@ const UIComponents = (function() {
    * @param {string} entry.id - Entry ID
    * @param {string} entry.content - Entry text content
    * @param {string} entry.userId - User ID for avatar
-   * @param {Object} entry.avatarConfig - Avatar configuration (optional)
+   * @param {string} entry.alias - Alias for anonymous posts
+   * @param {Object} entry.avatar_config - Avatar configuration (optional)
+   * @param {boolean} entry.exceedsCharLimit - Whether content exceeds character limit
    * @returns {string} HTML string
    */
   function entryElement(entry) {
     const id = entry.id || '';
     const content = entry.content || '';
-    const userId = entry.userId || '';
+    const alias = entry.alias || null;
+    const avatarConfig = entry.avatar_config ? JSON.stringify(entry.avatar_config).replace(/"/g, '&quot;') : '';
+    const exceedsLimit = entry.exceedsCharLimit || false;
+    
+    // Determine entry type: anonymous (has alias) or system (no alias)
+    const isAnonymous = alias !== null;
+    let entryClass = isAnonymous ? 'entry entry--anonymous' : 'entry entry--system';
+    if (exceedsLimit) entryClass += ' entry--long';
+    const identityLabel = isAnonymous ? alias : 'ARCHIVE';
+    const identityClass = isAnonymous ? 'entry-alias' : 'entry-system-label';
     
     return `
-      <div class="entry" data-entry-id="${id}" data-user-id="${userId}">
+      <div class="${entryClass}" data-entry-id="${id}" data-avatar-config="${avatarConfig}">
         <div class="entry-avatar">
           <canvas class="avatar-mini" width="28" height="28"></canvas>
         </div>
-        <div class="entry-content">
-          <p>${content}</p>
+        <div class="entry-body">
+          <span class="${identityClass}">${identityLabel}</span>
+          <div class="entry-content">
+            <p>${content}</p>
+          </div>
         </div>
+      </div>`;
+  }
+
+  /**
+   * Generate pagination controls
+   * @param {Object} pagination
+   * @param {number} pagination.page - Current page
+   * @param {number} pagination.totalPages - Total pages
+   * @param {number} pagination.total - Total items
+   * @returns {string} HTML string
+   */
+  function paginationControls(pagination) {
+    if (!pagination || pagination.totalPages <= 1) return '';
+    
+    const { page, totalPages, total } = pagination;
+    const prevDisabled = page <= 1 ? 'disabled' : '';
+    const nextDisabled = page >= totalPages ? 'disabled' : '';
+    
+    return `
+      <div class="pagination">
+        <button class="pagination-btn" data-page="${page - 1}" ${prevDisabled}>← PREV</button>
+        <span class="pagination-info">${page} / ${totalPages}</span>
+        <button class="pagination-btn" data-page="${page + 1}" ${nextDisabled}>NEXT →</button>
       </div>`;
   }
 
@@ -227,7 +264,8 @@ const UIComponents = (function() {
     threadFooter,
     roomNode,
     signalRow,
-    entryElement
+    entryElement,
+    paginationControls
   };
 
 })();

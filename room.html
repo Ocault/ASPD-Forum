@@ -42,6 +42,9 @@
       <!-- PLACEHOLDER: Signal rows will be injected here by JS -->
     </main>
 
+    <!-- Pagination -->
+    <div id="pagination-container"></div>
+
     <!-- Footer -->
     <footer class="room-footer" data-component="room-footer">
       <span data-bind="node-id">NODE.000</span>
@@ -64,6 +67,7 @@
       if (!AuthState.gateProtected()) return;
 
       var signalsContainer = document.getElementById('signals-container');
+      var paginationContainer = document.getElementById('pagination-container');
       var signalCountEl = document.getElementById('signal-count');
       var roomContainer = document.querySelector('[data-page="room"]');
       var roomNameEl = document.querySelector('[data-bind="room-name"]');
@@ -74,6 +78,9 @@
       var allSignals = [];
       var currentSort = 'default';
       var currentSearch = '';
+      var currentPage = 1;
+      var currentPagination = null;
+      var currentRoomId = null;
 
       function getRoomIdFromUrl() {
         var params = new URLSearchParams(window.location.search);
@@ -90,22 +97,35 @@
         document.title = 'ASPD Forum — ' + (roomMeta.title || 'Room');
       }
 
-      function renderSignals(signals) {
+      function renderSignals(signals, pagination) {
         if (!signals || !signals.length) {
           signalsContainer.innerHTML = '<div class="empty-state" data-empty="signals">NO SIGNALS AVAILABLE</div>';
           signalCountEl.textContent = '0';
+          paginationContainer.innerHTML = '';
           return;
         }
         signalsContainer.innerHTML = signals.map(function(signal) {
           return UIComponents.signalRow(signal);
         }).join('');
-        signalCountEl.textContent = signals.length;
+        signalCountEl.textContent = pagination ? pagination.total : signals.length;
+        
+        // Render pagination
+        paginationContainer.innerHTML = UIComponents.paginationControls(pagination);
+        
+        // Bind pagination events
+        paginationContainer.querySelectorAll('.pagination-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            if (btn.disabled) return;
+            currentPage = parseInt(btn.dataset.page);
+            fetchRoom(currentRoomId, currentPage);
+          });
+        });
       }
 
       function applyFilters() {
         var filtered = allSignals.slice();
         
-        // Search
+        // Search (client-side for current page)
         if (currentSearch) {
           var q = currentSearch.toLowerCase();
           filtered = filtered.filter(function(s) {
@@ -120,12 +140,19 @@
           // default order is oldest first
         }
         
-        renderSignals(filtered);
+        renderSignals(filtered, currentPagination);
       }
 
+      var searchDebounce = null;
       searchInput.addEventListener('input', function() {
-        currentSearch = this.value;
-        applyFilters();
+        var value = this.value;
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(function() {
+          currentSearch = value;
+          currentPage = 1;
+          // Server-side search when typing
+          fetchRoom(currentRoomId, 1, value);
+        }, 300);
       });
 
       sortBtns.forEach(function(btn) {
@@ -140,8 +167,13 @@
       /**
        * Fetch room data from API
        */
-      function fetchRoom(roomId) {
-        return AuthState.apiRequest('/api/room/' + roomId)
+      function fetchRoom(roomId, page, search) {
+        page = page || 1;
+        search = search || '';
+        var url = '/api/room/' + roomId + '?page=' + page;
+        if (search) url += '&search=' + encodeURIComponent(search);
+        
+        return AuthState.apiRequest(url)
           .then(function(data) {
             if (data.success) {
               var nodeNum = roomId ? roomId.replace('room-', '') : '000';
@@ -166,21 +198,25 @@
        */
       function init() {
         var roomId = getRoomIdFromUrl();
+        currentRoomId = roomId;
 
-        fetchRoom(roomId)
+        fetchRoom(roomId, 1)
           .then(function(data) {
             if (data.success) {
               updateRoomMeta(data.room);
               allSignals = data.signals || [];
-              applyFilters();
+              currentPagination = data.pagination || null;
+              renderSignals(allSignals, currentPagination);
             } else {
               allSignals = [];
-              renderSignals([]);
+              currentPagination = null;
+              renderSignals([], null);
             }
           })
           .catch(function() {
             allSignals = [];
-            renderSignals([]);
+            currentPagination = null;
+            renderSignals([], null);
           });
       }
 

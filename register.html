@@ -49,19 +49,36 @@
   </main>
 
   <script src="js/auth-state.js"></script>
+  <script src="js/notify.js"></script>
   <script>
     (function() {
       'use strict';
       var form = document.getElementById('register-form');
+      var submitBtn = form.querySelector('button[type="submit"]');
+      
       form.addEventListener('submit', function(e) {
         e.preventDefault();
         var alias = document.getElementById('alias').value.trim();
         var password = document.getElementById('pass').value;
         var passConfirm = document.getElementById('pass-confirm').value;
 
-        if (password !== passConfirm) {
+        if (!alias || !password) {
+          Notify.show('ALIAS AND PASSWORD REQUIRED', 'error');
           return;
         }
+
+        if (password !== passConfirm) {
+          Notify.show('PASSWORDS DO NOT MATCH', 'error');
+          return;
+        }
+
+        if (password.length < 4) {
+          Notify.show('PASSWORD TOO SHORT', 'error');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'PROCESSING...';
 
         fetch(AuthState.API_BASE + '/register', {
           method: 'POST',
@@ -78,7 +95,10 @@
               body: JSON.stringify({ alias: alias, password: password })
             });
           }
-          return Promise.reject(new Error(data.error));
+          if (data.error === 'alias_exists') {
+            throw new Error('ALIAS ALREADY EXISTS');
+          }
+          throw new Error(data.error || 'REGISTRATION FAILED');
         })
         .then(function(res) { return res.json(); })
         .then(function(data) {
@@ -86,9 +106,15 @@
             AuthState.setToken(data.token);
             AuthState.register(alias);
             window.location.href = 'avatar.html';
+          } else {
+            throw new Error('LOGIN AFTER REGISTER FAILED');
           }
         })
-        .catch(function() {});
+        .catch(function(err) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'REGISTER';
+          Notify.show(err.message || 'CONNECTION ERROR', 'error');
+        });
       });
     })();
   </script>

@@ -8,7 +8,11 @@ var AuthState = (function() {
 
   var STORAGE_KEY = 'aspd_auth';
   var TOKEN_KEY = 'authToken';
-  var API_BASE = 'http://localhost:3000';
+  
+  // Auto-detect API base: use current origin in production, localhost for dev
+  var API_BASE = window.location.hostname === 'localhost' 
+    ? 'http://localhost:3001' 
+    : window.location.origin;
 
   /**
    * Validate state object structure
