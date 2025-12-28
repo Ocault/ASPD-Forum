@@ -282,19 +282,21 @@
         statThreads.textContent = profile.stats.threads;
         document.title = 'ASPD Forum — ' + profile.alias;
 
-        // Display custom title
+        // Display custom title OR rank (custom title replaces rank)
         var profileCustomTitle = document.getElementById('profile-custom-title');
-        if (profile.customTitle) {
-          profileCustomTitle.innerHTML = '<span class="user-title">' + profile.customTitle + '</span>';
-        } else {
-          profileCustomTitle.textContent = '';
-        }
-
-        // Display rank and reputation
         var profileRank = document.getElementById('profile-rank');
         var statRep = document.getElementById('stat-rep');
-        if (profile.rank) {
-          profileRank.innerHTML = '<span class="rank-badge rank-' + profile.rank.toLowerCase() + '">' + profile.rank + '</span>';
+        
+        if (profile.customTitle) {
+          // Show custom title, hide rank
+          profileCustomTitle.innerHTML = '<span class="user-title">' + profile.customTitle + '</span>';
+          profileRank.textContent = '';
+        } else {
+          // No custom title, show rank
+          profileCustomTitle.textContent = '';
+          if (profile.rank) {
+            profileRank.innerHTML = '<span class="rank-badge rank-' + profile.rank.toLowerCase() + '">' + profile.rank + '</span>';
+          }
         }
         statRep.textContent = profile.reputation || 0;
 

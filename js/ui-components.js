@@ -240,15 +240,17 @@ const UIComponents = (function() {
     if (exceedsLimit) entryClass += ' entry--long';
     const identityClass = isAnonymous ? 'entry-alias' : 'entry-system-label';
     
-    // Get rank badge and custom title
+    // Get rank badge and custom title - custom title replaces rank
     const rank = entry.rank || '';
     const customTitle = entry.custom_title || '';
-    const rankBadge = rank ? `<span class="entry-rank rank-badge rank-${rank.toLowerCase()}">${rank}</span>` : '';
-    const titleBadge = customTitle ? `<span class="user-title">${customTitle}</span>` : '';
+    // If user has custom title, show that instead of rank
+    const badgeHtml = customTitle 
+      ? `<span class="user-title">${customTitle}</span>` 
+      : (rank ? `<span class="entry-rank rank-badge rank-${rank.toLowerCase()}">${rank}</span>` : '');
     
     // Make alias a clickable link to profile
     const identityLabel = isAnonymous 
-      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${alias}</a>${titleBadge}${rankBadge}` 
+      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${alias}</a>${badgeHtml}` 
       : 'ARCHIVE';
     
     // Format timestamp
