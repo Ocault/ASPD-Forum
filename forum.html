@@ -62,6 +62,16 @@
 
       if (!AuthState.gateProtected()) return;
 
+      // Show admin link if user is admin
+      if (AuthState.isAdmin()) {
+        var headerRight = document.querySelector('.header-right');
+        var adminLink = document.createElement('a');
+        adminLink.href = 'admin.html';
+        adminLink.className = 'header-admin';
+        adminLink.textContent = 'ADMIN';
+        headerRight.insertBefore(adminLink, headerRight.querySelector('.header-messages'));
+      }
+
       const roomsContainer = document.getElementById('rooms-container');
       const roomCountEl = document.getElementById('room-count');
       const filterInput = document.getElementById('filter-input');

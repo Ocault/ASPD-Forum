@@ -92,6 +92,102 @@ async function logAudit(action, targetType, targetId, adminId, details = null) {
 // Content character limit for flagging
 const CONTENT_CHAR_LIMIT = 2000;
 
+// Word filter cache (refreshed periodically)
+let wordFiltersCache = [];
+let wordFiltersCacheTime = 0;
+const WORD_FILTER_CACHE_TTL = 60000; // 1 minute
+
+async function getWordFilters() {
+  const now = Date.now();
+  if (now - wordFiltersCacheTime < WORD_FILTER_CACHE_TTL && wordFiltersCache.length > 0) {
+    return wordFiltersCache;
+  }
+  try {
+    const result = await db.query('SELECT word, replacement, is_regex FROM word_filters');
+    wordFiltersCache = result.rows;
+    wordFiltersCacheTime = now;
+    return wordFiltersCache;
+  } catch (err) {
+    return wordFiltersCache; // Return stale cache on error
+  }
+}
+
+// Apply word filter to content
+async function filterContent(content) {
+  if (!content) return content;
+  const filters = await getWordFilters();
+  let filtered = content;
+  for (const f of filters) {
+    try {
+      if (f.is_regex) {
+        const regex = new RegExp(f.word, 'gi');
+        filtered = filtered.replace(regex, f.replacement || '***');
+      } else {
+        const regex = new RegExp(f.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        filtered = filtered.replace(regex, f.replacement || '***');
+      }
+    } catch (err) {
+      // Skip invalid regex
+    }
+  }
+  return filtered;
+}
+
+// IP ban check middleware
+async function ipBanMiddleware(req, res, next) {
+  const ip = getClientIp(req);
+  if (!ip) return next();
+  
+  const ipHash = hashIp(ip);
+  try {
+    const result = await db.query(
+      `SELECT id FROM ip_bans 
+       WHERE ip_hash = $1 AND (expires_at IS NULL OR expires_at > NOW())`,
+      [ipHash]
+    );
+    if (result.rows.length > 0) {
+      return res.status(403).json({ error: 'ip_banned' });
+    }
+    next();
+  } catch (err) {
+    next(); // Don't block on DB errors
+  }
+}
+
+// User ban check middleware (after auth)
+async function userBanMiddleware(req, res, next) {
+  if (!req.user || !req.user.userId) return next();
+  
+  try {
+    const result = await db.query(
+      `SELECT is_banned, ban_reason, ban_expires_at FROM users WHERE id = $1`,
+      [req.user.userId]
+    );
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      if (user.is_banned) {
+        // Check if temp ban expired
+        if (user.ban_expires_at && new Date(user.ban_expires_at) < new Date()) {
+          // Unban automatically
+          await db.query(
+            'UPDATE users SET is_banned = FALSE, ban_reason = NULL, ban_expires_at = NULL WHERE id = $1',
+            [req.user.userId]
+          );
+          return next();
+        }
+        return res.status(403).json({ 
+          error: 'user_banned', 
+          reason: user.ban_reason,
+          expires_at: user.ban_expires_at
+        });
+      }
+    }
+    next();
+  } catch (err) {
+    next();
+  }
+}
+
 // Health check
 app.get('/health', async (req, res) => {
   try {
@@ -468,7 +564,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
 });
 
 // Create new thread
-app.post('/api/threads', authMiddleware, async (req, res) => {
+app.post('/api/threads', authMiddleware, ipBanMiddleware, userBanMiddleware, async (req, res) => {
   const { roomId, title, content } = req.body;
   const userId = req.user.userId;
 
@@ -484,17 +580,21 @@ app.post('/api/threads', authMiddleware, async (req, res) => {
     }
     const roomDbId = roomResult.rows[0].id;
 
+    // Apply word filter to title and content
+    const filteredTitle = await filterContent(title);
+    const filteredContent = await filterContent(content);
+
     // Create thread
     const threadResult = await db.query(
       'INSERT INTO threads (room_id, title, user_id) VALUES ($1, $2, $3) RETURNING id',
-      [roomDbId, title, userId]
+      [roomDbId, filteredTitle, userId]
     );
     const threadId = threadResult.rows[0].id;
 
     // Create initial entry
     await db.query(
       'INSERT INTO entries (thread_id, user_id, content) VALUES ($1, $2, $3)',
-      [threadId, userId, content]
+      [threadId, userId, filteredContent]
     );
 
     res.json({ success: true, threadId: threadId });
@@ -514,7 +614,7 @@ const entriesLimiter = rateLimit({
 });
 
 // API: Create entry (authenticated posting)
-app.post('/api/entries', authMiddleware, entriesLimiter, async (req, res) => {
+app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, entriesLimiter, async (req, res) => {
   const { threadId, thread_id, content, alias, avatar_config } = req.body;
   const userId = req.user.userId;
   const userAlias = req.user.alias;
@@ -572,12 +672,15 @@ app.post('/api/entries', authMiddleware, entriesLimiter, async (req, res) => {
 
     // Use provided alias or user's alias
     const entryAlias = alias || userAlias;
+    
+    // Apply word filter
+    const filteredContent = await filterContent(content);
 
     const insertResult = await db.query(
       `INSERT INTO entries (thread_id, content, alias, avatar_config, user_id, ip_hash, shadow_banned)
        VALUES ($1, $2, $3, $4, $5, $6, FALSE)
        RETURNING id, thread_id AS "threadId", content, alias, avatar_config AS "avatarConfig", created_at AS "createdAt", user_id`,
-      [threadDbId, content, entryAlias, avatar_config || null, userId, ipHash]
+      [threadDbId, filteredContent, entryAlias, avatar_config || null, userId, ipHash]
     );
 
     // Audit log for post tracking
@@ -850,6 +953,438 @@ app.put('/api/admin/reports/:id', authMiddleware, adminMiddleware, async (req, r
     res.json({ success: true });
   } catch (err) {
     console.error('[RESOLVE REPORT ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// MODERATION TOOLS
+// ========================================
+
+// Admin: Get all IP bans
+app.get('/api/admin/ip-bans', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT b.*, u.alias AS banned_by_alias 
+       FROM ip_bans b
+       LEFT JOIN users u ON u.id = b.banned_by
+       ORDER BY b.created_at DESC`
+    );
+    res.json({ success: true, bans: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Add IP ban
+app.post('/api/admin/ip-bans', authMiddleware, adminMiddleware, async (req, res) => {
+  const { ip_hash, reason, expires_days } = req.body;
+  const adminId = req.user.userId;
+
+  if (!ip_hash) {
+    return res.status(400).json({ success: false, error: 'ip_hash required' });
+  }
+
+  try {
+    const expiresAt = expires_days ? new Date(Date.now() + expires_days * 24 * 60 * 60 * 1000) : null;
+    await db.query(
+      `INSERT INTO ip_bans (ip_hash, reason, banned_by, expires_at) VALUES ($1, $2, $3, $4)`,
+      [ip_hash, reason || null, adminId, expiresAt]
+    );
+    await logAudit('ip_ban', 'ip', null, adminId, { ip_hash, reason, expires_days });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Remove IP ban
+app.delete('/api/admin/ip-bans/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const banId = parseInt(req.params.id);
+  const adminId = req.user.userId;
+
+  try {
+    await db.query('DELETE FROM ip_bans WHERE id = $1', [banId]);
+    await logAudit('ip_unban', 'ip', banId, adminId, null);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Get word filters
+app.get('/api/admin/word-filters', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT f.*, u.alias AS created_by_alias
+       FROM word_filters f
+       LEFT JOIN users u ON u.id = f.created_by
+       ORDER BY f.created_at DESC`
+    );
+    res.json({ success: true, filters: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Add word filter
+app.post('/api/admin/word-filters', authMiddleware, adminMiddleware, async (req, res) => {
+  const { word, replacement, is_regex } = req.body;
+  const adminId = req.user.userId;
+
+  if (!word) {
+    return res.status(400).json({ success: false, error: 'word required' });
+  }
+
+  try {
+    await db.query(
+      `INSERT INTO word_filters (word, replacement, is_regex, created_by) VALUES ($1, $2, $3, $4)`,
+      [word, replacement || '***', is_regex || false, adminId]
+    );
+    wordFiltersCacheTime = 0; // Invalidate cache
+    await logAudit('add_word_filter', 'filter', null, adminId, { word, replacement, is_regex });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Delete word filter
+app.delete('/api/admin/word-filters/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const filterId = parseInt(req.params.id);
+  const adminId = req.user.userId;
+
+  try {
+    await db.query('DELETE FROM word_filters WHERE id = $1', [filterId]);
+    wordFiltersCacheTime = 0; // Invalidate cache
+    await logAudit('delete_word_filter', 'filter', filterId, adminId, null);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Get mod notes for a user
+app.get('/api/admin/users/:id/notes', authMiddleware, adminMiddleware, async (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  try {
+    const result = await db.query(
+      `SELECT n.*, u.alias AS created_by_alias
+       FROM mod_notes n
+       LEFT JOIN users u ON u.id = n.created_by
+       WHERE n.user_id = $1
+       ORDER BY n.created_at DESC`,
+      [userId]
+    );
+    res.json({ success: true, notes: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Add mod note
+app.post('/api/admin/users/:id/notes', authMiddleware, adminMiddleware, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { note } = req.body;
+  const adminId = req.user.userId;
+
+  if (!note) {
+    return res.status(400).json({ success: false, error: 'note required' });
+  }
+
+  try {
+    await db.query(
+      `INSERT INTO mod_notes (user_id, note, created_by) VALUES ($1, $2, $3)`,
+      [userId, note, adminId]
+    );
+    await logAudit('add_mod_note', 'user', userId, adminId, { note: note.substring(0, 100) });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Delete mod note
+app.delete('/api/admin/notes/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const noteId = parseInt(req.params.id);
+  const adminId = req.user.userId;
+
+  try {
+    await db.query('DELETE FROM mod_notes WHERE id = $1', [noteId]);
+    await logAudit('delete_mod_note', 'note', noteId, adminId, null);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Get warnings for a user
+app.get('/api/admin/users/:id/warnings', authMiddleware, adminMiddleware, async (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  try {
+    const result = await db.query(
+      `SELECT w.*, u.alias AS issued_by_alias
+       FROM warnings w
+       LEFT JOIN users u ON u.id = w.issued_by
+       WHERE w.user_id = $1
+       ORDER BY w.created_at DESC`,
+      [userId]
+    );
+    res.json({ success: true, warnings: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Issue warning
+app.post('/api/admin/users/:id/warnings', authMiddleware, adminMiddleware, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { reason } = req.body;
+  const adminId = req.user.userId;
+
+  if (!reason) {
+    return res.status(400).json({ success: false, error: 'reason required' });
+  }
+
+  try {
+    // Create warning
+    await db.query(
+      `INSERT INTO warnings (user_id, reason, issued_by) VALUES ($1, $2, $3)`,
+      [userId, reason, adminId]
+    );
+
+    // Create notification for user
+    const userResult = await db.query('SELECT alias FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length > 0) {
+      await db.query(
+        `INSERT INTO notifications (user_id, type, title, message) VALUES ($1, $2, $3, $4)`,
+        [userId, 'warning', 'You have received a warning', reason]
+      );
+    }
+
+    await logAudit('issue_warning', 'user', userId, adminId, { reason });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Ban user (permanent or temporary)
+app.post('/api/admin/users/:id/ban', authMiddleware, adminMiddleware, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { reason, days } = req.body;
+  const adminId = req.user.userId;
+
+  try {
+    const expiresAt = days ? new Date(Date.now() + days * 24 * 60 * 60 * 1000) : null;
+    await db.query(
+      `UPDATE users SET is_banned = TRUE, ban_reason = $1, ban_expires_at = $2, banned_by = $3 WHERE id = $4`,
+      [reason || 'Banned by admin', expiresAt, adminId, userId]
+    );
+
+    // Notify user
+    await db.query(
+      `INSERT INTO notifications (user_id, type, title, message) VALUES ($1, $2, $3, $4)`,
+      [userId, 'ban', days ? 'You have been temporarily banned' : 'You have been banned', reason || 'Contact admin for details']
+    );
+
+    await logAudit('ban_user', 'user', userId, adminId, { reason, days, expires_at: expiresAt });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Unban user
+app.post('/api/admin/users/:id/unban', authMiddleware, adminMiddleware, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const adminId = req.user.userId;
+
+  try {
+    await db.query(
+      `UPDATE users SET is_banned = FALSE, ban_reason = NULL, ban_expires_at = NULL, banned_by = NULL WHERE id = $1`,
+      [userId]
+    );
+    await logAudit('unban_user', 'user', userId, adminId, null);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Get user details for moderation
+app.get('/api/admin/users/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  try {
+    const userResult = await db.query(
+      `SELECT id, alias, bio, is_admin, is_banned, ban_reason, ban_expires_at, is_shadow_banned, created_at
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Get warning count
+    const warningCount = await db.query(
+      'SELECT COUNT(*) FROM warnings WHERE user_id = $1',
+      [userId]
+    );
+
+    // Get note count
+    const noteCount = await db.query(
+      'SELECT COUNT(*) FROM mod_notes WHERE user_id = $1',
+      [userId]
+    );
+
+    // Get recent entries
+    const recentEntries = await db.query(
+      `SELECT e.id, e.content, e.ip_hash, e.created_at, t.title AS thread_title
+       FROM entries e
+       JOIN threads t ON t.id = e.thread_id
+       WHERE e.user_id = $1 AND e.is_deleted = FALSE
+       ORDER BY e.created_at DESC LIMIT 10`,
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      user: {
+        ...user,
+        warning_count: parseInt(warningCount.rows[0].count),
+        note_count: parseInt(noteCount.rows[0].count),
+        recent_entries: recentEntries.rows
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Search users
+app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
+  const search = req.query.search || '';
+  const filter = req.query.filter || 'all'; // all, banned, warned
+
+  try {
+    let query = `
+      SELECT u.id, u.alias, u.is_admin, u.is_banned, u.ban_expires_at, u.created_at,
+             (SELECT COUNT(*) FROM warnings WHERE user_id = u.id) AS warning_count
+      FROM users u
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (search) {
+      params.push('%' + search + '%');
+      query += ` AND u.alias ILIKE $${params.length}`;
+    }
+
+    if (filter === 'banned') {
+      query += ` AND u.is_banned = TRUE`;
+    } else if (filter === 'warned') {
+      query += ` AND (SELECT COUNT(*) FROM warnings WHERE user_id = u.id) > 0`;
+    }
+
+    query += ` ORDER BY u.created_at DESC LIMIT 100`;
+
+    const result = await db.query(query, params);
+    res.json({ success: true, users: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Move thread to different room
+app.put('/api/admin/threads/:id/move', authMiddleware, adminMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.id);
+  const { room_slug } = req.body;
+  const adminId = req.user.userId;
+
+  if (!room_slug) {
+    return res.status(400).json({ success: false, error: 'room_slug required' });
+  }
+
+  try {
+    // Get new room id
+    const roomResult = await db.query('SELECT id FROM rooms WHERE slug = $1', [room_slug]);
+    if (roomResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'room_not_found' });
+    }
+    const newRoomId = roomResult.rows[0].id;
+
+    // Get old room for logging
+    const threadResult = await db.query('SELECT room_id FROM threads WHERE id = $1', [threadId]);
+    if (threadResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'thread_not_found' });
+    }
+    const oldRoomId = threadResult.rows[0].room_id;
+
+    // Move thread
+    await db.query('UPDATE threads SET room_id = $1 WHERE id = $2', [newRoomId, threadId]);
+    await logAudit('move_thread', 'thread', threadId, adminId, { from_room_id: oldRoomId, to_room_slug: room_slug });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Get moderation dashboard stats
+app.get('/api/admin/mod-stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const pendingReports = await db.query("SELECT COUNT(*) FROM reports WHERE status = 'pending'");
+    const totalBans = await db.query('SELECT COUNT(*) FROM users WHERE is_banned = TRUE');
+    const activeIpBans = await db.query("SELECT COUNT(*) FROM ip_bans WHERE expires_at IS NULL OR expires_at > NOW()");
+    const recentWarnings = await db.query("SELECT COUNT(*) FROM warnings WHERE created_at > NOW() - INTERVAL '7 days'");
+
+    res.json({
+      success: true,
+      stats: {
+        pending_reports: parseInt(pendingReports.rows[0].count),
+        total_bans: parseInt(totalBans.rows[0].count),
+        active_ip_bans: parseInt(activeIpBans.rows[0].count),
+        recent_warnings: parseInt(recentWarnings.rows[0].count)
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// User: Get own warnings
+app.get('/api/my/warnings', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      `SELECT id, reason, acknowledged, created_at FROM warnings WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    );
+    res.json({ success: true, warnings: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// User: Acknowledge warning
+app.put('/api/my/warnings/:id/acknowledge', authMiddleware, async (req, res) => {
+  const warningId = parseInt(req.params.id);
+  const userId = req.user.userId;
+
+  try {
+    await db.query(
+      `UPDATE warnings SET acknowledged = TRUE WHERE id = $1 AND user_id = $2`,
+      [warningId, userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -1691,6 +2226,51 @@ async function migrate() {
         deleted_by_recipient BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT NOW()
       );
+      
+      -- Moderation: IP bans
+      CREATE TABLE IF NOT EXISTS ip_bans (
+        id SERIAL PRIMARY KEY,
+        ip_hash VARCHAR(64) NOT NULL,
+        reason TEXT,
+        banned_by INTEGER REFERENCES users(id),
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- Moderation: Word filters
+      CREATE TABLE IF NOT EXISTS word_filters (
+        id SERIAL PRIMARY KEY,
+        word VARCHAR(100) NOT NULL,
+        replacement VARCHAR(100) DEFAULT '***',
+        is_regex BOOLEAN DEFAULT FALSE,
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- Moderation: Mod notes on users
+      CREATE TABLE IF NOT EXISTS mod_notes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        note TEXT NOT NULL,
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- Moderation: Warnings
+      CREATE TABLE IF NOT EXISTS warnings (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        reason TEXT NOT NULL,
+        issued_by INTEGER REFERENCES users(id),
+        acknowledged BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- Add ban columns to users if not exist
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_expires_at TIMESTAMP;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_by INTEGER REFERENCES users(id);
       
       INSERT INTO rooms (slug, title) VALUES 
         ('general', 'General Discussion'),

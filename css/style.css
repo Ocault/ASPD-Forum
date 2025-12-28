@@ -1393,6 +1393,21 @@ ul {
   color: var(--text-secondary);
 }
 
+.header-admin {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  text-decoration: none;
+  opacity: 0.6;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.header-admin:hover {
+  opacity: 1;
+  color: var(--text-secondary);
+}
+
 /* ========================================
    FILTER BAR
 ======================================== */
