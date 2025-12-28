@@ -1,0 +1,23 @@
+# ASPD Forum - Robots.txt
+User-agent: *
+Allow: /
+Allow: /index.html
+Allow: /login.html
+Allow: /register.html
+
+# Disallow authenticated areas
+Disallow: /forum.html
+Disallow: /room.html
+Disallow: /thread.html
+Disallow: /profile.html
+Disallow: /messages.html
+Disallow: /admin.html
+Disallow: /feed.html
+Disallow: /activity.html
+Disallow: /drafts.html
+Disallow: /history.html
+Disallow: /search.html
+Disallow: /backend/
+
+# Sitemap location
+Sitemap: https://aspdforum.com/sitemap.xml
