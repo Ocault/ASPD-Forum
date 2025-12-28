@@ -37,9 +37,15 @@
     <!-- Thread Title -->
     <div class="thread-title-bar">
       <h1 class="thread-title" data-bind="thread-title">Loading...</h1>
+      <span class="thread-status-badges" id="thread-badges"></span>
       <button class="subscribe-btn" id="subscribe-btn" title="Subscribe to thread">[WATCH]</button>
       <button class="bookmark-btn" id="bookmark-btn" title="Bookmark this thread">[SAVE]</button>
       <span class="thread-slow-mode" id="slow-mode-indicator" style="display: none;"></span>
+      <!-- Admin Controls -->
+      <div class="thread-admin-controls" id="thread-admin-controls" style="display: none;">
+        <button class="admin-btn" id="pin-btn" title="Pin/Unpin thread">[PIN]</button>
+        <button class="admin-btn" id="lock-btn" title="Lock/Unlock thread">[LOCK]</button>
+      </div>
     </div>
 
     <!-- Filter Bar -->
@@ -153,6 +159,31 @@
         }
         document.title = 'ASPD Forum — ' + (signalMeta.title || 'Thread');
         updateSlowModeIndicator(signalMeta.slowModeInterval);
+        updateThreadBadges(signalMeta);
+        updateAdminControls(signalMeta);
+      }
+
+      function updateThreadBadges(threadData) {
+        var badgesEl = document.getElementById('thread-badges');
+        var badges = [];
+        if (threadData.isPinned) badges.push('<span class="thread-badge pinned">📌 PINNED</span>');
+        if (threadData.isLocked) badges.push('<span class="thread-badge locked">🔒 LOCKED</span>');
+        badgesEl.innerHTML = badges.join(' ');
+      }
+
+      var currentThreadData = null;
+
+      function updateAdminControls(threadData) {
+        currentThreadData = threadData;
+        if (!AuthState.isAdmin()) return;
+        
+        var adminControls = document.getElementById('thread-admin-controls');
+        var pinBtn = document.getElementById('pin-btn');
+        var lockBtn = document.getElementById('lock-btn');
+        
+        adminControls.style.display = 'flex';
+        pinBtn.textContent = threadData.isPinned ? '[UNPIN]' : '[PIN]';
+        lockBtn.textContent = threadData.isLocked ? '[UNLOCK]' : '[LOCK]';
       }
 
       /**
@@ -772,6 +803,61 @@
           submitBtn.textContent = 'TRANSMIT';
         });
       });
+
+      // Admin controls for pin/lock
+      var pinBtn = document.getElementById('pin-btn');
+      var lockBtn = document.getElementById('lock-btn');
+
+      pinBtn.addEventListener('click', function() {
+        if (!currentThreadDbId) return;
+        pinBtn.disabled = true;
+        
+        AuthState.apiRequest('/api/admin/threads/' + currentThreadDbId + '/pin', { method: 'PUT' })
+          .then(function(data) {
+            if (data.success) {
+              currentThreadData.isPinned = data.is_pinned;
+              updateThreadBadges(currentThreadData);
+              updateAdminControls(currentThreadData);
+              Notify.show(data.is_pinned ? 'THREAD PINNED' : 'THREAD UNPINNED', 'info');
+            }
+          })
+          .catch(function(err) {
+            Notify.show('ERROR', 'error');
+          })
+          .finally(function() {
+            pinBtn.disabled = false;
+          });
+      });
+
+      lockBtn.addEventListener('click', function() {
+        if (!currentThreadDbId) return;
+        lockBtn.disabled = true;
+        
+        AuthState.apiRequest('/api/admin/threads/' + currentThreadDbId + '/lock', { method: 'PUT' })
+          .then(function(data) {
+            if (data.success) {
+              currentThreadData.isLocked = data.is_locked;
+              updateThreadBadges(currentThreadData);
+              updateAdminControls(currentThreadData);
+              Notify.show(data.is_locked ? 'THREAD LOCKED' : 'THREAD UNLOCKED', 'info');
+              // Update reply form visibility
+              updateReplyFormForLock(data.is_locked);
+            }
+          })
+          .catch(function(err) {
+            Notify.show('ERROR', 'error');
+          })
+          .finally(function() {
+            lockBtn.disabled = false;
+          });
+      });
+
+      function updateReplyFormForLock(isLocked) {
+        var replyFormContainer = document.querySelector('.reply-form-container');
+        if (isLocked && !AuthState.isAdmin()) {
+          replyFormContainer.innerHTML = '<div class="locked-notice">🔒 THIS THREAD IS LOCKED</div>';
+        }
+      }
 
       // Back to top button
       var backToTopBtn = document.getElementById('back-to-top');

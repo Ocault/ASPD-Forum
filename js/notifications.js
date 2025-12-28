@@ -245,12 +245,12 @@ const NotificationSystem = (function() {
 // Auto-initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
-    if (typeof AuthState !== 'undefined' && AuthState.isLoggedIn()) {
+    if (typeof AuthState !== 'undefined' && AuthState.hasToken()) {
       NotificationSystem.init();
     }
   });
 } else {
-  if (typeof AuthState !== 'undefined' && AuthState.isLoggedIn()) {
+  if (typeof AuthState !== 'undefined' && AuthState.hasToken()) {
     NotificationSystem.init();
   }
 }

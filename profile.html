@@ -41,7 +41,9 @@
             <span class="profile-joined" id="profile-joined">JOINED: ---</span>
             <span class="profile-last-seen" id="profile-last-seen"></span>
           </div>
+          <div class="profile-rank" id="profile-rank"></div>
           <div class="profile-bio" id="profile-bio">No bio set.</div>
+          <div class="profile-signature" id="profile-signature"></div>
         </div>
         <div class="profile-stats">
           <div class="stat-item">
@@ -51,6 +53,10 @@
           <div class="stat-item">
             <span class="stat-value" id="stat-threads">0</span>
             <span class="stat-label">THREADS</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="stat-rep">0</span>
+            <span class="stat-label">REP</span>
           </div>
         </div>
       </div>
@@ -179,6 +185,11 @@
           <textarea id="edit-bio" class="edit-bio-input" rows="4" maxlength="500" placeholder="Tell us about yourself..."></textarea>
           <span class="char-count" id="bio-char-count">0/500</span>
         </div>
+        <div class="form-group">
+          <label for="edit-signature">SIGNATURE (200 chars max)</label>
+          <input type="text" id="edit-signature" class="edit-signature-input" maxlength="200" placeholder="Your signature appears under posts...">
+          <span class="char-count" id="sig-char-count">0/200</span>
+        </div>
         <div class="form-actions">
           <button type="button" class="cancel-btn" id="edit-cancel">CANCEL</button>
           <button type="submit" class="reply-submit" id="edit-save">SAVE</button>
@@ -269,6 +280,22 @@
         statPosts.textContent = profile.stats.posts;
         statThreads.textContent = profile.stats.threads;
         document.title = 'ASPD Forum — ' + profile.alias;
+
+        // Display rank and reputation
+        var profileRank = document.getElementById('profile-rank');
+        var statRep = document.getElementById('stat-rep');
+        if (profile.rank) {
+          profileRank.innerHTML = '<span class="rank-badge rank-' + profile.rank.toLowerCase() + '">' + profile.rank + '</span>';
+        }
+        statRep.textContent = profile.reputation || 0;
+
+        // Display signature
+        var profileSignature = document.getElementById('profile-signature');
+        if (profile.signature) {
+          profileSignature.innerHTML = '<span class="signature-text">"' + profile.signature + '"</span>';
+        } else {
+          profileSignature.textContent = '';
+        }
 
         // Fetch and display last seen
         var profileLastSeen = document.getElementById('profile-last-seen');

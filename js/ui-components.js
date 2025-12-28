@@ -184,11 +184,19 @@ const UIComponents = (function() {
     const title = signal.title || 'UNTITLED';
     const href = signal.href || '#';
     const meta = signal.meta || '';
+    const isPinned = signal.is_pinned || false;
+    const isLocked = signal.is_locked || false;
     const deleteBtn = isAdmin ? `<button class="signal-delete-btn" data-thread-id="${id}" title="Delete Thread">×</button>` : '';
     
+    // Build badges
+    let badges = '';
+    if (isPinned) badges += '<span class="signal-badge pinned">📌</span>';
+    if (isLocked) badges += '<span class="signal-badge locked">🔒</span>';
+    
     return `
-      <div class="signal-row-wrapper" data-signal-id="${id}">
+      <div class="signal-row-wrapper ${isPinned ? 'pinned' : ''}" data-signal-id="${id}">
         <a href="${href}" class="signal-row">
+          ${badges}
           <span class="signal-title">${title}</span>
           <span class="signal-meta">${meta}</span>
         </a>
@@ -232,9 +240,13 @@ const UIComponents = (function() {
     if (exceedsLimit) entryClass += ' entry--long';
     const identityClass = isAnonymous ? 'entry-alias' : 'entry-system-label';
     
+    // Get rank badge
+    const rank = entry.rank || '';
+    const rankBadge = rank ? `<span class="entry-rank rank-badge rank-${rank.toLowerCase()}">${rank}</span>` : '';
+    
     // Make alias a clickable link to profile
     const identityLabel = isAnonymous 
-      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${alias}</a>` 
+      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${alias}</a>${rankBadge}` 
       : 'ARCHIVE';
     
     // Format timestamp
@@ -300,6 +312,7 @@ const UIComponents = (function() {
             <p>${formattedContent}</p>
           </div>
           ${reactionsHtml}
+          ${entry.signature ? `<div class="entry-signature">— ${entry.signature}</div>` : ''}
         </div>
       </div>`;
   }

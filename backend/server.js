@@ -293,7 +293,7 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
   try {
     // Get user info
     const userResult = await db.query(
-      'SELECT id, alias, bio, avatar_config, created_at FROM users WHERE alias = $1',
+      'SELECT id, alias, bio, avatar_config, signature, reputation, created_at FROM users WHERE alias = $1',
       [alias]
     );
     
@@ -317,6 +317,14 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
     );
     const threadCount = parseInt(threadCountResult.rows[0].count);
     
+    // Calculate user rank based on post count
+    let rank = 'NEWCOMER';
+    if (postCount >= 500) rank = 'VETERAN';
+    else if (postCount >= 200) rank = 'EXPERT';
+    else if (postCount >= 100) rank = 'REGULAR';
+    else if (postCount >= 50) rank = 'MEMBER';
+    else if (postCount >= 10) rank = 'ACTIVE';
+    
     // Get recent posts (last 5)
     const recentPostsResult = await db.query(
       `SELECT e.id, e.content, e.created_at, t.id AS thread_id, t.title AS thread_title
@@ -333,7 +341,10 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
       profile: {
         alias: user.alias,
         bio: user.bio || '',
+        signature: user.signature || '',
         avatarConfig: user.avatar_config || null,
+        reputation: user.reputation || 0,
+        rank: rank,
         createdAt: user.created_at,
         stats: {
           posts: postCount,
@@ -357,12 +368,17 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
 // API: Update own profile
 app.put('/api/profile', authMiddleware, async (req, res) => {
   const userId = req.user.userId;
-  const { bio, avatar_config, custom_avatar } = req.body;
+  const { bio, avatar_config, custom_avatar, signature } = req.body;
   
   try {
     // Validate bio length
     if (bio && bio.length > 500) {
       return res.status(400).json({ success: false, error: 'bio_too_long', message: 'Bio must be 500 characters or less' });
+    }
+    
+    // Validate signature length
+    if (signature && signature.length > 200) {
+      return res.status(400).json({ success: false, error: 'signature_too_long', message: 'Signature must be 200 characters or less' });
     }
     
     // Check if user is admin for custom avatar upload
@@ -390,8 +406,8 @@ app.put('/api/profile', authMiddleware, async (req, res) => {
     }
     
     const result = await db.query(
-      'UPDATE users SET bio = $1, avatar_config = $2 WHERE id = $3 RETURNING id, alias, bio, avatar_config',
-      [bio || '', finalAvatarConfig, userId]
+      'UPDATE users SET bio = $1, avatar_config = $2, signature = $3 WHERE id = $4 RETURNING id, alias, bio, avatar_config, signature',
+      [bio || '', finalAvatarConfig, signature || null, userId]
     );
     
     if (result.rows.length === 0) {
@@ -413,6 +429,131 @@ app.get('/api/rooms', authMiddleware, async (req, res) => {
     );
     res.json({ success: true, rooms: result.rows });
   } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// GLOBAL SEARCH
+// ========================================
+
+// API: Global search across threads and posts
+app.get('/api/search', authMiddleware, async (req, res) => {
+  const query = req.query.q || '';
+  const type = req.query.type || 'all'; // all, threads, posts, users
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+  const offset = (page - 1) * limit;
+
+  if (!query || query.length < 2) {
+    return res.json({ success: true, results: [], total: 0 });
+  }
+
+  const searchPattern = '%' + query + '%';
+
+  try {
+    let results = [];
+    let total = 0;
+
+    if (type === 'all' || type === 'threads') {
+      // Search threads
+      const threadResult = await db.query(
+        `SELECT t.id, t.title, t.slug, t.created_at, r.slug AS room_slug, r.title AS room_title,
+                u.alias AS author, 'thread' AS result_type,
+                (SELECT COUNT(*) FROM entries WHERE thread_id = t.id AND is_deleted = FALSE) AS entry_count
+         FROM threads t
+         JOIN rooms r ON r.id = t.room_id
+         JOIN users u ON u.id = t.user_id
+         WHERE t.title ILIKE $1 OR t.slug ILIKE $1
+         ORDER BY t.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [searchPattern, limit, offset]
+      );
+      
+      if (type === 'threads') {
+        const countResult = await db.query(
+          `SELECT COUNT(*) FROM threads WHERE title ILIKE $1 OR slug ILIKE $1`,
+          [searchPattern]
+        );
+        total = parseInt(countResult.rows[0].count);
+      }
+      
+      results = results.concat(threadResult.rows);
+    }
+
+    if (type === 'all' || type === 'posts') {
+      // Search posts/entries
+      const postResult = await db.query(
+        `SELECT e.id, e.content, e.created_at, e.alias AS author,
+                t.id AS thread_id, t.title AS thread_title, t.slug AS thread_slug,
+                r.slug AS room_slug, 'post' AS result_type
+         FROM entries e
+         JOIN threads t ON t.id = e.thread_id
+         JOIN rooms r ON r.id = t.room_id
+         WHERE e.is_deleted = FALSE AND e.content ILIKE $1
+         ORDER BY e.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [searchPattern, limit, offset]
+      );
+      
+      if (type === 'posts') {
+        const countResult = await db.query(
+          `SELECT COUNT(*) FROM entries WHERE is_deleted = FALSE AND content ILIKE $1`,
+          [searchPattern]
+        );
+        total = parseInt(countResult.rows[0].count);
+      }
+      
+      results = results.concat(postResult.rows);
+    }
+
+    if (type === 'all' || type === 'users') {
+      // Search users
+      const userResult = await db.query(
+        `SELECT u.id, u.alias, u.bio, u.created_at, u.is_admin, 'user' AS result_type,
+                (SELECT COUNT(*) FROM entries WHERE user_id = u.id AND is_deleted = FALSE) AS post_count
+         FROM users u
+         WHERE u.alias ILIKE $1 AND u.is_banned = FALSE
+         ORDER BY u.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [searchPattern, limit, offset]
+      );
+      
+      if (type === 'users') {
+        const countResult = await db.query(
+          `SELECT COUNT(*) FROM users WHERE alias ILIKE $1 AND is_banned = FALSE`,
+          [searchPattern]
+        );
+        total = parseInt(countResult.rows[0].count);
+      }
+      
+      results = results.concat(userResult.rows);
+    }
+
+    // For 'all' type, estimate total
+    if (type === 'all') {
+      const allCountResult = await db.query(
+        `SELECT 
+           (SELECT COUNT(*) FROM threads WHERE title ILIKE $1 OR slug ILIKE $1) +
+           (SELECT COUNT(*) FROM entries WHERE is_deleted = FALSE AND content ILIKE $1) +
+           (SELECT COUNT(*) FROM users WHERE alias ILIKE $1 AND is_banned = FALSE) AS total`,
+        [searchPattern]
+      );
+      total = parseInt(allCountResult.rows[0].total);
+    }
+
+    res.json({
+      success: true,
+      results: results,
+      total: total,
+      pagination: {
+        page: page,
+        limit: limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (err) {
+    console.error('[SEARCH ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -448,7 +589,7 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
     const total = parseInt(countResult.rows[0].count);
     
     // Get paginated threads
-    let threadsQuery = `SELECT t.id, t.title, COUNT(e.id) FILTER (WHERE e.shadow_banned = FALSE OR e.shadow_banned IS NULL)::int AS "entriesCount"
+    let threadsQuery = `SELECT t.id, t.title, t.is_pinned, t.is_locked, COUNT(e.id) FILTER (WHERE e.shadow_banned = FALSE OR e.shadow_banned IS NULL)::int AS "entriesCount"
        FROM threads t
        LEFT JOIN entries e ON e.thread_id = t.id
        WHERE t.room_id = $1`;
@@ -459,7 +600,7 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
       queryParams.push('%' + search + '%');
     }
     
-    threadsQuery += ` GROUP BY t.id ORDER BY t.id LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+    threadsQuery += ` GROUP BY t.id, t.is_pinned, t.is_locked ORDER BY t.is_pinned DESC, t.id DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
     queryParams.push(limit, offset);
     
     const threadsResult = await db.query(threadsQuery, queryParams);
@@ -486,7 +627,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     // Support both numeric ID and slug lookup
     const isNumeric = /^\d+$/.test(threadId);
     const threadResult = await db.query(
-      `SELECT t.id, t.title, t.slow_mode_interval, r.slug AS room_slug
+      `SELECT t.id, t.title, t.slow_mode_interval, t.is_locked, t.is_pinned, r.slug AS room_slug
        FROM threads t
        JOIN rooms r ON r.id = t.room_id
        WHERE ${isNumeric ? 't.id = $1' : 't.slug = $1'}`,
@@ -509,7 +650,9 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     const entriesResult = await db.query(
       `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
               COALESCE(u.avatar_config, e.avatar_config) AS avatar_config,
+              u.signature, u.reputation,
               e.created_at, e.edited_at,
+              (SELECT COUNT(*) FROM entries WHERE user_id = e.user_id AND is_deleted = FALSE) AS post_count,
               LENGTH(e.content) > $2 AS "exceedsCharLimit"
        FROM entries e
        LEFT JOIN users u ON u.id = e.user_id
@@ -540,11 +683,22 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
       });
     }
     
-    // Attach reactions to entries
-    const entriesWithReactions = entriesResult.rows.map(entry => ({
-      ...entry,
-      reactions: reactionsMap[entry.id] || {}
-    }));
+    // Attach reactions and rank to entries
+    const entriesWithReactions = entriesResult.rows.map(entry => {
+      const postCount = parseInt(entry.post_count) || 0;
+      let rank = 'NEWCOMER';
+      if (postCount >= 500) rank = 'VETERAN';
+      else if (postCount >= 200) rank = 'EXPERT';
+      else if (postCount >= 100) rank = 'REGULAR';
+      else if (postCount >= 50) rank = 'MEMBER';
+      else if (postCount >= 10) rank = 'ACTIVE';
+      
+      return {
+        ...entry,
+        rank: rank,
+        reactions: reactionsMap[entry.id] || {}
+      };
+    });
     
     res.json({
       success: true,
@@ -552,7 +706,9 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
         id: thread.id,
         title: thread.title,
         roomId: thread.room_slug,
-        slowModeInterval: thread.slow_mode_interval || null
+        slowModeInterval: thread.slow_mode_interval || null,
+        isLocked: thread.is_locked || false,
+        isPinned: thread.is_pinned || false
       },
       entries: entriesWithReactions,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
@@ -633,7 +789,7 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
     // Support both numeric ID and slug lookup
     const isNumeric = /^\d+$/.test(String(threadIdentifier));
     const threadResult = await db.query(
-      `SELECT id, slow_mode_interval FROM threads WHERE ${isNumeric ? 'id = $1' : 'slug = $1'}`,
+      `SELECT id, slow_mode_interval, is_locked FROM threads WHERE ${isNumeric ? 'id = $1' : 'slug = $1'}`,
       [isNumeric ? parseInt(threadIdentifier) : threadIdentifier]
     );
 
@@ -643,6 +799,16 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
 
     const threadDbId = threadResult.rows[0].id;
     const slowModeInterval = threadResult.rows[0].slow_mode_interval;
+    const isLocked = threadResult.rows[0].is_locked;
+
+    // Check if thread is locked
+    if (isLocked) {
+      // Allow admins to post in locked threads
+      const adminCheck = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+      if (!adminCheck.rows[0]?.is_admin) {
+        return res.status(403).json({ success: false, error: 'thread_locked', message: 'This thread is locked' });
+      }
+    }
 
     // Enforce slow-mode if active
     if (slowModeInterval && slowModeInterval > 0 && ipHash) {
@@ -1331,6 +1497,54 @@ app.put('/api/admin/threads/:id/move', authMiddleware, adminMiddleware, async (r
     await logAudit('move_thread', 'thread', threadId, adminId, { from_room_id: oldRoomId, to_room_slug: room_slug });
 
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Pin/Unpin thread
+app.put('/api/admin/threads/:id/pin', authMiddleware, adminMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.id);
+  const adminId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      'UPDATE threads SET is_pinned = NOT is_pinned WHERE id = $1 RETURNING is_pinned',
+      [threadId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'thread_not_found' });
+    }
+    
+    const isPinned = result.rows[0].is_pinned;
+    await logAudit(isPinned ? 'pin_thread' : 'unpin_thread', 'thread', threadId, adminId, {});
+
+    res.json({ success: true, is_pinned: isPinned });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Lock/Unlock thread
+app.put('/api/admin/threads/:id/lock', authMiddleware, adminMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.id);
+  const adminId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      'UPDATE threads SET is_locked = NOT is_locked WHERE id = $1 RETURNING is_locked',
+      [threadId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'thread_not_found' });
+    }
+    
+    const isLocked = result.rows[0].is_locked;
+    await logAudit(isLocked ? 'lock_thread' : 'unlock_thread', 'thread', threadId, adminId, {});
+
+    res.json({ success: true, is_locked: isLocked });
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
   }
@@ -2882,6 +3096,17 @@ async function migrate() {
       
       -- Add last_seen to users
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP;
+      
+      -- Add signature to users
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS signature VARCHAR(200);
+      
+      -- Add pin/lock columns to threads (in case they don't exist)
+      ALTER TABLE threads ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE;
+      ALTER TABLE threads ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;
+      
+      -- Add reputation system columns
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS reputation INTEGER DEFAULT 0;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS post_count INTEGER DEFAULT 0;
       
       INSERT INTO rooms (slug, title) VALUES 
         ('general', 'General Discussion'),
