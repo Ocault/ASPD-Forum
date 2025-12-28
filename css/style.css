@@ -5385,3 +5385,72 @@ img.loaded {
   background: rgba(122, 154, 186, 0.2);
   text-decoration: underline;
 }
+
+/* ========================================
+   WEBSOCKET REAL-TIME UPDATES
+======================================== */
+
+/* Connection status indicator */
+.ws-connected {
+  color: var(--success) !important;
+}
+
+/* New entry animation */
+.entry-new {
+  animation: slideInNew 0.4s ease-out;
+  border-left: 3px solid var(--success);
+}
+
+@keyframes slideInNew {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Entry updated flash */
+.entry-updated {
+  animation: flashUpdate 0.5s ease-out;
+}
+
+@keyframes flashUpdate {
+  0% { background-color: rgba(255, 200, 100, 0.3); }
+  100% { background-color: transparent; }
+}
+
+/* Entry deleted fade out */
+.entry-deleted {
+  animation: fadeOutDelete 0.5s ease-out forwards;
+}
+
+@keyframes fadeOutDelete {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+}
+
+/* New thread in room animation */
+.thread-row-new {
+  animation: slideInThread 0.4s ease-out;
+  border-left: 3px solid var(--accent);
+}
+
+@keyframes slideInThread {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

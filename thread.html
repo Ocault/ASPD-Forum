@@ -152,6 +152,7 @@
   <script src="js/notifications.js"></script>
   <script src="js/avatar-renderer.js"></script>
   <script src="js/ui-components.js"></script>
+  <script src="js/ws-manager.js"></script>
   <script>
     (function() {
       'use strict';
@@ -1197,6 +1198,170 @@
       backToTopBtn.addEventListener('click', function() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
+
+      // ===== WebSocket Real-time Updates =====
+      var wsConnectionStatus = document.querySelector('[data-bind="connection-status"]');
+      var wsSubscribedThread = null;
+
+      function initWebSocket() {
+        if (typeof WSManager === 'undefined') return;
+
+        // Update connection status indicator
+        WSManager.on('connected', function() {
+          if (wsConnectionStatus) wsConnectionStatus.textContent = 'CONN.LIVE';
+          wsConnectionStatus.classList.add('ws-connected');
+          // Subscribe to current thread
+          if (currentSignalId) {
+            wsSubscribedThread = currentSignalId;
+            WSManager.subscribeThread(currentSignalId);
+          }
+        });
+
+        WSManager.on('disconnected', function() {
+          if (wsConnectionStatus) wsConnectionStatus.textContent = 'CONN.OFFLINE';
+          wsConnectionStatus.classList.remove('ws-connected');
+        });
+
+        // Handle new entry in real-time
+        WSManager.on('new_entry', function(entry) {
+          // Don't add if we already have it
+          if (allEntries.some(function(e) { return e.id === entry.id; })) return;
+          
+          // Add to entries array
+          allEntries.push(entry);
+          
+          // Create and append new entry element
+          var tempDiv = document.createElement('div');
+          tempDiv.innerHTML = UIComponents.entryElement(entry, currentUserId);
+          var newEntryEl = tempDiv.firstElementChild;
+          
+          // Add highlight animation class
+          newEntryEl.classList.add('entry-new');
+          
+          // Insert before empty state or at end
+          var emptyState = entriesContainer.querySelector('.empty-state');
+          if (emptyState) {
+            entriesContainer.removeChild(emptyState);
+          }
+          entriesContainer.appendChild(newEntryEl);
+          
+          // Bind events for new entry
+          bindEntryEvents(newEntryEl);
+          
+          // Initialize avatar
+          var canvas = newEntryEl.querySelector('.avatar-mini');
+          if (canvas) {
+            var configAttr = newEntryEl.getAttribute('data-avatar-config');
+            if (configAttr) {
+              try {
+                AvatarRenderer.render(canvas, JSON.parse(configAttr));
+              } catch (e) {}
+            }
+          }
+          
+          // Update entry count
+          entryCountEl.textContent = allEntries.length;
+          
+          // Show notification if not at bottom
+          var isAtBottom = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100;
+          if (!isAtBottom) {
+            Notify.show('NEW ENTRY RECEIVED', 'info');
+          }
+        });
+
+        // Handle entry edit in real-time
+        WSManager.on('entry_edited', function(data) {
+          var entryEl = document.querySelector('.entry[data-entry-id="' + data.entryId + '"]');
+          if (entryEl) {
+            var contentEl = entryEl.querySelector('.entry-content p');
+            if (contentEl) {
+              contentEl.innerHTML = data.content;
+            }
+            // Update edited indicator
+            var metaEl = entryEl.querySelector('.entry-meta');
+            if (metaEl && !metaEl.querySelector('.entry-edited')) {
+              metaEl.insertAdjacentHTML('beforeend', '<span class="entry-edited">(edited)</span>');
+            }
+            // Flash highlight
+            entryEl.classList.add('entry-updated');
+            setTimeout(function() { entryEl.classList.remove('entry-updated'); }, 2000);
+          }
+          // Update in allEntries array
+          allEntries.forEach(function(e) {
+            if (e.id === data.entryId) {
+              e.content = data.content;
+            }
+          });
+        });
+
+        // Handle entry delete in real-time
+        WSManager.on('entry_deleted', function(data) {
+          var entryEl = document.querySelector('.entry[data-entry-id="' + data.entryId + '"]');
+          if (entryEl) {
+            entryEl.classList.add('entry-deleted');
+            setTimeout(function() {
+              entryEl.remove();
+            }, 500);
+          }
+          // Remove from allEntries array
+          allEntries = allEntries.filter(function(e) { return e.id !== data.entryId; });
+          entryCountEl.textContent = allEntries.length;
+        });
+      }
+
+      // Helper function to bind events on dynamically added entries
+      function bindEntryEvents(entryEl) {
+        // Edit button
+        var editBtn = entryEl.querySelector('.entry-edit-btn');
+        if (editBtn) {
+          editBtn.addEventListener('click', function() {
+            var entryId = editBtn.dataset.entryId;
+            var content = entryEl.querySelector('.entry-content p').textContent;
+            showEditModal(entryId, content);
+          });
+        }
+        
+        // Delete button
+        var deleteBtn = entryEl.querySelector('.entry-delete-btn');
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', function() {
+            var entryId = deleteBtn.dataset.entryId;
+            showDeleteConfirm(entryId);
+          });
+        }
+        
+        // Quote button
+        var quoteBtn = entryEl.querySelector('.entry-quote-btn');
+        if (quoteBtn) {
+          quoteBtn.addEventListener('click', function() {
+            var alias = quoteBtn.dataset.alias;
+            var content = entryEl.querySelector('.entry-content p').textContent;
+            quoteEntry(alias, content);
+          });
+        }
+        
+        // Report button
+        var reportBtn = entryEl.querySelector('.entry-report-btn');
+        if (reportBtn) {
+          reportBtn.addEventListener('click', function() {
+            var entryId = reportBtn.dataset.entryId;
+            showReportModal(entryId);
+          });
+        }
+        
+        // Reaction buttons
+        entryEl.querySelectorAll('.reaction-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var reactionsEl = btn.closest('.entry-reactions');
+            var entryId = reactionsEl.dataset.entryId;
+            var reactionType = btn.dataset.reaction;
+            toggleReaction(entryId, reactionType, btn);
+          });
+        });
+      }
+
+      // Initialize WebSocket connection
+      initWebSocket();
 
       // Keyboard shortcuts
       document.addEventListener('keydown', function(e) {
