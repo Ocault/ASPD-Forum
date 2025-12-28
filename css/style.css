@@ -976,10 +976,29 @@ ul {
   transition: all 0.15s ease;
 }
 
+/* Rank avatars need special handling - opacity affects pseudo-elements */
+.entry-avatar[class*="avatar-rank-"] {
+  opacity: 1 !important;
+  width: 0;
+}
+
+.entry-avatar[class*="avatar-rank-"] .avatar-mini {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.entry:hover .entry-avatar[class*="avatar-rank-"] .avatar-mini {
+  opacity: 0.7;
+}
+
 .entry:hover .entry-avatar {
   width: 28px;
   margin-right: var(--spacing-sm);
   opacity: 0.7;
+}
+
+.entry:hover .entry-avatar[class*="avatar-rank-"] {
+  opacity: 1 !important;
 }
 
 .avatar-placeholder {
@@ -6679,6 +6698,12 @@ img.loaded {
 
 .entry-avatar[class*="avatar-rank-"] {
   overflow: visible !important;
+}
+
+/* Make rank borders always visible at full opacity on hover */
+.entry:hover .entry-avatar[class*="avatar-rank-"]::before,
+.entry:hover .entry-avatar[class*="avatar-rank-"]::after {
+  opacity: 1;
 }
 
 .entry-avatar .avatar-mini {
