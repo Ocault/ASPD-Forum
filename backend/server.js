@@ -554,7 +554,7 @@ app.put('/api/profile', authMiddleware, async (req, res) => {
     }
     
     // Check if user is admin for custom avatar upload
-    let finalAvatarConfig = avatar_config || null;
+    let finalAvatarConfig = avatar_config || {};
     
     if (custom_avatar) {
       // Only admins can upload custom avatars
@@ -573,8 +573,8 @@ app.put('/api/profile', authMiddleware, async (req, res) => {
         return res.status(400).json({ success: false, error: 'image_too_large', message: 'Image must be under 1.5MB' });
       }
       
-      // Store custom avatar in avatar_config
-      finalAvatarConfig = { customImage: custom_avatar };
+      // Store custom avatar in avatar_config, preserving selectedBorder
+      finalAvatarConfig = { ...finalAvatarConfig, customImage: custom_avatar };
     }
     
     const result = await db.query(

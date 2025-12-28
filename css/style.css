@@ -2182,7 +2182,7 @@ ul {
   border-radius: 4px;
   z-index: 0;
   background: conic-gradient(from 0deg, #000000, #1a1a1a, #3a3a3a, #505050, #3a3a3a, #1a1a1a, #000000);
-  animation: veteran-spin 2s linear infinite;
+  animation: veteran-spin 4s linear infinite;
 }
 
 .profile-avatar-section.avatar-rank-veteran::after {
@@ -2194,7 +2194,7 @@ ul {
   bottom: 2px;
   border-radius: 6px;
   background: conic-gradient(from 180deg, transparent, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08), transparent);
-  animation: veteran-spin-reverse 3s linear infinite;
+  animation: veteran-spin-reverse 5s linear infinite;
   z-index: -1;
 }
 
@@ -2695,17 +2695,18 @@ ul {
 }
 
 .border-preview {
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: visible;
 }
 
 .border-preview-avatar {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   position: relative;
@@ -2732,11 +2733,12 @@ ul {
   color: #ff4444;
 }
 
-/* Border preview animations */
+/* Border preview animations - High quality mini versions */
 .border-preview-none {
   /* No border effect */
 }
 
+/* ACTIVE preview - Electric pulse with edge glow */
 .border-preview-active::before {
   content: '';
   position: absolute;
@@ -2745,11 +2747,32 @@ ul {
   right: 0;
   bottom: 0;
   border-radius: 4px;
-  background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+  background: linear-gradient(135deg, 
+    #0a0a0a 0%, #1a1a1a 20%, #2a2a2a 40%, #3a3a3a 50%, 
+    #2a2a2a 60%, #1a1a1a 80%, #0a0a0a 100%
+  );
   animation: active-pulse 3s ease-in-out infinite;
-  box-shadow: 0 0 3px rgba(60, 60, 60, 0.4);
+  box-shadow: 
+    inset 0 0 4px rgba(255, 255, 255, 0.03),
+    0 0 3px rgba(60, 60, 60, 0.5);
 }
 
+.border-preview-active::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  border-radius: 4px;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 4px rgba(80, 80, 80, 0.3);
+  animation: active-edge-glow 3s ease-in-out infinite;
+  z-index: -1;
+}
+
+/* MEMBER preview - Liquid metal flow */
 .border-preview-member::before {
   content: '';
   position: absolute;
@@ -2758,12 +2781,35 @@ ul {
   right: 0;
   bottom: 0;
   border-radius: 4px;
-  background: linear-gradient(135deg, #1a1a1a, #3a3a3a, #2a2a2a, #3a3a3a, #1a1a1a);
-  background-size: 200% 200%;
-  animation: member-shimmer 4s ease-in-out infinite;
-  box-shadow: 0 0 4px rgba(80, 80, 80, 0.3);
+  background: linear-gradient(135deg, 
+    #0d0d0d 0%, #1a1a1a 15%, #3d3d3d 30%, #4a4a4a 45%, 
+    #5a5a5a 50%, #4a4a4a 55%, #3d3d3d 70%, #1a1a1a 85%, #0d0d0d 100%
+  );
+  background-size: 300% 300%;
+  animation: member-shimmer 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  box-shadow: 
+    inset 0 0 6px rgba(0, 0, 0, 0.8),
+    0 0 4px rgba(100, 100, 100, 0.25);
 }
 
+.border-preview-member::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg, transparent 0%, rgba(255, 255, 255, 0.04) 45%, 
+    rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.04) 55%, transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: member-shine 3s ease-in-out infinite;
+  z-index: 0;
+}
+
+/* REGULAR preview - Orbital ring with light trace */
 .border-preview-regular::before {
   content: '';
   position: absolute;
@@ -2772,11 +2818,36 @@ ul {
   right: 0;
   bottom: 0;
   border-radius: 4px;
-  background: conic-gradient(from 0deg, #1a1a1a, #2a2a2a, #3a3a3a, #2a2a2a, #1a1a1a);
-  animation: regular-rotate 4s linear infinite;
-  box-shadow: 0 0 5px rgba(90, 90, 90, 0.4);
+  background: conic-gradient(
+    from 0deg,
+    #0a0a0a 0%, #151515 10%, #252525 20%, #404040 35%, 
+    #606060 45%, #808080 50%, #606060 55%, #404040 65%, 
+    #252525 80%, #151515 90%, #0a0a0a 100%
+  );
+  animation: regular-rotate 8s linear infinite;
+  box-shadow: 
+    inset 0 0 8px rgba(0, 0, 0, 0.9),
+    0 0 5px rgba(100, 100, 100, 0.3);
 }
 
+.border-preview-regular::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  border-radius: 6px;
+  background: conic-gradient(
+    from 0deg, transparent 0%, transparent 40%, 
+    rgba(255, 255, 255, 0.15) 47%, rgba(255, 255, 255, 0.4) 50%, 
+    rgba(255, 255, 255, 0.15) 53%, transparent 60%, transparent 100%
+  );
+  animation: regular-trace 8s linear infinite;
+  z-index: -1;
+}
+
+/* EXPERT preview - Plasma sweep with electric edges */
 .border-preview-expert::before {
   content: '';
   position: absolute;
@@ -2785,11 +2856,37 @@ ul {
   right: 0;
   bottom: 0;
   border-radius: 4px;
-  background: linear-gradient(90deg, #1a1a1a, #3a3a3a, #505050, #3a3a3a, #1a1a1a);
-  background-size: 300% 100%;
-  animation: expert-sweep 2.5s linear infinite;
+  background: linear-gradient(
+    110deg, #0a0a0a 0%, #151515 15%, #303030 30%, #505050 45%, 
+    #707070 50%, #505050 55%, #303030 70%, #151515 85%, #0a0a0a 100%
+  );
+  background-size: 400% 100%;
+  animation: expert-sweep 5s ease-in-out infinite;
+  box-shadow: 
+    inset 0 0 10px rgba(0, 0, 0, 0.9),
+    0 0 6px rgba(120, 120, 120, 0.3);
 }
 
+.border-preview-expert::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 5px;
+  background: linear-gradient(
+    90deg, transparent 0%, transparent 20%, rgba(255, 255, 255, 0.1) 35%, 
+    rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0.1) 65%, 
+    transparent 80%, transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: expert-electric 3s ease-in-out infinite;
+  z-index: -1;
+  filter: blur(0.5px);
+}
+
+/* VETERAN preview - Void abyss with dual rings */
 .border-preview-veteran::before {
   content: '';
   position: absolute;
@@ -2798,23 +2895,20 @@ ul {
   right: 0;
   bottom: 0;
   border-radius: 4px;
-  background: conic-gradient(from 0deg, #000000, #1a1a1a, #3a3a3a, #505050, #3a3a3a, #1a1a1a, #000000);
-  animation: veteran-spin 2s linear infinite;
+  background: conic-gradient(
+    from 0deg,
+    #000000 0%, #080808 8%, #1a1a1a 16%, #2d2d2d 24%, 
+    #404040 32%, #555555 40%, #6a6a6a 48%, #7a7a7a 50%, 
+    #6a6a6a 52%, #555555 60%, #404040 68%, #2d2d2d 76%, 
+    #1a1a1a 84%, #080808 92%, #000000 100%
+  );
+  animation: veteran-spin 6s linear infinite;
+  box-shadow: 
+    inset 0 0 12px rgba(0, 0, 0, 0.95),
+    0 0 6px rgba(100, 100, 100, 0.3);
 }
 
-.border-preview-owner::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 4px;
-  background: conic-gradient(from 0deg, #000000, #1a1a1a, #2a2a2a, #ffffff, #2a2a2a, #1a1a1a, #000000);
-  animation: owner-spin 1.5s linear infinite;
-}
-
-.border-preview-owner::after {
+.border-preview-veteran::after {
   content: '';
   position: absolute;
   top: -3px;
@@ -2822,13 +2916,69 @@ ul {
   right: -3px;
   bottom: -3px;
   border-radius: 6px;
-  background: conic-gradient(from 180deg, transparent 0%, transparent 30%, rgba(255, 255, 255, 0.6) 45%, #ffffff 50%, rgba(255, 255, 255, 0.6) 55%, transparent 70%, transparent 100%);
-  animation: owner-spin-reverse 2s linear infinite;
+  background: conic-gradient(
+    from 0deg, transparent 0%, transparent 35%, 
+    rgba(255, 255, 255, 0.1) 42%, rgba(255, 255, 255, 0.3) 47%, 
+    rgba(255, 255, 255, 0.6) 50%, rgba(255, 255, 255, 0.3) 53%, 
+    rgba(255, 255, 255, 0.1) 58%, transparent 65%, transparent 100%
+  );
+  animation: veteran-spin-reverse 8s linear infinite;
   z-index: -1;
+}
+
+/* OWNER preview - Ultimate void with blazing beam */
+.border-preview-owner::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  border-radius: 5px;
+  background: conic-gradient(
+    from 0deg,
+    #000000 0%, #0a0a0a 10%, #1a1a1a 20%, #2a2a2a 30%, 
+    #4a4a4a 40%, #8a8a8a 45%, #ffffff 50%, #8a8a8a 55%, 
+    #4a4a4a 60%, #2a2a2a 70%, #1a1a1a 80%, #0a0a0a 90%, #000000 100%
+  );
+  animation: owner-spin 4s linear infinite;
+  box-shadow: 
+    inset 0 0 15px rgba(0, 0, 0, 0.95),
+    0 0 8px rgba(150, 150, 150, 0.3);
+}
+
+.border-preview-owner::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 7px;
+  background: conic-gradient(
+    from 180deg, transparent 0%, transparent 25%, 
+    rgba(255, 255, 255, 0.15) 35%, rgba(255, 255, 255, 0.4) 42%, 
+    rgba(255, 255, 255, 0.7) 47%, #ffffff 50%, rgba(255, 255, 255, 0.7) 53%, 
+    rgba(255, 255, 255, 0.4) 58%, rgba(255, 255, 255, 0.15) 65%, 
+    transparent 75%, transparent 100%
+  );
+  animation: owner-spin-reverse 5s linear infinite;
+  z-index: -1;
+  filter: blur(0.5px);
 }
 
 .border-option-owner {
   border-color: rgba(255, 255, 255, 0.2);
+  animation: owner-option-glow 4s ease-in-out infinite;
+}
+
+@keyframes owner-option-glow {
+  0%, 100% { 
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.1);
+  }
+  50% { 
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.25);
+  }
 }
 
 .border-option-owner .border-name {
@@ -6512,54 +6662,145 @@ img.loaded {
 /* Newcomers get no special border */
 
 /* ========================================
-   ACTIVE RANK - Subtle dark pulse
+   ACTIVE RANK - Electric dark pulse with edge glow
 ======================================== */
 .avatar-rank-active::before {
-  background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+  background: linear-gradient(135deg, 
+    #0a0a0a 0%,
+    #1a1a1a 20%,
+    #2a2a2a 40%,
+    #3a3a3a 50%,
+    #2a2a2a 60%,
+    #1a1a1a 80%,
+    #0a0a0a 100%
+  );
   animation: active-pulse 3s ease-in-out infinite;
-  box-shadow: 0 0 3px rgba(60, 60, 60, 0.4);
+  box-shadow: 
+    inset 0 0 8px rgba(255, 255, 255, 0.03),
+    0 0 4px rgba(60, 60, 60, 0.5),
+    0 0 8px rgba(40, 40, 40, 0.3);
+}
+
+.avatar-rank-active::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+  animation: active-edge-glow 3s ease-in-out infinite;
+  z-index: 0;
 }
 
 @keyframes active-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.9; }
+  0%, 100% { 
+    opacity: 0.7;
+    filter: brightness(0.9);
+  }
+  50% { 
+    opacity: 1; 
+    filter: brightness(1.1);
+  }
+}
+
+@keyframes active-edge-glow {
+  0%, 100% {
+    box-shadow: 
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+      0 0 6px rgba(80, 80, 80, 0.2);
+  }
+  50% {
+    box-shadow: 
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+      0 0 12px rgba(100, 100, 100, 0.35);
+  }
 }
 
 /* ========================================
-   MEMBER RANK - Slow shimmer
+   MEMBER RANK - Liquid metal flow
 ======================================== */
 .avatar-rank-member::before {
   background: linear-gradient(135deg, 
-    #1a1a1a 0%,
-    #3a3a3a 25%,
-    #2a2a2a 50%,
-    #3a3a3a 75%,
-    #1a1a1a 100%
+    #0d0d0d 0%,
+    #1a1a1a 15%,
+    #3d3d3d 30%,
+    #4a4a4a 45%,
+    #5a5a5a 50%,
+    #4a4a4a 55%,
+    #3d3d3d 70%,
+    #1a1a1a 85%,
+    #0d0d0d 100%
   );
-  background-size: 200% 200%;
-  animation: member-shimmer 4s ease-in-out infinite;
-  box-shadow: 0 0 4px rgba(80, 80, 80, 0.3);
+  background-size: 300% 300%;
+  animation: member-shimmer 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  box-shadow: 
+    inset 0 0 10px rgba(0, 0, 0, 0.8),
+    0 0 6px rgba(100, 100, 100, 0.25),
+    0 0 12px rgba(60, 60, 60, 0.15);
+}
+
+.avatar-rank-member::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 45%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 55%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: member-shine 3s ease-in-out infinite;
+  z-index: 0;
 }
 
 @keyframes member-shimmer {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
+}
+
+@keyframes member-shine {
+  0%, 100% { background-position: -100% 0; }
+  50% { background-position: 200% 0; }
 }
 
 /* ========================================
-   REGULAR RANK - Rotating gradient
+   REGULAR RANK - Orbital ring with light trace
 ======================================== */
 .avatar-rank-regular::before {
   background: conic-gradient(
     from 0deg,
-    #1a1a1a,
-    #2a2a2a,
-    #3a3a3a,
-    #2a2a2a,
-    #1a1a1a
+    #0a0a0a 0%,
+    #151515 10%,
+    #252525 20%,
+    #404040 35%,
+    #606060 45%,
+    #808080 50%,
+    #606060 55%,
+    #404040 65%,
+    #252525 80%,
+    #151515 90%,
+    #0a0a0a 100%
   );
-  animation: regular-rotate 4s linear infinite;
-  box-shadow: 0 0 5px rgba(90, 90, 90, 0.4);
+  animation: regular-rotate 8s linear infinite;
+  box-shadow: 
+    inset 0 0 15px rgba(0, 0, 0, 0.9),
+    0 0 8px rgba(100, 100, 100, 0.3),
+    0 0 15px rgba(60, 60, 60, 0.2);
 }
 
 @keyframes regular-rotate {
@@ -6567,86 +6808,8 @@ img.loaded {
   to { transform: rotate(360deg); }
 }
 
-/* Inner mask for regular to show avatar */
+/* Light trace particle */
 .avatar-rank-regular::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--bg-primary);
-  border-radius: 4px;
-  z-index: 0;
-}
-
-/* ========================================
-   EXPERT RANK - Electric sweep with glow
-======================================== */
-.avatar-rank-expert::before {
-  background: linear-gradient(
-    90deg,
-    #1a1a1a,
-    #3a3a3a,
-    #505050,
-    #3a3a3a,
-    #1a1a1a
-  );
-  background-size: 300% 100%;
-  animation: expert-sweep 2.5s linear infinite, expert-glow 2s ease-in-out infinite;
-}
-
-@keyframes expert-sweep {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 300% 50%; }
-}
-
-@keyframes expert-glow {
-  0%, 100% { 
-    box-shadow: 0 0 5px rgba(120, 120, 120, 0.3), 0 0 10px rgba(80, 80, 80, 0.2);
-  }
-  50% { 
-    box-shadow: 0 0 10px rgba(150, 150, 150, 0.5), 0 0 20px rgba(100, 100, 100, 0.3);
-  }
-}
-
-/* Expert inner ring */
-.avatar-rank-expert::after {
-  content: '';
-  position: absolute;
-  top: 1px;
-  left: 1px;
-  right: 1px;
-  bottom: 1px;
-  background: var(--bg-primary);
-  border-radius: 4px;
-  z-index: 0;
-}
-
-/* ========================================
-   VETERAN RANK - Dark void with white edge flicker
-======================================== */
-.avatar-rank-veteran::before {
-  background: conic-gradient(
-    from 0deg,
-    #000000,
-    #1a1a1a,
-    #3a3a3a,
-    #505050,
-    #3a3a3a,
-    #1a1a1a,
-    #000000
-  );
-  animation: veteran-spin 2s linear infinite;
-}
-
-@keyframes veteran-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* Veteran outer glow ring - dark with white edge pulse */
-.avatar-rank-veteran::after {
   content: '';
   position: absolute;
   top: -5px;
@@ -6655,15 +6818,160 @@ img.loaded {
   bottom: -5px;
   border-radius: 6px;
   background: conic-gradient(
-    from 180deg,
-    transparent,
-    rgba(255, 255, 255, 0.08),
-    rgba(255, 255, 255, 0.2),
-    rgba(255, 255, 255, 0.08),
-    transparent
+    from 0deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.15) 47%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0.15) 53%,
+    transparent 60%,
+    transparent 100%
   );
-  animation: veteran-spin-reverse 3s linear infinite;
+  animation: regular-trace 8s linear infinite;
   z-index: -1;
+}
+
+@keyframes regular-trace {
+  from { transform: rotate(180deg); }
+  to { transform: rotate(540deg); }
+}
+
+/* ========================================
+   EXPERT RANK - Plasma sweep with electric edges
+======================================== */
+.avatar-rank-expert::before {
+  background: linear-gradient(
+    110deg,
+    #0a0a0a 0%,
+    #151515 15%,
+    #303030 30%,
+    #505050 45%,
+    #707070 50%,
+    #505050 55%,
+    #303030 70%,
+    #151515 85%,
+    #0a0a0a 100%
+  );
+  background-size: 400% 100%;
+  animation: expert-sweep 5s ease-in-out infinite;
+  box-shadow: 
+    inset 0 0 20px rgba(0, 0, 0, 0.9),
+    0 0 10px rgba(120, 120, 120, 0.3),
+    0 0 20px rgba(80, 80, 80, 0.2);
+}
+
+@keyframes expert-sweep {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Electric edge effect */
+.avatar-rank-expert::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 20%,
+    rgba(255, 255, 255, 0.1) 35%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0.1) 65%,
+    transparent 80%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: expert-electric 3s ease-in-out infinite;
+  z-index: -1;
+  filter: blur(1px);
+}
+
+@keyframes expert-electric {
+  0%, 100% { 
+    background-position: -100% 0;
+    opacity: 0.6;
+  }
+  50% { 
+    background-position: 200% 0;
+    opacity: 1;
+  }
+}
+
+.avatar-rank-expert {
+  animation: expert-glow 4s ease-in-out infinite;
+}
+
+@keyframes expert-glow {
+  0%, 100% { 
+    filter: drop-shadow(0 0 3px rgba(150, 150, 150, 0.2));
+  }
+  50% { 
+    filter: drop-shadow(0 0 8px rgba(180, 180, 180, 0.4)) drop-shadow(0 0 15px rgba(120, 120, 120, 0.2));
+  }
+}
+
+/* ========================================
+   VETERAN RANK - Void abyss with dual contra-rotating rings
+======================================== */
+.avatar-rank-veteran::before {
+  background: conic-gradient(
+    from 0deg,
+    #000000 0%,
+    #080808 8%,
+    #1a1a1a 16%,
+    #2d2d2d 24%,
+    #404040 32%,
+    #555555 40%,
+    #6a6a6a 48%,
+    #7a7a7a 50%,
+    #6a6a6a 52%,
+    #555555 60%,
+    #404040 68%,
+    #2d2d2d 76%,
+    #1a1a1a 84%,
+    #080808 92%,
+    #000000 100%
+  );
+  animation: veteran-spin 6s linear infinite;
+  box-shadow: 
+    inset 0 0 25px rgba(0, 0, 0, 0.95),
+    0 0 10px rgba(100, 100, 100, 0.3),
+    0 0 20px rgba(60, 60, 60, 0.2);
+}
+
+@keyframes veteran-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Outer light beam ring */
+.avatar-rank-veteran::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  right: -6px;
+  bottom: -6px;
+  border-radius: 8px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.1) 42%,
+    rgba(255, 255, 255, 0.3) 47%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0.3) 53%,
+    rgba(255, 255, 255, 0.1) 58%,
+    transparent 65%,
+    transparent 100%
+  );
+  animation: veteran-spin-reverse 8s linear infinite;
+  z-index: -1;
+  filter: blur(0.5px);
 }
 
 @keyframes veteran-spin-reverse {
@@ -6671,17 +6979,22 @@ img.loaded {
   to { transform: rotate(0deg); }
 }
 
-/* Veteran flicker effect */
+/* Veteran pulsing void glow */
 .avatar-rank-veteran {
-  animation: veteran-flicker 0.15s ease-in-out infinite alternate;
+  animation: veteran-glow 3s ease-in-out infinite;
 }
 
-@keyframes veteran-flicker {
-  0% {
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.2));
+@keyframes veteran-glow {
+  0%, 100% {
+    filter: 
+      drop-shadow(0 0 3px rgba(255, 255, 255, 0.15))
+      drop-shadow(0 0 6px rgba(150, 150, 150, 0.1));
   }
-  100% {
-    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.4)) drop-shadow(0 0 10px rgba(180, 180, 180, 0.15));
+  50% {
+    filter: 
+      drop-shadow(0 0 6px rgba(255, 255, 255, 0.35))
+      drop-shadow(0 0 12px rgba(180, 180, 180, 0.2))
+      drop-shadow(0 0 20px rgba(100, 100, 100, 0.15));
   }
 }
 
@@ -6699,31 +7012,56 @@ img.loaded {
 }
 
 /* ========================================
-   OWNER/ADMIN RANK - Ultimate dark void with spinning light beam
+   OWNER/ADMIN RANK - Ultimate void with blazing light beam
 ======================================== */
 .avatar-rank-owner {
   position: relative;
+  animation: owner-presence 4s ease-in-out infinite;
+}
+
+@keyframes owner-presence {
+  0%, 100% {
+    filter: 
+      drop-shadow(0 0 4px rgba(255, 255, 255, 0.3))
+      drop-shadow(0 0 8px rgba(200, 200, 200, 0.2));
+  }
+  50% {
+    filter: 
+      drop-shadow(0 0 8px rgba(255, 255, 255, 0.5))
+      drop-shadow(0 0 16px rgba(200, 200, 200, 0.3))
+      drop-shadow(0 0 25px rgba(150, 150, 150, 0.2));
+  }
 }
 
 .avatar-rank-owner::before {
   content: '';
   position: absolute;
-  top: -4px;
-  left: -4px;
-  right: -4px;
-  bottom: -4px;
-  border-radius: 4px;
+  top: -5px;
+  left: -5px;
+  right: -5px;
+  bottom: -5px;
+  border-radius: 6px;
   background: conic-gradient(
     from 0deg,
-    #000000,
-    #1a1a1a,
-    #2a2a2a,
-    #ffffff,
-    #2a2a2a,
-    #1a1a1a,
-    #000000
+    #000000 0%,
+    #0a0a0a 10%,
+    #1a1a1a 20%,
+    #2a2a2a 30%,
+    #4a4a4a 40%,
+    #8a8a8a 45%,
+    #ffffff 50%,
+    #8a8a8a 55%,
+    #4a4a4a 60%,
+    #2a2a2a 70%,
+    #1a1a1a 80%,
+    #0a0a0a 90%,
+    #000000 100%
   );
-  animation: owner-spin 1.5s linear infinite;
+  animation: owner-spin 4s linear infinite;
+  box-shadow: 
+    inset 0 0 30px rgba(0, 0, 0, 0.95),
+    0 0 15px rgba(150, 150, 150, 0.3),
+    0 0 30px rgba(100, 100, 100, 0.2);
   z-index: 0;
 }
 
@@ -6732,27 +7070,32 @@ img.loaded {
   to { transform: rotate(360deg); }
 }
 
-/* Middle ring - inverse rotation */
+/* Outer blazing ring - inverse rotation */
 .avatar-rank-owner::after {
   content: '';
   position: absolute;
-  top: -7px;
-  left: -7px;
-  right: -7px;
-  bottom: -7px;
-  border-radius: 6px;
+  top: -9px;
+  left: -9px;
+  right: -9px;
+  bottom: -9px;
+  border-radius: 8px;
   background: conic-gradient(
     from 180deg,
     transparent 0%,
-    transparent 30%,
-    rgba(255, 255, 255, 0.6) 45%,
+    transparent 25%,
+    rgba(255, 255, 255, 0.15) 35%,
+    rgba(255, 255, 255, 0.4) 42%,
+    rgba(255, 255, 255, 0.7) 47%,
     #ffffff 50%,
-    rgba(255, 255, 255, 0.6) 55%,
-    transparent 70%,
+    rgba(255, 255, 255, 0.7) 53%,
+    rgba(255, 255, 255, 0.4) 58%,
+    rgba(255, 255, 255, 0.15) 65%,
+    transparent 75%,
     transparent 100%
   );
-  animation: owner-spin-reverse 2s linear infinite;
+  animation: owner-spin-reverse 5s linear infinite;
   z-index: -1;
+  filter: blur(0.5px);
 }
 
 @keyframes owner-spin-reverse {
