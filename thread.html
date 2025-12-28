@@ -25,10 +25,11 @@
       <div class="header-right">
         <span class="thread-entry-count" data-bind="entry-count"><span id="entry-count">0</span> RECORDS</span>
         <a href="#" class="header-notifications" id="notif-bell" title="Notifications">
-          <span class="notif-icon">🔔</span>
+          <span class="notif-icon">[!]</span>
           <span class="notif-badge" id="notif-badge" style="display: none;">0</span>
         </a>
         <a href="profile.html" class="header-profile">PROFILE</a>
+        <a href="messages.html" class="header-messages">MSG</a>
         <a href="#" class="header-exit" data-action="logout">EXIT</a>
       </div>
     </header>
@@ -36,6 +37,7 @@
     <!-- Thread Title -->
     <div class="thread-title-bar">
       <h1 class="thread-title" data-bind="thread-title">Loading...</h1>
+      <button class="bookmark-btn" id="bookmark-btn" title="Bookmark this thread">[SAVE]</button>
       <span class="thread-slow-mode" id="slow-mode-indicator" style="display: none;"></span>
     </div>
 
@@ -575,6 +577,9 @@
               allAvatarConfigs = data.avatarConfigs || {};
               currentPagination = data.pagination || null;
               renderEntries(allEntries, allAvatarConfigs, currentPagination);
+              
+              // Check bookmark status
+              checkBookmarkStatus(data.thread.id);
             } else {
               threadTitleEl.textContent = 'ERROR: ' + (data.error || 'UNKNOWN');
               allEntries = [];
@@ -593,6 +598,50 @@
             Notify.show(err.message || 'CONNECTION ERROR', 'error');
           });
       }
+      
+      // Bookmark functionality
+      var bookmarkBtn = document.getElementById('bookmark-btn');
+      var currentThreadDbId = null;
+      
+      function checkBookmarkStatus(threadId) {
+        currentThreadDbId = threadId;
+        AuthState.apiRequest('/api/bookmarks/' + threadId + '/check')
+          .then(function(data) {
+            if (data.success && data.isBookmarked) {
+              bookmarkBtn.textContent = '[SAVED]';
+              bookmarkBtn.classList.add('bookmarked');
+            } else {
+              bookmarkBtn.textContent = '[SAVE]';
+              bookmarkBtn.classList.remove('bookmarked');
+            }
+          });
+      }
+      
+      bookmarkBtn.addEventListener('click', function() {
+        if (!currentThreadDbId) return;
+        bookmarkBtn.disabled = true;
+        
+        AuthState.apiRequest('/api/bookmarks/' + currentThreadDbId, { method: 'POST' })
+          .then(function(data) {
+            if (data.success) {
+              if (data.action === 'added') {
+                bookmarkBtn.textContent = '[SAVED]';
+                bookmarkBtn.classList.add('bookmarked');
+                Notify.show('THREAD SAVED', 'info');
+              } else {
+                bookmarkBtn.textContent = '[SAVE]';
+                bookmarkBtn.classList.remove('bookmarked');
+                Notify.show('BOOKMARK REMOVED', 'info');
+              }
+            }
+          })
+          .catch(function(err) {
+            Notify.show(err.message || 'ERROR', 'error');
+          })
+          .finally(function() {
+            bookmarkBtn.disabled = false;
+          });
+      });
 
       // Reply form handler
       var replyForm = document.getElementById('reply-form');

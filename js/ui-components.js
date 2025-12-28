@@ -254,28 +254,34 @@ const UIComponents = (function() {
         <div class="entry-actions">${ownerActionsHtml}${commonActionsHtml}
         </div>` : '';
     
-    // Format content with @mentions highlighted
-    const formattedContent = content.replace(/@([a-zA-Z0-9_]+)/g, '<a href="profile.html?alias=$1" class="mention-link">@$1</a>');
+    // Format content with @mentions highlighted and basic markdown
+    let formattedContent = content;
+    // Escape HTML first
+    formattedContent = formattedContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Bold **text**
+    formattedContent = formattedContent.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic *text*
+    formattedContent = formattedContent.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Code `text`
+    formattedContent = formattedContent.replace(/`(.+?)`/g, '<code>$1</code>');
+    // Strikethrough ~~text~~
+    formattedContent = formattedContent.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    // @mentions
+    formattedContent = formattedContent.replace(/@([a-zA-Z0-9_]+)/g, '<a href="profile.html?alias=$1" class="mention-link">@$1</a>');
+    // Quote lines starting with >
+    formattedContent = formattedContent.replace(/^&gt; (.+)$/gm, '<span class="quote-line">&gt; $1</span>');
     
     // Reactions row
     const reactions = entry.reactions || {};
     const reactionsHtml = `
           <div class="entry-reactions" data-entry-id="${id}">
             <button class="reaction-btn" data-reaction="like" title="Like">
-              <span class="reaction-icon">👍</span>
+              <span class="reaction-icon">+</span>
               <span class="reaction-count">${reactions.like || 0}</span>
             </button>
             <button class="reaction-btn" data-reaction="dislike" title="Dislike">
-              <span class="reaction-icon">👎</span>
+              <span class="reaction-icon">-</span>
               <span class="reaction-count">${reactions.dislike || 0}</span>
-            </button>
-            <button class="reaction-btn" data-reaction="fire" title="Fire">
-              <span class="reaction-icon">🔥</span>
-              <span class="reaction-count">${reactions.fire || 0}</span>
-            </button>
-            <button class="reaction-btn" data-reaction="thinking" title="Thinking">
-              <span class="reaction-icon">🤔</span>
-              <span class="reaction-count">${reactions.thinking || 0}</span>
             </button>
           </div>`;
     

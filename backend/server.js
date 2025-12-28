@@ -858,7 +858,7 @@ app.put('/api/admin/reports/:id', authMiddleware, adminMiddleware, async (req, r
 // REACTIONS SYSTEM
 // ========================================
 
-const VALID_REACTIONS = ['like', 'dislike', 'fire', 'thinking'];
+const VALID_REACTIONS = ['like', 'dislike'];
 
 // Toggle reaction on an entry
 app.post('/api/entries/:id/react', authMiddleware, async (req, res) => {
@@ -1043,6 +1043,268 @@ app.get('/api/notifications/unread-count', authMiddleware, async (req, res) => {
     res.json({ success: true, count: parseInt(result.rows[0].count) });
   } catch (err) {
     console.error('[UNREAD COUNT ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// BOOKMARKS SYSTEM
+// ========================================
+
+// Get user's bookmarks
+app.get('/api/bookmarks', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      `SELECT b.id, b.thread_id, b.created_at, t.title, t.slug, r.slug as room_slug,
+              (SELECT COUNT(*) FROM entries e WHERE e.thread_id = t.id AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)) as entry_count
+       FROM bookmarks b
+       JOIN threads t ON t.id = b.thread_id
+       JOIN rooms r ON r.id = t.room_id
+       WHERE b.user_id = $1
+       ORDER BY b.created_at DESC`,
+      [userId]
+    );
+
+    res.json({ success: true, bookmarks: result.rows });
+  } catch (err) {
+    console.error('[GET BOOKMARKS ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Toggle bookmark
+app.post('/api/bookmarks/:threadId', authMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.threadId);
+  const userId = req.user.userId;
+
+  try {
+    // Check if thread exists
+    const threadResult = await db.query('SELECT id FROM threads WHERE id = $1', [threadId]);
+    if (threadResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'thread_not_found' });
+    }
+
+    // Check if already bookmarked
+    const existing = await db.query(
+      'SELECT id FROM bookmarks WHERE user_id = $1 AND thread_id = $2',
+      [userId, threadId]
+    );
+
+    if (existing.rows.length > 0) {
+      // Remove bookmark
+      await db.query('DELETE FROM bookmarks WHERE id = $1', [existing.rows[0].id]);
+      res.json({ success: true, action: 'removed' });
+    } else {
+      // Add bookmark
+      await db.query(
+        'INSERT INTO bookmarks (user_id, thread_id) VALUES ($1, $2)',
+        [userId, threadId]
+      );
+      res.json({ success: true, action: 'added' });
+    }
+  } catch (err) {
+    console.error('[TOGGLE BOOKMARK ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Check if thread is bookmarked
+app.get('/api/bookmarks/:threadId/check', authMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.threadId);
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      'SELECT id FROM bookmarks WHERE user_id = $1 AND thread_id = $2',
+      [userId, threadId]
+    );
+    res.json({ success: true, isBookmarked: result.rows.length > 0 });
+  } catch (err) {
+    console.error('[CHECK BOOKMARK ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// PRIVATE MESSAGES SYSTEM
+// ========================================
+
+// Get conversations (inbox)
+app.get('/api/messages', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const folder = req.query.folder || 'inbox'; // inbox or sent
+
+  try {
+    let result;
+    if (folder === 'sent') {
+      result = await db.query(
+        `SELECT pm.id, pm.subject, pm.content, pm.is_read, pm.created_at,
+                u.id as recipient_id, u.alias as recipient_alias
+         FROM private_messages pm
+         JOIN users u ON u.id = pm.recipient_id
+         WHERE pm.sender_id = $1 AND pm.deleted_by_sender = FALSE
+         ORDER BY pm.created_at DESC`,
+        [userId]
+      );
+    } else {
+      result = await db.query(
+        `SELECT pm.id, pm.subject, pm.content, pm.is_read, pm.created_at,
+                u.id as sender_id, u.alias as sender_alias
+         FROM private_messages pm
+         JOIN users u ON u.id = pm.sender_id
+         WHERE pm.recipient_id = $1 AND pm.deleted_by_recipient = FALSE
+         ORDER BY pm.created_at DESC`,
+        [userId]
+      );
+    }
+
+    res.json({ success: true, messages: result.rows, folder });
+  } catch (err) {
+    console.error('[GET MESSAGES ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get single message
+app.get('/api/messages/:id', authMiddleware, async (req, res) => {
+  const messageId = parseInt(req.params.id);
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      `SELECT pm.*, 
+              sender.alias as sender_alias, 
+              recipient.alias as recipient_alias
+       FROM private_messages pm
+       JOIN users sender ON sender.id = pm.sender_id
+       JOIN users recipient ON recipient.id = pm.recipient_id
+       WHERE pm.id = $1 AND (pm.sender_id = $2 OR pm.recipient_id = $2)`,
+      [messageId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'message_not_found' });
+    }
+
+    const message = result.rows[0];
+
+    // Mark as read if recipient
+    if (message.recipient_id === userId && !message.is_read) {
+      await db.query('UPDATE private_messages SET is_read = TRUE WHERE id = $1', [messageId]);
+      message.is_read = true;
+    }
+
+    res.json({ success: true, message });
+  } catch (err) {
+    console.error('[GET MESSAGE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Send message
+app.post('/api/messages', authMiddleware, async (req, res) => {
+  const { recipient_alias, subject, content } = req.body;
+  const senderId = req.user.userId;
+
+  if (!recipient_alias || !content) {
+    return res.status(400).json({ success: false, error: 'recipient and content required' });
+  }
+
+  if (content.length > 5000) {
+    return res.status(400).json({ success: false, error: 'message too long (max 5000 chars)' });
+  }
+
+  try {
+    // Find recipient
+    const recipientResult = await db.query(
+      'SELECT id, alias FROM users WHERE LOWER(alias) = LOWER($1)',
+      [recipient_alias]
+    );
+
+    if (recipientResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+
+    const recipientId = recipientResult.rows[0].id;
+
+    // Can't message yourself
+    if (recipientId === senderId) {
+      return res.status(400).json({ success: false, error: 'cannot_message_self' });
+    }
+
+    // Create message
+    const insertResult = await db.query(
+      `INSERT INTO private_messages (sender_id, recipient_id, subject, content)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [senderId, recipientId, subject || null, content]
+    );
+
+    // Create notification for recipient
+    const senderResult = await db.query('SELECT alias FROM users WHERE id = $1', [senderId]);
+    const senderAlias = senderResult.rows[0]?.alias || 'Someone';
+
+    await db.query(
+      `INSERT INTO notifications (user_id, type, title, message, link, related_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [recipientId, 'private_message', `New message from ${senderAlias}`,
+       subject || content.substring(0, 50),
+       'messages.html', senderId]
+    );
+
+    res.json({ success: true, messageId: insertResult.rows[0].id });
+  } catch (err) {
+    console.error('[SEND MESSAGE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Delete message
+app.delete('/api/messages/:id', authMiddleware, async (req, res) => {
+  const messageId = parseInt(req.params.id);
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      'SELECT sender_id, recipient_id FROM private_messages WHERE id = $1',
+      [messageId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'message_not_found' });
+    }
+
+    const message = result.rows[0];
+
+    if (message.sender_id === userId) {
+      await db.query('UPDATE private_messages SET deleted_by_sender = TRUE WHERE id = $1', [messageId]);
+    } else if (message.recipient_id === userId) {
+      await db.query('UPDATE private_messages SET deleted_by_recipient = TRUE WHERE id = $1', [messageId]);
+    } else {
+      return res.status(403).json({ success: false, error: 'not_authorized' });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[DELETE MESSAGE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get unread message count
+app.get('/api/messages/unread-count', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      'SELECT COUNT(*) FROM private_messages WHERE recipient_id = $1 AND is_read = FALSE AND deleted_by_recipient = FALSE',
+      [userId]
+    );
+    res.json({ success: true, count: parseInt(result.rows[0].count) });
+  } catch (err) {
+    console.error('[UNREAD MSG COUNT ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -1407,6 +1669,26 @@ async function migrate() {
         is_read BOOLEAN DEFAULT FALSE,
         related_entry_id INTEGER REFERENCES entries(id),
         related_user_id INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS bookmarks (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        thread_id INTEGER REFERENCES threads(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, thread_id)
+      );
+      
+      CREATE TABLE IF NOT EXISTS private_messages (
+        id SERIAL PRIMARY KEY,
+        sender_id INTEGER REFERENCES users(id),
+        recipient_id INTEGER REFERENCES users(id),
+        subject VARCHAR(200),
+        content TEXT NOT NULL,
+        is_read BOOLEAN DEFAULT FALSE,
+        deleted_by_sender BOOLEAN DEFAULT FALSE,
+        deleted_by_recipient BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT NOW()
       );
       
