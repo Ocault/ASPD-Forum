@@ -596,7 +596,70 @@ app.get('/api/admin/post-audit', authMiddleware, adminMiddleware, async (req, re
   }
 });
 
+// Auto-migrate database tables on startup
+async function migrate() {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        alias VARCHAR(50) UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        is_admin BOOLEAN DEFAULT FALSE,
+        is_shadow_banned BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS rooms (
+        id SERIAL PRIMARY KEY,
+        slug VARCHAR(50) UNIQUE NOT NULL,
+        title VARCHAR(100) NOT NULL,
+        slow_mode_seconds INTEGER DEFAULT 0
+      );
+      
+      CREATE TABLE IF NOT EXISTS threads (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER REFERENCES rooms(id),
+        title VARCHAR(200) NOT NULL,
+        user_id INTEGER REFERENCES users(id),
+        is_locked BOOLEAN DEFAULT FALSE,
+        is_pinned BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS entries (
+        id SERIAL PRIMARY KEY,
+        thread_id INTEGER REFERENCES threads(id),
+        user_id INTEGER REFERENCES users(id),
+        content TEXT NOT NULL,
+        is_hidden BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id SERIAL PRIMARY KEY,
+        action VARCHAR(50) NOT NULL,
+        target_type VARCHAR(20),
+        target_id INTEGER,
+        admin_id INTEGER REFERENCES users(id),
+        details JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      INSERT INTO rooms (slug, title) VALUES 
+        ('general', 'General Discussion'),
+        ('tech', 'Technology'),
+        ('random', 'Random')
+      ON CONFLICT (slug) DO NOTHING;
+    `);
+    console.log('[MIGRATE] Database tables ready');
+  } catch (err) {
+    console.error('[MIGRATE ERROR]', err.message);
+  }
+}
+
 // Start server
-app.listen(PORT, () => {
-  console.log('[SERVER] Port ' + PORT);
+migrate().then(() => {
+  app.listen(PORT, () => {
+    console.log('[SERVER] Port ' + PORT);
+  });
 });
