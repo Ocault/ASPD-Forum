@@ -2075,207 +2075,131 @@ ul {
 }
 
 /* Profile avatar animated border support - override for larger avatar */
-/* OWNER - Multi-edge pulse with bright flash */
-.profile-avatar-section.avatar-rank-owner {
-  animation: owner-presence 2.5s ease-in-out infinite;
-}
-
+/* OWNER - Bright flashing border */
 .profile-avatar-section.avatar-rank-owner::before {
   content: '';
   position: absolute;
-  top: 6px;
-  left: 6px;
-  right: 6px;
-  bottom: 6px;
-  background: #000;
-  box-shadow: 
-    inset 0 0 25px rgba(255, 255, 255, 0.05),
-    0 0 20px rgba(150, 150, 150, 0.4);
-  z-index: 0;
-}
-
-.profile-avatar-section.avatar-rank-owner::after {
-  content: '';
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  right: 6px;
-  bottom: 6px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   border: 3px solid #fff;
-  animation: owner-border-flash 2s ease-in-out infinite;
-  z-index: 1;
+  box-shadow: 
+    0 0 15px rgba(255, 255, 255, 0.6),
+    inset 0 0 15px rgba(255, 255, 255, 0.2);
+  animation: owner-profile-flash 1.5s ease-in-out infinite;
+  z-index: 3;
+  pointer-events: none;
 }
 
-/* ACTIVE - Breathing edge glow */
+@keyframes owner-profile-flash {
+  0%, 100% { 
+    border-color: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4), inset 0 0 15px rgba(255, 255, 255, 0.1);
+  }
+  50% { 
+    border-color: rgba(255, 255, 255, 1);
+    box-shadow: 0 0 25px rgba(255, 255, 255, 0.9), inset 0 0 20px rgba(255, 255, 255, 0.4);
+  }
+}
+
+/* ACTIVE - Simple gray border */
 .profile-avatar-section.avatar-rank-active::before {
   content: '';
   position: absolute;
-  top: 6px;
-  left: 6px;
-  right: 6px;
-  bottom: 6px;
-  z-index: 0;
-  background: linear-gradient(180deg, #252525 0%, #151515 100%);
-  animation: active-breathe 3s ease-in-out infinite;
-  box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
-    0 0 12px rgba(120, 120, 120, 0.5);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid rgba(100, 100, 100, 0.6);
+  z-index: 3;
+  pointer-events: none;
 }
 
-/* MEMBER - Horizontal scanner line */
+/* MEMBER - Slightly brighter border */
 .profile-avatar-section.avatar-rank-member::before {
   content: '';
   position: absolute;
-  top: 6px;
-  left: 6px;
-  right: 6px;
-  bottom: 6px;
-  z-index: 0;
-  background: #1a1a1a;
-  box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 0 14px rgba(130, 130, 130, 0.5);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid rgba(130, 130, 130, 0.7);
+  z-index: 3;
+  pointer-events: none;
 }
 
-.profile-avatar-section.avatar-rank-member::after {
-  content: '';
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  right: 6px;
-  height: 4px;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    rgba(255, 255, 255, 0.5) 20%,
-    rgba(255, 255, 255, 1) 50%,
-    rgba(255, 255, 255, 0.5) 80%,
-    transparent 100%
-  );
-  animation: member-scan-profile 2.5s ease-in-out infinite;
-  z-index: 1;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
-}
-
-@keyframes member-scan-profile {
-  0%, 100% { 
-    top: 6px;
-    opacity: 0.5;
-  }
-  50% { 
-    top: calc(100% - 9px);
-    opacity: 1;
-  }
-}
-
-/* REGULAR - Corner pulse markers */
+/* REGULAR - Pulsing border */
 .profile-avatar-section.avatar-rank-regular::before {
   content: '';
   position: absolute;
-  top: 6px;
-  left: 6px;
-  right: 6px;
-  bottom: 6px;
-  z-index: 0;
-  background: #1a1a1a;
-  box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
-    0 0 16px rgba(140, 140, 140, 0.5);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid rgba(160, 160, 160, 0.8);
+  animation: regular-profile-pulse 2s ease-in-out infinite;
+  z-index: 3;
+  pointer-events: none;
 }
 
-.profile-avatar-section.avatar-rank-regular::after {
-  content: '';
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  right: 4px;
-  bottom: 4px;
-  border: 2px solid transparent;
-  border-image: linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.9) 0%,
-    transparent 15%,
-    transparent 35%,
-    rgba(255, 255, 255, 0.9) 50%,
-    transparent 65%,
-    transparent 85%,
-    rgba(255, 255, 255, 0.9) 100%
-  ) 1;
-  animation: regular-corner-pulse 2s ease-in-out infinite;
-  z-index: 0;
+@keyframes regular-profile-pulse {
+  0%, 100% { border-color: rgba(160, 160, 160, 0.5); }
+  50% { border-color: rgba(200, 200, 200, 0.9); }
 }
 
-/* EXPERT - Edge sweep scanner */
-.profile-avatar-section.avatar-rank-expert {
-  animation: expert-glow 3s ease-in-out infinite;
-}
-
+/* EXPERT - Sweeping border glow */
 .profile-avatar-section.avatar-rank-expert::before {
   content: '';
   position: absolute;
-  top: 6px;
-  left: 6px;
-  right: 6px;
-  bottom: 6px;
-  z-index: 0;
-  background: #0a0a0a;
-  box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 0 10px rgba(100, 100, 100, 0.3);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid rgba(180, 180, 180, 0.8);
+  box-shadow: 0 0 8px rgba(180, 180, 180, 0.4);
+  animation: expert-profile-sweep 2.5s ease-in-out infinite;
+  z-index: 3;
+  pointer-events: none;
 }
 
-.profile-avatar-section.avatar-rank-expert::after {
-  content: '';
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  right: 4px;
-  bottom: 4px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.5) 50%,
-    transparent 100%
-  );
-  background-size: 60% 100%;
-  background-repeat: no-repeat;
-  animation: expert-edge-sweep 2s ease-in-out infinite;
-  z-index: 0;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  padding: 2px;
+@keyframes expert-profile-sweep {
+  0%, 100% { 
+    border-color: rgba(180, 180, 180, 0.5);
+    box-shadow: 0 0 8px rgba(180, 180, 180, 0.3);
+  }
+  50% { 
+    border-color: rgba(220, 220, 220, 1);
+    box-shadow: 0 0 15px rgba(220, 220, 220, 0.6);
+  }
 }
 
-/* VETERAN - Full border pulse with inner glow */
-.profile-avatar-section.avatar-rank-veteran {
-  animation: veteran-glow 2.5s ease-in-out infinite;
-}
-
+/* VETERAN - Double border with pulse */
 .profile-avatar-section.avatar-rank-veteran::before {
   content: '';
   position: absolute;
-  top: 6px;
-  left: 6px;
-  right: 6px;
-  bottom: 6px;
-  z-index: 0;
-  background: #0a0a0a;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 3px solid rgba(200, 200, 200, 0.9);
   box-shadow: 
-    inset 0 0 15px rgba(0, 0, 0, 0.8),
-    0 0 10px rgba(100, 100, 100, 0.3);
+    0 0 10px rgba(200, 200, 200, 0.5),
+    inset 0 0 10px rgba(200, 200, 200, 0.2);
+  animation: veteran-profile-pulse 2s ease-in-out infinite;
+  z-index: 3;
+  pointer-events: none;
 }
 
-.profile-avatar-section.avatar-rank-veteran::after {
-  content: '';
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  right: 4px;
-  bottom: 4px;
-  border: 3px solid rgba(150, 150, 150, 0.4);
-  animation: veteran-border-pulse 2s ease-in-out infinite;
-  z-index: 0;
+@keyframes veteran-profile-pulse {
+  0%, 100% { 
+    border-color: rgba(200, 200, 200, 0.6);
+    box-shadow: 0 0 10px rgba(200, 200, 200, 0.3), inset 0 0 10px rgba(200, 200, 200, 0.1);
+  }
+  50% { 
+    border-color: rgba(255, 255, 255, 1);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.7), inset 0 0 15px rgba(255, 255, 255, 0.3);
+  }
 }
 
 .profile-avatar-section .avatar-large,
@@ -2824,199 +2748,119 @@ ul {
   color: #ff4444;
 }
 
-/* Border preview animations - Non-rotating unique effects */
+/* Border preview animations - Simple border styles matching actual borders */
 .border-preview-none {
   /* No border effect */
 }
 
-/* ACTIVE preview - Breathing glow */
+/* ACTIVE preview - Simple gray border */
 .border-preview-active::before {
   content: '';
   position: absolute;
-  top: 2px;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
-  background: #252525;
-  animation: preview-breathe 2s ease-in-out infinite;
-  box-shadow: 0 0 8px rgba(120, 120, 120, 0.5);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid rgba(100, 100, 100, 0.6);
 }
 
-@keyframes preview-breathe {
-  0%, 100% { 
-    box-shadow: 0 0 5px rgba(100, 100, 100, 0.4), inset 0 0 3px rgba(255, 255, 255, 0.08);
-  }
-  50% { 
-    box-shadow: 0 0 12px rgba(150, 150, 150, 0.6), inset 0 0 6px rgba(255, 255, 255, 0.12);
-  }
-}
-
-/* MEMBER preview - Scanner line */
+/* MEMBER preview - Slightly brighter border */
 .border-preview-member::before {
   content: '';
   position: absolute;
-  top: 2px;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
-  background: #1a1a1a;
-  box-shadow: 0 0 10px rgba(130, 130, 130, 0.5);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid rgba(130, 130, 130, 0.7);
 }
 
-.border-preview-member::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  right: 2px;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent);
-  animation: preview-scan 2s ease-in-out infinite;
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
-}
-
-@keyframes preview-scan {
-  0%, 100% { top: 2px; opacity: 0.7; }
-  50% { top: calc(100% - 5px); opacity: 1; }
-}
-
-/* REGULAR preview - Corner pulse */
+/* REGULAR preview - Pulsing border */
 .border-preview-regular::before {
   content: '';
   position: absolute;
-  top: 2px;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
-  background: #1a1a1a;
-  box-shadow: 0 0 12px rgba(140, 140, 140, 0.5);
-}
-
-.border-preview-regular::after {
-  content: '';
-  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  border: 2px solid transparent;
-  border-image: linear-gradient(45deg, rgba(255,255,255,0.9) 0%, transparent 25%, transparent 75%, rgba(255,255,255,0.9) 100%) 1;
-  animation: preview-corner-pulse 2s ease-in-out infinite;
+  border: 2px solid rgba(160, 160, 160, 0.8);
+  animation: preview-regular-pulse 2s ease-in-out infinite;
 }
 
-@keyframes preview-corner-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+@keyframes preview-regular-pulse {
+  0%, 100% { border-color: rgba(160, 160, 160, 0.5); }
+  50% { border-color: rgba(200, 200, 200, 0.9); }
 }
 
-/* EXPERT preview - Edge sweep */
+/* EXPERT preview - Glowing border */
 .border-preview-expert::before {
   content: '';
   position: absolute;
-  top: 2px;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
-  background: #1a1a1a;
-  box-shadow: 0 0 6px rgba(120, 120, 120, 0.4);
-}
-
-.border-preview-expert::after {
-  content: '';
-  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
-  background-size: 60% 100%;
-  background-repeat: no-repeat;
-  animation: preview-edge-sweep 2s ease-in-out infinite;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  padding: 2px;
+  border: 2px solid rgba(180, 180, 180, 0.8);
+  box-shadow: 0 0 8px rgba(180, 180, 180, 0.4);
+  animation: preview-expert-sweep 2.5s ease-in-out infinite;
 }
 
-@keyframes preview-edge-sweep {
-  0% { background-position: -50% 0; }
-  100% { background-position: 150% 0; }
+@keyframes preview-expert-sweep {
+  0%, 100% { 
+    border-color: rgba(180, 180, 180, 0.5);
+    box-shadow: 0 0 8px rgba(180, 180, 180, 0.3);
+  }
+  50% { 
+    border-color: rgba(220, 220, 220, 1);
+    box-shadow: 0 0 15px rgba(220, 220, 220, 0.6);
+  }
 }
 
-/* VETERAN preview - Border pulse */
+/* VETERAN preview - Intense pulsing border */
 .border-preview-veteran::before {
   content: '';
   position: absolute;
-  top: 2px;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
-  background: #0d0d0d;
-  box-shadow: 0 0 6px rgba(100, 100, 100, 0.4);
-}
-
-.border-preview-veteran::after {
-  content: '';
-  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  border: 2px solid rgba(150, 150, 150, 0.3);
-  animation: preview-border-pulse 2s ease-in-out infinite;
+  border: 3px solid rgba(200, 200, 200, 0.9);
+  box-shadow: 0 0 10px rgba(200, 200, 200, 0.5);
+  animation: preview-veteran-pulse 2s ease-in-out infinite;
 }
 
-@keyframes preview-border-pulse {
+@keyframes preview-veteran-pulse {
   0%, 100% { 
-    border-color: rgba(150, 150, 150, 0.3);
-    box-shadow: 0 0 4px rgba(150, 150, 150, 0.2);
+    border-color: rgba(200, 200, 200, 0.6);
+    box-shadow: 0 0 10px rgba(200, 200, 200, 0.3);
   }
   50% { 
-    border-color: rgba(220, 220, 220, 0.7);
-    box-shadow: 0 0 10px rgba(200, 200, 200, 0.5);
+    border-color: rgba(255, 255, 255, 1);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.7);
   }
 }
 
-/* OWNER preview - Flash border */
+/* OWNER preview - Bright flashing border */
 .border-preview-owner::before {
   content: '';
   position: absolute;
-  top: 2px;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
-  background: #000;
-  box-shadow: 0 0 8px rgba(150, 150, 150, 0.5);
-}
-
-.border-preview-owner::after {
-  content: '';
-  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  border: 2px solid #fff;
-  animation: preview-flash 2s ease-in-out infinite;
+  border: 3px solid #fff;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+  animation: preview-owner-flash 1.5s ease-in-out infinite;
 }
 
-@keyframes preview-flash {
+@keyframes preview-owner-flash {
   0%, 100% { 
-    border-color: rgba(200, 200, 200, 0.5);
-    box-shadow: 0 0 5px rgba(200, 200, 200, 0.3);
-  }
-  25% {
-    border-color: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+    border-color: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
   }
   50% { 
-    border-color: rgba(200, 200, 200, 0.5);
-    box-shadow: 0 0 5px rgba(200, 200, 200, 0.3);
-  }
-  75% {
-    border-color: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+    border-color: rgba(255, 255, 255, 1);
+    box-shadow: 0 0 25px rgba(255, 255, 255, 0.9);
   }
 }
 
@@ -6716,7 +6560,7 @@ img.loaded {
 /* Newcomers get no special border */
 
 /* ========================================
-   ACTIVE RANK - Breathing edge glow
+   ACTIVE RANK - Simple gray border
 ======================================== */
 .avatar-rank-active::before {
   content: '';
@@ -6725,29 +6569,14 @@ img.loaded {
   height: 34px;
   top: -3px;
   left: -3px;
-  z-index: 0;
-  background: linear-gradient(180deg, #252525 0%, #151515 100%);
-  animation: active-breathe 3s ease-in-out infinite;
-  box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
-    0 0 10px rgba(120, 120, 120, 0.5);
-}
-
-@keyframes active-breathe {
-  0%, 100% { 
-    box-shadow: 
-      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-      0 0 6px rgba(100, 100, 100, 0.4);
-  }
-  50% { 
-    box-shadow: 
-      inset 0 0 0 1px rgba(255, 255, 255, 0.15),
-      0 0 15px rgba(140, 140, 140, 0.6);
-  }
+  border: 2px solid rgba(100, 100, 100, 0.6);
+  z-index: 1;
+  pointer-events: none;
+  box-sizing: border-box;
 }
 
 /* ========================================
-   MEMBER RANK - Horizontal scanner line
+   MEMBER RANK - Slightly brighter border
 ======================================== */
 .avatar-rank-member::before {
   content: '';
@@ -6756,45 +6585,14 @@ img.loaded {
   height: 34px;
   top: -3px;
   left: -3px;
-  z-index: 0;
-  background: #1a1a1a;
-  box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 0 12px rgba(130, 130, 130, 0.5);
-}
-
-.avatar-rank-member::after {
-  content: '';
-  position: absolute;
-  width: 34px;
-  top: -3px;
-  left: -3px;
-  height: 3px;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    rgba(255, 255, 255, 0.5) 20%,
-    rgba(255, 255, 255, 1) 50%,
-    rgba(255, 255, 255, 0.5) 80%,
-    transparent 100%
-  );
-  animation: member-scan 2.5s ease-in-out infinite;
+  border: 2px solid rgba(130, 130, 130, 0.7);
   z-index: 1;
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
-}
-
-@keyframes member-scan {
-  0%, 100% { 
-    top: -3px;
-    opacity: 0.7;
-  }
-  50% { 
-    top: 28px;
-    opacity: 1;
-  }
+  pointer-events: none;
+  box-sizing: border-box;
 }
 
 /* ========================================
-   REGULAR RANK - Corner pulse markers
+   REGULAR RANK - Pulsing border
 ======================================== */
 .avatar-rank-regular::before {
   content: '';
@@ -6803,66 +6601,20 @@ img.loaded {
   height: 34px;
   top: -3px;
   left: -3px;
-  z-index: 0;
-  background: #1a1a1a;
-  box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
-    0 0 14px rgba(140, 140, 140, 0.5);
+  border: 2px solid rgba(160, 160, 160, 0.8);
+  animation: regular-pulse 2s ease-in-out infinite;
+  z-index: 1;
+  pointer-events: none;
+  box-sizing: border-box;
 }
 
-.avatar-rank-regular::after {
-  content: '';
-  position: absolute;
-  width: 34px;
-  height: 34px;
-  top: -3px;
-  left: -3px;
-  border: 2px solid transparent;
-  border-image: linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.9) 0%,
-    transparent 15%,
-    transparent 35%,
-    rgba(255, 255, 255, 0.9) 50%,
-    transparent 65%,
-    transparent 85%,
-    rgba(255, 255, 255, 0.9) 100%
-  ) 1;
-  animation: regular-corner-pulse 2s ease-in-out infinite;
-  z-index: 0;
-}
-
-@keyframes regular-corner-pulse {
-  0%, 100% { 
-    opacity: 0.5;
-    border-image: linear-gradient(
-      45deg,
-      rgba(255, 255, 255, 0.6) 0%,
-      transparent 20%,
-      transparent 30%,
-      rgba(255, 255, 255, 0.6) 50%,
-      transparent 70%,
-      transparent 80%,
-      rgba(255, 255, 255, 0.6) 100%
-    ) 1;
-  }
-  50% { 
-    opacity: 1;
-    border-image: linear-gradient(
-      45deg,
-      rgba(255, 255, 255, 1) 0%,
-      transparent 15%,
-      transparent 35%,
-      rgba(255, 255, 255, 0.9) 50%,
-      transparent 65%,
-      transparent 85%,
-      rgba(255, 255, 255, 0.9) 100%
-    ) 1;
-  }
+@keyframes regular-pulse {
+  0%, 100% { border-color: rgba(160, 160, 160, 0.5); }
+  50% { border-color: rgba(200, 200, 200, 0.9); }
 }
 
 /* ========================================
-   EXPERT RANK - Edge sweep scanner
+   EXPERT RANK - Glowing border with sweep effect
 ======================================== */
 .avatar-rank-expert::before {
   content: '';
@@ -6871,57 +6623,27 @@ img.loaded {
   height: 34px;
   top: -3px;
   left: -3px;
-  z-index: 0;
-  background: #0a0a0a;
-  box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 0 10px rgba(100, 100, 100, 0.3);
+  border: 2px solid rgba(180, 180, 180, 0.8);
+  box-shadow: 0 0 8px rgba(180, 180, 180, 0.4);
+  animation: expert-sweep 2.5s ease-in-out infinite;
+  z-index: 1;
+  pointer-events: none;
+  box-sizing: border-box;
 }
 
-.avatar-rank-expert::after {
-  content: '';
-  position: absolute;
-  width: 34px;
-  height: 34px;
-  top: -3px;
-  left: -3px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.5) 50%,
-    transparent 100%
-  );
-  background-size: 60% 100%;
-  background-repeat: no-repeat;
-  animation: expert-edge-sweep 2s ease-in-out infinite;
-  z-index: 0;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  padding: 2px;
-}
-
-@keyframes expert-edge-sweep {
-  0% { background-position: -60% 0; }
-  100% { background-position: 160% 0; }
-}
-
-.avatar-rank-expert {
-  animation: expert-glow 3s ease-in-out infinite;
-}
-
-@keyframes expert-glow {
+@keyframes expert-sweep {
   0%, 100% { 
-    filter: drop-shadow(0 0 4px rgba(150, 150, 150, 0.2));
+    border-color: rgba(180, 180, 180, 0.5);
+    box-shadow: 0 0 8px rgba(180, 180, 180, 0.3);
   }
   50% { 
-    filter: drop-shadow(0 0 10px rgba(180, 180, 180, 0.5));
+    border-color: rgba(220, 220, 220, 1);
+    box-shadow: 0 0 15px rgba(220, 220, 220, 0.6);
   }
 }
 
 /* ========================================
-   VETERAN RANK - Full border pulse with inner glow
+   VETERAN RANK - Double border with intense pulse
 ======================================== */
 .avatar-rank-veteran::before {
   content: '';
@@ -6930,50 +6652,24 @@ img.loaded {
   height: 34px;
   top: -3px;
   left: -3px;
-  z-index: 0;
-  background: #000;
+  border: 3px solid rgba(200, 200, 200, 0.9);
   box-shadow: 
-    inset 0 0 15px rgba(255, 255, 255, 0.03),
-    0 0 12px rgba(100, 100, 100, 0.4);
+    0 0 10px rgba(200, 200, 200, 0.5),
+    inset 0 0 8px rgba(200, 200, 200, 0.2);
+  animation: veteran-pulse 2s ease-in-out infinite;
+  z-index: 1;
+  pointer-events: none;
+  box-sizing: border-box;
 }
 
-.avatar-rank-veteran::after {
-  content: '';
-  position: absolute;
-  width: 34px;
-  height: 34px;
-  top: -3px;
-  left: -3px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  animation: veteran-border-pulse 2s ease-in-out infinite;
-  z-index: 0;
-}
-
-@keyframes veteran-border-pulse {
+@keyframes veteran-pulse {
   0%, 100% { 
-    border-color: rgba(255, 255, 255, 0.2);
-    box-shadow: 
-      0 0 8px rgba(255, 255, 255, 0.1),
-      inset 0 0 8px rgba(255, 255, 255, 0.05);
+    border-color: rgba(200, 200, 200, 0.6);
+    box-shadow: 0 0 10px rgba(200, 200, 200, 0.3), inset 0 0 8px rgba(200, 200, 200, 0.1);
   }
   50% { 
-    border-color: rgba(255, 255, 255, 0.6);
-    box-shadow: 
-      0 0 20px rgba(255, 255, 255, 0.3),
-      inset 0 0 15px rgba(255, 255, 255, 0.1);
-  }
-}
-
-.avatar-rank-veteran {
-  animation: veteran-glow 2.5s ease-in-out infinite;
-}
-
-@keyframes veteran-glow {
-  0%, 100% {
-    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.15));
-  }
-  50% {
-    filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.4));
+    border-color: rgba(255, 255, 255, 1);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.7), inset 0 0 12px rgba(255, 255, 255, 0.3);
   }
 }
 
@@ -6995,26 +6691,8 @@ img.loaded {
 }
 
 /* ========================================
-   OWNER/ADMIN RANK - Multi-edge pulse with bright flash
+   OWNER/ADMIN RANK - Bright flashing border
 ======================================== */
-.avatar-rank-owner {
-  position: relative;
-  animation: owner-presence 2.5s ease-in-out infinite;
-}
-
-@keyframes owner-presence {
-  0%, 100% {
-    filter: 
-      drop-shadow(0 0 6px rgba(255, 255, 255, 0.4))
-      drop-shadow(0 0 15px rgba(200, 200, 200, 0.2));
-  }
-  50% {
-    filter: 
-      drop-shadow(0 0 12px rgba(255, 255, 255, 0.7))
-      drop-shadow(0 0 30px rgba(200, 200, 200, 0.4));
-  }
-}
-
 .avatar-rank-owner::before {
   content: '';
   position: absolute;
@@ -7022,78 +6700,25 @@ img.loaded {
   height: 34px;
   top: -3px;
   left: -3px;
-  background: #000;
+  border: 3px solid #fff;
   box-shadow: 
-    inset 0 0 20px rgba(255, 255, 255, 0.05),
-    0 0 15px rgba(150, 150, 150, 0.4);
-  z-index: 0;
-}
-
-.avatar-rank-owner::after {
-  content: '';
-  position: absolute;
-  width: 34px;
-  height: 34px;
-  top: -3px;
-  left: -3px;
-  border: 2px solid #fff;
-  animation: owner-border-flash 2s ease-in-out infinite;
+    0 0 15px rgba(255, 255, 255, 0.6),
+    inset 0 0 12px rgba(255, 255, 255, 0.2);
+  animation: owner-flash 1.5s ease-in-out infinite;
   z-index: 1;
+  pointer-events: none;
+  box-sizing: border-box;
 }
 
-@keyframes owner-border-flash {
+@keyframes owner-flash {
   0%, 100% { 
-    border-color: rgba(255, 255, 255, 0.4);
-    box-shadow: 
-      0 0 10px rgba(255, 255, 255, 0.2),
-      inset 0 0 10px rgba(255, 255, 255, 0.1);
-  }
-  25% {
-    border-color: rgba(255, 255, 255, 0.9);
-    box-shadow: 
-      0 0 25px rgba(255, 255, 255, 0.5),
-      inset 0 0 20px rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4), inset 0 0 12px rgba(255, 255, 255, 0.1);
   }
   50% { 
-    border-color: rgba(255, 255, 255, 0.5);
-    box-shadow: 
-      0 0 15px rgba(255, 255, 255, 0.3),
-      inset 0 0 12px rgba(255, 255, 255, 0.15);
-  }
-  75% {
     border-color: rgba(255, 255, 255, 1);
-    box-shadow: 
-      0 0 30px rgba(255, 255, 255, 0.6),
-      inset 0 0 25px rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 25px rgba(255, 255, 255, 0.9), inset 0 0 18px rgba(255, 255, 255, 0.4);
   }
-}
-
-/* Owner badge glow effect on the entry */
-.entry:has(.avatar-rank-owner) {
-  position: relative;
-}
-
-.entry:has(.avatar-rank-owner)::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.02) 0%,
-    transparent 50%,
-    rgba(255, 255, 255, 0.01) 100%
-  );
-  pointer-events: none;
-  border-radius: inherit;
-  animation: owner-entry-shimmer 4s ease-in-out infinite;
-}
-
-@keyframes owner-entry-shimmer {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
 }
 
 /* ========================================
