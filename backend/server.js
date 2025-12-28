@@ -289,6 +289,43 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// Create new thread
+app.post('/api/threads', authMiddleware, async (req, res) => {
+  const { roomId, title, content } = req.body;
+  const userId = req.user.userId;
+
+  if (!roomId || !title || !content) {
+    return res.status(400).json({ success: false, error: 'missing_fields' });
+  }
+
+  try {
+    // Get room id from slug
+    const roomResult = await db.query('SELECT id FROM rooms WHERE slug = $1', [roomId]);
+    if (roomResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'room_not_found' });
+    }
+    const roomDbId = roomResult.rows[0].id;
+
+    // Create thread
+    const threadResult = await db.query(
+      'INSERT INTO threads (room_id, title, user_id) VALUES ($1, $2, $3) RETURNING id',
+      [roomDbId, title, userId]
+    );
+    const threadId = threadResult.rows[0].id;
+
+    // Create initial entry
+    await db.query(
+      'INSERT INTO entries (thread_id, user_id, content) VALUES ($1, $2, $3)',
+      [threadId, userId, content]
+    );
+
+    res.json({ success: true, threadId: threadId });
+  } catch (err) {
+    console.error('[CREATE THREAD ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // Rate limiter for posting entries
 const entriesLimiter = rateLimit({
   windowMs: 30 * 1000,

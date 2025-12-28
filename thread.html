@@ -51,6 +51,14 @@
     <!-- Pagination -->
     <div id="pagination-container"></div>
 
+    <!-- Reply Form -->
+    <div class="reply-form-container">
+      <form id="reply-form" class="reply-form">
+        <textarea id="reply-content" class="reply-textarea" placeholder="ENTER YOUR RESPONSE..." rows="3" required></textarea>
+        <button type="submit" class="reply-submit">TRANSMIT</button>
+      </form>
+    </div>
+
     <!-- Footer -->
     <footer class="thread-footer" data-component="thread-footer">
       <span data-bind="signal-id">SIG.000</span>
@@ -268,6 +276,53 @@
             renderEntries([], {}, null);
           });
       }
+
+      // Reply form handler
+      var replyForm = document.getElementById('reply-form');
+      var replyContent = document.getElementById('reply-content');
+      
+      replyForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var content = replyContent.value.trim();
+        if (!content) return;
+        
+        var submitBtn = replyForm.querySelector('.reply-submit');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'TRANSMITTING...';
+        
+        AuthState.apiRequest('/api/entries', {
+          method: 'POST',
+          body: JSON.stringify({
+            threadId: parseInt(currentSignalId),
+            content: content
+          })
+        })
+        .then(function(data) {
+          if (data.success) {
+            replyContent.value = '';
+            Notify.show('ENTRY RECORDED', 'info');
+            // Reload entries
+            fetchThread(currentSignalId, currentPage)
+              .then(function(data) {
+                if (data.success) {
+                  allEntries = data.entries || [];
+                  allAvatarConfigs = data.avatarConfigs || {};
+                  currentPagination = data.pagination || null;
+                  renderEntries(allEntries, allAvatarConfigs, currentPagination);
+                }
+              });
+          } else {
+            Notify.show(data.error || 'TRANSMISSION FAILED', 'error');
+          }
+        })
+        .catch(function(err) {
+          Notify.show(err.message || 'CONNECTION ERROR', 'error');
+        })
+        .finally(function() {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'TRANSMIT';
+        });
+      });
 
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);

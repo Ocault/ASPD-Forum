@@ -45,6 +45,21 @@
     <!-- Pagination -->
     <div id="pagination-container"></div>
 
+    <!-- New Thread Form -->
+    <div class="new-thread-container">
+      <button id="new-thread-toggle" class="new-thread-toggle">+ NEW SIGNAL</button>
+      <div id="new-thread-form-wrapper" class="new-thread-form-wrapper" style="display: none;">
+        <form id="new-thread-form" class="new-thread-form">
+          <input type="text" id="thread-title" class="thread-title-input" placeholder="SIGNAL TITLE..." required>
+          <textarea id="thread-content" class="reply-textarea" placeholder="INITIAL ENTRY..." rows="3" required></textarea>
+          <div class="form-actions">
+            <button type="button" id="cancel-thread" class="cancel-btn">CANCEL</button>
+            <button type="submit" class="reply-submit">CREATE SIGNAL</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Footer -->
     <footer class="room-footer" data-component="room-footer">
       <span data-bind="node-id">NODE.000</span>
@@ -225,6 +240,66 @@
       } else {
         init();
       }
+
+      // New Thread Form
+      var newThreadToggle = document.getElementById('new-thread-toggle');
+      var newThreadFormWrapper = document.getElementById('new-thread-form-wrapper');
+      var newThreadForm = document.getElementById('new-thread-form');
+      var cancelThread = document.getElementById('cancel-thread');
+      var threadTitleInput = document.getElementById('thread-title');
+      var threadContentInput = document.getElementById('thread-content');
+
+      newThreadToggle.addEventListener('click', function() {
+        newThreadFormWrapper.style.display = newThreadFormWrapper.style.display === 'none' ? 'block' : 'none';
+        newThreadToggle.style.display = 'none';
+      });
+
+      cancelThread.addEventListener('click', function() {
+        newThreadFormWrapper.style.display = 'none';
+        newThreadToggle.style.display = 'block';
+        threadTitleInput.value = '';
+        threadContentInput.value = '';
+      });
+
+      newThreadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var title = threadTitleInput.value.trim();
+        var content = threadContentInput.value.trim();
+        if (!title || !content) return;
+
+        var submitBtn = newThreadForm.querySelector('.reply-submit');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'CREATING...';
+
+        AuthState.apiRequest('/api/threads', {
+          method: 'POST',
+          body: JSON.stringify({
+            roomId: currentRoomId,
+            title: title,
+            content: content
+          })
+        })
+        .then(function(data) {
+          if (data.success) {
+            Notify.show('SIGNAL CREATED', 'info');
+            threadTitleInput.value = '';
+            threadContentInput.value = '';
+            newThreadFormWrapper.style.display = 'none';
+            newThreadToggle.style.display = 'block';
+            // Redirect to new thread
+            window.location.href = 'thread.html?id=' + data.threadId + '&room=' + currentRoomId;
+          } else {
+            Notify.show(data.error || 'CREATION FAILED', 'error');
+          }
+        })
+        .catch(function(err) {
+          Notify.show(err.message || 'CONNECTION ERROR', 'error');
+        })
+        .finally(function() {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'CREATE SIGNAL';
+        });
+      });
 
       document.querySelector('[data-action="logout"]').addEventListener('click', function(e) {
         e.preventDefault();
