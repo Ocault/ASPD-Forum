@@ -6176,81 +6176,62 @@ img.loaded {
 }
 
 /* ========================================
-   BRONZE RANK - Subtle copper pulse
+   BRONZE RANK - Subtle dark pulse
 ======================================== */
-.avatar-rank-bronze {
-  --rank-color-1: #cd7f32;
-  --rank-color-2: #8b4513;
-}
-
 .avatar-rank-bronze::before {
-  background: linear-gradient(135deg, var(--rank-color-1), var(--rank-color-2));
+  background: linear-gradient(135deg, #3d3d3d, #1a1a1a);
   animation: bronze-pulse 3s ease-in-out infinite;
+  box-shadow: 0 0 4px rgba(80, 80, 80, 0.5);
 }
 
 @keyframes bronze-pulse {
   0%, 100% { 
     opacity: 0.6;
-    box-shadow: 0 0 4px var(--rank-color-1);
   }
   50% { 
     opacity: 1;
-    box-shadow: 0 0 8px var(--rank-color-1);
   }
 }
 
 /* ========================================
-   SILVER RANK - Metallic shimmer
+   SILVER RANK - Grayscale shimmer
 ======================================== */
-.avatar-rank-silver {
-  --rank-color-1: #c0c0c0;
-  --rank-color-2: #808080;
-  --rank-color-3: #e8e8e8;
-}
-
 .avatar-rank-silver::before {
   background: linear-gradient(135deg, 
-    var(--rank-color-2) 0%,
-    var(--rank-color-3) 25%,
-    var(--rank-color-1) 50%,
-    var(--rank-color-3) 75%,
-    var(--rank-color-2) 100%
+    #2a2a2a 0%,
+    #4a4a4a 25%,
+    #3a3a3a 50%,
+    #4a4a4a 75%,
+    #2a2a2a 100%
   );
   background-size: 200% 200%;
   animation: silver-shimmer 4s ease-in-out infinite;
+  box-shadow: 0 0 6px rgba(100, 100, 100, 0.4);
 }
 
 @keyframes silver-shimmer {
   0%, 100% { 
     background-position: 0% 50%;
-    box-shadow: 0 0 6px var(--rank-color-1);
   }
   50% { 
     background-position: 100% 50%;
-    box-shadow: 0 0 12px var(--rank-color-3);
   }
 }
 
 /* ========================================
-   GOLD RANK - Rotating golden glow
+   GOLD RANK - Rotating dark glow
 ======================================== */
-.avatar-rank-gold {
-  --rank-color-1: #ffd700;
-  --rank-color-2: #daa520;
-  --rank-color-3: #ffec8b;
-}
-
 .avatar-rank-gold::before {
   background: conic-gradient(
     from 0deg,
-    var(--rank-color-2),
-    var(--rank-color-1),
-    var(--rank-color-3),
-    var(--rank-color-1),
-    var(--rank-color-2)
+    #1a1a1a,
+    #3a3a3a,
+    #505050,
+    #3a3a3a,
+    #1a1a1a
   );
   animation: gold-rotate 3s linear infinite;
-  box-shadow: 0 0 10px var(--rank-color-1);
+  box-shadow: 0 0 8px rgba(120, 120, 120, 0.5);
 }
 
 @keyframes gold-rotate {
@@ -6272,23 +6253,16 @@ img.loaded {
 }
 
 /* ========================================
-   PLATINUM RANK - Electric pulse ring
+   PLATINUM RANK - Electric static ring
 ======================================== */
-.avatar-rank-platinum {
-  --rank-color-1: #e5e4e2;
-  --rank-color-2: #a8a9ad;
-  --rank-color-3: #d4d4dc;
-  --rank-glow: rgba(229, 228, 226, 0.8);
-}
-
 .avatar-rank-platinum::before {
   background: linear-gradient(
     90deg,
-    var(--rank-color-2),
-    var(--rank-color-1),
-    var(--rank-color-3),
-    var(--rank-color-1),
-    var(--rank-color-2)
+    #1a1a1a,
+    #4a4a4a,
+    #606060,
+    #4a4a4a,
+    #1a1a1a
   );
   background-size: 300% 100%;
   animation: platinum-sweep 2s linear infinite, platinum-glow 1.5s ease-in-out infinite;
@@ -6301,10 +6275,10 @@ img.loaded {
 
 @keyframes platinum-glow {
   0%, 100% { 
-    box-shadow: 0 0 8px var(--rank-glow), 0 0 16px var(--rank-glow);
+    box-shadow: 0 0 6px rgba(150, 150, 150, 0.4), 0 0 12px rgba(100, 100, 100, 0.2);
   }
   50% { 
-    box-shadow: 0 0 16px var(--rank-glow), 0 0 32px var(--rank-glow), 0 0 48px var(--rank-glow);
+    box-shadow: 0 0 12px rgba(180, 180, 180, 0.6), 0 0 24px rgba(120, 120, 120, 0.3);
   }
 }
 
@@ -6322,28 +6296,20 @@ img.loaded {
 }
 
 /* ========================================
-   DIAMOND RANK - Rainbow prismatic effect
+   DIAMOND RANK - Dark void with white edge
 ======================================== */
-.avatar-rank-diamond {
-  --diamond-1: #ff0080;
-  --diamond-2: #ff8c00;
-  --diamond-3: #40e0d0;
-  --diamond-4: #7b68ee;
-  --diamond-5: #00bfff;
-}
-
 .avatar-rank-diamond::before {
   background: conic-gradient(
     from 0deg,
-    var(--diamond-1),
-    var(--diamond-2),
-    var(--diamond-3),
-    var(--diamond-4),
-    var(--diamond-5),
-    var(--diamond-1)
+    #000000,
+    #2a2a2a,
+    #4a4a4a,
+    #707070,
+    #4a4a4a,
+    #2a2a2a,
+    #000000
   );
   animation: diamond-spin 2s linear infinite;
-  filter: blur(1px);
 }
 
 @keyframes diamond-spin {
@@ -6351,7 +6317,7 @@ img.loaded {
   to { transform: rotate(360deg); }
 }
 
-/* Diamond outer glow ring */
+/* Diamond outer glow ring - dark with white edge pulse */
 .avatar-rank-diamond::after {
   content: '';
   position: absolute;
@@ -6362,16 +6328,13 @@ img.loaded {
   border-radius: 50%;
   background: conic-gradient(
     from 180deg,
-    var(--diamond-5),
-    var(--diamond-4),
-    var(--diamond-3),
-    var(--diamond-2),
-    var(--diamond-1),
-    var(--diamond-5)
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.3),
+    rgba(255, 255, 255, 0.1),
+    transparent
   );
   animation: diamond-spin-reverse 3s linear infinite;
-  opacity: 0.5;
-  filter: blur(3px);
   z-index: -1;
 }
 
@@ -6380,17 +6343,17 @@ img.loaded {
   to { transform: rotate(0deg); }
 }
 
-/* Diamond sparkle effect */
+/* Diamond flicker effect */
 .avatar-rank-diamond {
-  animation: diamond-sparkle 0.5s ease-in-out infinite alternate;
+  animation: diamond-flicker 0.1s ease-in-out infinite alternate;
 }
 
-@keyframes diamond-sparkle {
+@keyframes diamond-flicker {
   0% {
-    filter: drop-shadow(0 0 4px var(--diamond-3)) drop-shadow(0 0 8px var(--diamond-5));
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.3));
   }
   100% {
-    filter: drop-shadow(0 0 8px var(--diamond-1)) drop-shadow(0 0 16px var(--diamond-4));
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.5)) drop-shadow(0 0 12px rgba(200, 200, 200, 0.2));
   }
 }
 
