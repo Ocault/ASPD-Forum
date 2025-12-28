@@ -5385,3 +5385,9 @@ img.loaded {
   background: rgba(122, 154, 186, 0.2);
   text-decoration: underline;
 }
+
+/* Polling: New entry fade-in animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

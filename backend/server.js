@@ -1187,6 +1187,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = Math.min(parseInt(req.query.limit) || 30, 100);
   const offset = (page - 1) * limit;
+  const afterId = parseInt(req.query.after) || 0; // For polling - get entries after this ID
   
   try {
     // Support both numeric ID and slug lookup
@@ -1204,6 +1205,55 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     }
     
     const thread = threadResult.rows[0];
+
+    // If polling for new entries only (after parameter provided)
+    if (afterId > 0) {
+      const newEntriesResult = await db.query(
+        `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
+                COALESCE(u.avatar_config, e.avatar_config) AS avatar_config,
+                u.signature, u.reputation, u.custom_title,
+                e.created_at, e.edited_at,
+                (SELECT COUNT(*) FROM entries WHERE user_id = e.user_id AND is_deleted = FALSE) AS post_count,
+                LENGTH(e.content) > $3 AS "exceedsCharLimit"
+         FROM entries e
+         LEFT JOIN users u ON u.id = e.user_id
+         WHERE e.thread_id = $1 AND e.id > $2 
+           AND (e.shadow_banned = FALSE OR e.shadow_banned IS NULL) 
+           AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)
+         ORDER BY e.created_at
+         LIMIT 20`,
+        [thread.id, afterId, CONTENT_CHAR_LIMIT]
+      );
+      
+      // Get reactions for new entries
+      const entryIds = newEntriesResult.rows.map(e => e.id);
+      let reactionsMap = {};
+      
+      if (entryIds.length > 0) {
+        const reactionsResult = await db.query(
+          `SELECT entry_id, reaction_type, COUNT(*) as count
+           FROM reactions WHERE entry_id = ANY($1) GROUP BY entry_id, reaction_type`,
+          [entryIds]
+        );
+        reactionsResult.rows.forEach(row => {
+          if (!reactionsMap[row.entry_id]) reactionsMap[row.entry_id] = {};
+          reactionsMap[row.entry_id][row.reaction_type] = parseInt(row.count);
+        });
+      }
+      
+      const entriesWithReactions = newEntriesResult.rows.map(entry => {
+        const postCount = parseInt(entry.post_count) || 0;
+        let rank = 'NEWCOMER';
+        if (postCount >= 500) rank = 'VETERAN';
+        else if (postCount >= 200) rank = 'EXPERT';
+        else if (postCount >= 100) rank = 'REGULAR';
+        else if (postCount >= 50) rank = 'MEMBER';
+        else if (postCount >= 10) rank = 'ACTIVE';
+        return { ...entry, rank, reactions: reactionsMap[entry.id] || {} };
+      });
+      
+      return res.json({ success: true, entries: entriesWithReactions });
+    }
 
     // Count total entries (exclude deleted)
     const countResult = await db.query(

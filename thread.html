@@ -1299,6 +1299,139 @@
       
       window.addEventListener('scroll', updateScrollProgress, { passive: true });
       
+      // ===== Polling for New Entries =====
+      var pollInterval = null;
+      var POLL_DELAY = 30000; // 30 seconds
+      var lastEntryId = 0;
+      
+      function startPolling() {
+        if (pollInterval) return;
+        
+        pollInterval = setInterval(function() {
+          // Only poll if tab is visible and we have entries
+          if (document.hidden || !currentSignalId || allEntries.length === 0) return;
+          
+          // Get the latest entry ID we have
+          var latestId = Math.max.apply(null, allEntries.map(function(e) { return e.id; }));
+          
+          // Check for new entries
+          AuthState.apiRequest('/api/thread/' + currentSignalId + '?after=' + latestId)
+            .then(function(data) {
+              if (data.success && data.entries && data.entries.length > 0) {
+                // Filter to only truly new entries
+                var newEntries = data.entries.filter(function(entry) {
+                  return !allEntries.some(function(e) { return e.id === entry.id; });
+                });
+                
+                if (newEntries.length > 0) {
+                  // Add new entries to our array
+                  newEntries.forEach(function(entry) {
+                    allEntries.push(entry);
+                  });
+                  
+                  // Append new entries to DOM
+                  var emptyState = entriesContainer.querySelector('.empty-state');
+                  if (emptyState) emptyState.remove();
+                  
+                  newEntries.forEach(function(entry) {
+                    var tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = UIComponents.entryElement(entry, currentUserId);
+                    var newEntryEl = tempDiv.firstElementChild;
+                    newEntryEl.style.borderLeft = '3px solid var(--success, #4caf50)';
+                    newEntryEl.style.animation = 'fadeIn 0.3s ease-out';
+                    entriesContainer.appendChild(newEntryEl);
+                    
+                    // Bind events for new entry
+                    bindNewEntryEvents(newEntryEl);
+                    
+                    // Initialize avatar
+                    var canvas = newEntryEl.querySelector('.avatar-mini');
+                    if (canvas) {
+                      var configAttr = newEntryEl.getAttribute('data-avatar-config');
+                      if (configAttr) {
+                        try {
+                          AvatarRenderer.render(canvas, JSON.parse(configAttr));
+                        } catch (e) {}
+                      }
+                    }
+                  });
+                  
+                  // Update count
+                  entryCountEl.textContent = allEntries.length;
+                  
+                  // Notify user if not at bottom
+                  var isAtBottom = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200;
+                  if (!isAtBottom) {
+                    Notify.show(newEntries.length + ' NEW ' + (newEntries.length === 1 ? 'ENTRY' : 'ENTRIES'), 'info');
+                  }
+                }
+              }
+            })
+            .catch(function() {
+              // Silent fail - don't spam errors
+            });
+        }, POLL_DELAY);
+      }
+      
+      function stopPolling() {
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+      }
+      
+      // Helper to bind events on new entries from polling
+      function bindNewEntryEvents(entryEl) {
+        var editBtn = entryEl.querySelector('.entry-edit-btn');
+        if (editBtn) {
+          editBtn.addEventListener('click', function() {
+            var entryId = editBtn.dataset.entryId;
+            var content = entryEl.querySelector('.entry-content p').textContent;
+            showEditModal(entryId, content);
+          });
+        }
+        
+        var deleteBtn = entryEl.querySelector('.entry-delete-btn');
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', function() {
+            showDeleteConfirm(deleteBtn.dataset.entryId);
+          });
+        }
+        
+        var quoteBtn = entryEl.querySelector('.entry-quote-btn');
+        if (quoteBtn) {
+          quoteBtn.addEventListener('click', function() {
+            quoteEntry(quoteBtn.dataset.alias, entryEl.querySelector('.entry-content p').textContent);
+          });
+        }
+        
+        var reportBtn = entryEl.querySelector('.entry-report-btn');
+        if (reportBtn) {
+          reportBtn.addEventListener('click', function() {
+            showReportModal(reportBtn.dataset.entryId);
+          });
+        }
+        
+        entryEl.querySelectorAll('.reaction-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var reactionsEl = btn.closest('.entry-reactions');
+            toggleReaction(reactionsEl.dataset.entryId, btn.dataset.reaction, btn);
+          });
+        });
+      }
+      
+      // Start polling when page loads, stop when leaving
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+          stopPolling();
+        } else {
+          startPolling();
+        }
+      });
+      
+      // Start polling after initial load
+      setTimeout(startPolling, 2000);
+      
       // Initialize theme on load
       initTheme();
 
