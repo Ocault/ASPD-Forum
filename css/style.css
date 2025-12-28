@@ -2885,13 +2885,6 @@ ul {
   color: var(--text-primary);
 }
 
-.profile-avatar-img {
-  width: 120px;
-  height: 120px;
-  object-fit: cover;
-  border: 2px solid var(--border-color);
-}
-
 /* Report Modal */
 .report-modal {
   background-color: var(--bg-panel);
