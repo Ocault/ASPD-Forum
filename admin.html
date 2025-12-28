@@ -329,6 +329,9 @@
 </head>
 <body>
 
+  <!-- Skip to main content -->
+  <a href="#admin-content" class="skip-link">Skip to admin panel</a>
+
   <div class="noise"></div>
 
   <div class="admin-container">
@@ -355,7 +358,7 @@
         <button class="admin-nav-btn" data-section="filters">WORD FILTERS</button>
       </div>
 
-      <div class="admin-content">
+      <div class="admin-content" id="admin-content">
         <!-- Dashboard -->
         <div class="admin-section active" id="section-dashboard">
           <div class="admin-section-title">MODERATION DASHBOARD</div>
@@ -1343,24 +1346,7 @@
       });
       
       // Theme toggle initialization
-      (function initTheme() {
-        var themeToggle = document.getElementById('theme-toggle');
-        var savedTheme = Utils.storage.get('forum_theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        themeToggle.setAttribute('aria-pressed', savedTheme === 'light');
-        themeToggle.setAttribute('aria-label', savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-        themeToggle.innerHTML = savedTheme === 'dark' ? '☀️' : '🌙';
-        
-        themeToggle.addEventListener('click', function() {
-          var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-          var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-          document.documentElement.setAttribute('data-theme', newTheme);
-          Utils.storage.set('forum_theme', newTheme);
-          themeToggle.setAttribute('aria-pressed', newTheme === 'light');
-          themeToggle.setAttribute('aria-label', newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-          themeToggle.innerHTML = newTheme === 'dark' ? '☀️' : '🌙';
-        });
-      })();
+      Utils.initTheme();
 
       // Initial load
       loadDashboard();

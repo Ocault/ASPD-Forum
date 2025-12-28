@@ -639,25 +639,7 @@
       });
       
       // Theme toggle initialization
-      function initTheme() {
-        var themeToggle = document.getElementById('theme-toggle');
-        var savedTheme = Utils.storage.get('forum_theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        themeToggle.setAttribute('aria-pressed', savedTheme === 'light');
-        themeToggle.setAttribute('aria-label', savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-        themeToggle.innerHTML = savedTheme === 'dark' ? '☀️' : '🌙';
-        
-        themeToggle.addEventListener('click', function() {
-          var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-          var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-          document.documentElement.setAttribute('data-theme', newTheme);
-          Utils.storage.set('forum_theme', newTheme);
-          themeToggle.setAttribute('aria-pressed', newTheme === 'light');
-          themeToggle.setAttribute('aria-label', newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-          themeToggle.innerHTML = newTheme === 'dark' ? '☀️' : '🌙';
-          Notify.show('THEME: ' + newTheme.toUpperCase(), 'info');
-        });
-      }
+      Utils.initTheme();
       
       // Keyboard shortcuts modal
       var shortcutsOverlay = document.getElementById('shortcuts-modal');
@@ -755,9 +737,6 @@
       }, 16);
       
       window.addEventListener('scroll', updateScrollProgress, { passive: true });
-      
-      // Initialize theme
-      initTheme();
 
       document.querySelector('[data-action="logout"]').addEventListener('click', function(e) {
         e.preventDefault();
