@@ -66,7 +66,7 @@
     <!-- New Thread Form -->
     <section class="new-thread-container" aria-label="Create new thread">
       <button id="new-thread-toggle" class="new-thread-toggle" aria-expanded="false" aria-controls="new-thread-form-wrapper">+ NEW SIGNAL</button>
-      <div id="new-thread-form-wrapper" class="new-thread-form-wrapper">
+      <div id="new-thread-form-wrapper" class="new-thread-form-wrapper" style="display:none">
         <form id="new-thread-form" class="new-thread-form" aria-label="New thread form">
           <label for="thread-title" class="sr-only">Thread title</label>
           <input type="text" id="thread-title" class="thread-title-input" placeholder="SIGNAL TITLE..." required aria-label="Thread title">
@@ -509,18 +509,14 @@
       });
 
       newThreadToggle.addEventListener('click', function() {
-        var isVisible = newThreadFormWrapper.classList.contains('visible');
-        if (isVisible) {
-          newThreadFormWrapper.classList.remove('visible');
-          newThreadToggle.style.display = 'block';
-        } else {
-          newThreadFormWrapper.classList.add('visible');
-          newThreadToggle.style.display = 'none';
-        }
+        // Show the form, hide the button
+        newThreadFormWrapper.style.display = 'block';
+        newThreadToggle.style.display = 'none';
       });
 
       cancelThread.addEventListener('click', function() {
-        newThreadFormWrapper.classList.remove('visible');
+        // Hide the form, show the button
+        newThreadFormWrapper.style.display = 'none';
         newThreadToggle.style.display = 'block';
         threadTitleInput.value = '';
         threadContentInput.value = '';
