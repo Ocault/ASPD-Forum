@@ -4292,10 +4292,18 @@ async function migrate() {
         ('Meta', '#a55eea')
       ON CONFLICT (name) DO NOTHING;
       
-      INSERT INTO rooms (slug, title) VALUES 
-        ('general', 'General Discussion'),
-        ('tech', 'Technology'),
-        ('random', 'Random')
+      INSERT INTO rooms (slug, title, description) VALUES 
+        ('general', 'General Discussion', 'Open discussion for the community'),
+        ('stories', 'Stories', 'Share your experiences and personal accounts'),
+        ('confessions', 'Confessions', 'Anonymous-style confessions and admissions'),
+        ('relationships', 'Relationships', 'Navigating relationships, family, and social dynamics'),
+        ('workplace', 'Work & Career', 'Professional life, manipulation of corporate environments'),
+        ('self-awareness', 'Self-Awareness', 'Understanding your own patterns and behaviors'),
+        ('coping', 'Coping Strategies', 'Methods for managing impulses and fitting in'),
+        ('diagnosis', 'Diagnosis & Treatment', 'Therapy experiences, psychiatric encounters, medication'),
+        ('media', 'Media & Representation', 'ASPD in movies, TV, books - accurate or not'),
+        ('questions', 'Questions', 'Ask the community anything'),
+        ('off-topic', 'Off-Topic', 'Everything else')
       ON CONFLICT (slug) DO NOTHING;
     `);
     console.log('[MIGRATE] Database tables ready');
