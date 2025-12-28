@@ -663,6 +663,138 @@ app.delete('/api/entries/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// ========================================
+// REPORT SYSTEM
+// ========================================
+
+// Submit a report
+app.post('/api/reports', authMiddleware, async (req, res) => {
+  const { entry_id, reason, details } = req.body;
+  const userId = req.user.userId;
+
+  if (!entry_id || !reason) {
+    return res.status(400).json({ success: false, error: 'entry_id and reason required' });
+  }
+
+  const validReasons = ['spam', 'harassment', 'inappropriate', 'misinformation', 'other'];
+  if (!validReasons.includes(reason)) {
+    return res.status(400).json({ success: false, error: 'invalid_reason' });
+  }
+
+  try {
+    // Check if entry exists
+    const entryResult = await db.query('SELECT id FROM entries WHERE id = $1 AND is_deleted = FALSE', [entry_id]);
+    if (entryResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'entry_not_found' });
+    }
+
+    // Check if user already reported this entry
+    const existingReport = await db.query(
+      'SELECT id FROM reports WHERE entry_id = $1 AND reporter_id = $2',
+      [entry_id, userId]
+    );
+    if (existingReport.rows.length > 0) {
+      return res.status(400).json({ success: false, error: 'already_reported' });
+    }
+
+    // Create report
+    await db.query(
+      `INSERT INTO reports (entry_id, reporter_id, reason, details)
+       VALUES ($1, $2, $3, $4)`,
+      [entry_id, userId, reason, details || null]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[REPORT ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Get reports
+app.get('/api/admin/reports', authMiddleware, adminMiddleware, async (req, res) => {
+  const status = req.query.status || 'pending';
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+  const offset = (page - 1) * limit;
+
+  try {
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM reports WHERE status = $1',
+      [status]
+    );
+    const total = parseInt(countResult.rows[0].count);
+
+    const result = await db.query(
+      `SELECT r.id, r.entry_id, r.reason, r.details, r.status, r.created_at,
+              e.content AS entry_content, e.alias AS entry_alias,
+              u.alias AS reporter_alias
+       FROM reports r
+       JOIN entries e ON e.id = r.entry_id
+       JOIN users u ON u.id = r.reporter_id
+       WHERE r.status = $1
+       ORDER BY r.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [status, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      reports: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (err) {
+    console.error('[GET REPORTS ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Resolve report
+app.put('/api/admin/reports/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const reportId = parseInt(req.params.id);
+  const { status, action } = req.body;
+  const adminId = req.user.userId;
+
+  if (!['resolved', 'dismissed'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'invalid_status' });
+  }
+
+  try {
+    const reportResult = await db.query('SELECT id, entry_id FROM reports WHERE id = $1', [reportId]);
+    if (reportResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'report_not_found' });
+    }
+
+    // Update report status
+    await db.query(
+      'UPDATE reports SET status = $1, resolved_by = $2, resolved_at = NOW() WHERE id = $3',
+      [status, adminId, reportId]
+    );
+
+    // If action is to delete the entry
+    if (action === 'delete_entry') {
+      const entryId = reportResult.rows[0].entry_id;
+      await db.query(
+        'UPDATE entries SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $1 WHERE id = $2',
+        [adminId, entryId]
+      );
+      await logAuditAction('delete_entry', 'entry', entryId, adminId, { reason: 'report_action' });
+    }
+
+    await logAuditAction('resolve_report', 'report', reportId, adminId, { status, action });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[RESOLVE REPORT ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // Legacy protected routes (kept for compatibility)
 app.get('/forum', authMiddleware, (req, res) => {
   res.json({ user: req.user, data: null });
@@ -989,6 +1121,18 @@ async function migrate() {
         target_id INTEGER,
         admin_id INTEGER REFERENCES users(id),
         details JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS reports (
+        id SERIAL PRIMARY KEY,
+        entry_id INTEGER REFERENCES entries(id),
+        reporter_id INTEGER REFERENCES users(id),
+        reason VARCHAR(50) NOT NULL,
+        details TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        resolved_by INTEGER REFERENCES users(id),
+        resolved_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       );
       

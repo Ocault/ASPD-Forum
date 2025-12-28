@@ -193,6 +193,24 @@
           });
         });
 
+        // Bind quote button events
+        entriesContainer.querySelectorAll('.entry-quote-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var entryEl = btn.closest('.entry');
+            var alias = btn.dataset.alias;
+            var content = entryEl.querySelector('.entry-content p').textContent;
+            quoteEntry(alias, content);
+          });
+        });
+
+        // Bind report button events
+        entriesContainer.querySelectorAll('.entry-report-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var entryId = btn.dataset.entryId;
+            showReportModal(entryId);
+          });
+        });
+
         // Initialize avatars - uses avatar_config from entry data attribute
         AvatarRenderer.initAvatars({
           selector: '.avatar-mini',
@@ -332,6 +350,96 @@
             Notify.show(err.message || 'ERROR', 'error');
             confirmBtn.disabled = false;
             confirmBtn.textContent = 'DELETE';
+          });
+        });
+      }
+
+      // Quote entry - prefill reply textarea
+      function quoteEntry(alias, content) {
+        var replyTextarea = document.getElementById('reply-content');
+        var quotedText = '> ' + alias + ' wrote:\n> ' + content.split('\n').join('\n> ') + '\n\n';
+        replyTextarea.value = quotedText + replyTextarea.value;
+        replyTextarea.focus();
+        replyTextarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      // Report modal
+      function showReportModal(entryId) {
+        var overlay = document.createElement('div');
+        overlay.className = 'edit-modal-overlay';
+        overlay.innerHTML = `
+          <div class="report-modal">
+            <div class="report-modal-title">REPORT ENTRY</div>
+            <div class="report-reasons">
+              <label class="report-reason-option">
+                <input type="radio" name="report-reason" value="spam"> SPAM
+              </label>
+              <label class="report-reason-option">
+                <input type="radio" name="report-reason" value="harassment"> HARASSMENT
+              </label>
+              <label class="report-reason-option">
+                <input type="radio" name="report-reason" value="inappropriate"> INAPPROPRIATE CONTENT
+              </label>
+              <label class="report-reason-option">
+                <input type="radio" name="report-reason" value="misinformation"> MISINFORMATION
+              </label>
+              <label class="report-reason-option">
+                <input type="radio" name="report-reason" value="other"> OTHER
+              </label>
+            </div>
+            <textarea class="report-details-input" placeholder="Additional details (optional)..." rows="2" maxlength="500"></textarea>
+            <div class="report-modal-actions">
+              <button class="cancel-btn" id="report-cancel">CANCEL</button>
+              <button class="report-submit-btn" id="report-submit">SUBMIT REPORT</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        var cancelBtn = overlay.querySelector('#report-cancel');
+        var submitBtn = overlay.querySelector('#report-submit');
+        var detailsInput = overlay.querySelector('.report-details-input');
+
+        cancelBtn.addEventListener('click', function() {
+          overlay.remove();
+        });
+
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) overlay.remove();
+        });
+
+        submitBtn.addEventListener('click', function() {
+          var selectedReason = overlay.querySelector('input[name="report-reason"]:checked');
+          if (!selectedReason) {
+            Notify.show('SELECT A REASON', 'error');
+            return;
+          }
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'SUBMITTING...';
+
+          AuthState.apiRequest('/api/reports', {
+            method: 'POST',
+            body: JSON.stringify({
+              entry_id: entryId,
+              reason: selectedReason.value,
+              details: detailsInput.value.trim()
+            })
+          })
+          .then(function(data) {
+            if (data.success) {
+              Notify.show('REPORT SUBMITTED', 'info');
+              overlay.remove();
+            } else {
+              Notify.show(data.error || 'REPORT FAILED', 'error');
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'SUBMIT REPORT';
+            }
+          })
+          .catch(function(err) {
+            Notify.show(err.message || 'ERROR', 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'SUBMIT REPORT';
           });
         });
       }

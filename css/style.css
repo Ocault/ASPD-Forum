@@ -2268,3 +2268,118 @@ ul {
   object-fit: cover;
   border: 2px solid var(--border-color);
 }
+
+/* Report Modal */
+.report-modal {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-lg);
+  width: 320px;
+  max-width: 90vw;
+}
+
+.report-modal-title {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-md);
+}
+
+.report-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-md);
+}
+
+.report-reason-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  transition: background-color 0.15s ease;
+}
+
+.report-reason-option:hover {
+  background-color: var(--bg-secondary);
+}
+
+.report-reason-option input[type="radio"] {
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+}
+
+.report-details-input {
+  width: 100%;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-sm);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+  resize: vertical;
+  margin-bottom: var(--spacing-md);
+}
+
+.report-details-input:focus {
+  outline: none;
+  border-color: var(--border-hover);
+}
+
+.report-modal-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: flex-end;
+}
+
+.report-submit-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: #3a2020;
+  border: 1px solid #5a3030;
+  color: #cc6666;
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.report-submit-btn:hover {
+  background-color: #4a2525;
+  border-color: #7a4040;
+}
+
+.report-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Quote button styling */
+.entry-quote-btn {
+  color: var(--text-muted);
+}
+
+.entry-quote-btn:hover {
+  color: var(--text-secondary);
+}
+
+/* Report button styling */
+.entry-report-btn {
+  color: var(--text-muted);
+}
+
+.entry-report-btn:hover {
+  color: #cc6666;
+}
+
+/* Quoted text styling in entries */
+.entry-content p {
+  white-space: pre-wrap;
+}

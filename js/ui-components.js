@@ -241,11 +241,17 @@ const UIComponents = (function() {
     const timeStr = createdAt ? createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
     const editedStr = editedAt ? ' (edited)' : '';
     
-    // Edit/Delete buttons (only show if owner)
-    const actionsHtml = isOwner ? `
-        <div class="entry-actions">
+    // Edit/Delete buttons (only show if owner), Quote/Report for all
+    const ownerActionsHtml = isOwner ? `
           ${canEdit ? `<button class="entry-action-btn entry-edit-btn" data-entry-id="${id}" title="Edit">EDIT</button>` : ''}
-          <button class="entry-action-btn entry-delete-btn" data-entry-id="${id}" title="Delete">DEL</button>
+          <button class="entry-action-btn entry-delete-btn" data-entry-id="${id}" title="Delete">DEL</button>` : '';
+    
+    const commonActionsHtml = isAnonymous ? `
+          <button class="entry-action-btn entry-quote-btn" data-entry-id="${id}" data-alias="${alias}" title="Quote">QUOTE</button>
+          <button class="entry-action-btn entry-report-btn" data-entry-id="${id}" title="Report">REPORT</button>` : '';
+    
+    const actionsHtml = (ownerActionsHtml || commonActionsHtml) ? `
+        <div class="entry-actions">${ownerActionsHtml}${commonActionsHtml}
         </div>` : '';
     
     return `
