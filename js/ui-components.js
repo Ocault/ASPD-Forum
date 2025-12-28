@@ -391,7 +391,7 @@ const UIComponents = (function() {
             </button>
           </div>`;
     
-    // Avatar rank class for animated borders (use selectedBorder from avatar_config if set)
+    // Avatar rank class for animated borders (use selectedBorder from avatar_config if set, otherwise use rank)
     let avatarRankClass = '';
     const avatarConfigObj = entry.avatar_config || {};
     const selectedBorder = avatarConfigObj.selectedBorder;
@@ -402,8 +402,11 @@ const UIComponents = (function() {
     } else if (isAdmin) {
       // Admin without preference gets owner border by default
       avatarRankClass = ' avatar-rank-owner';
+    } else if (rank && rank !== 'NEWCOMER') {
+      // Use the user's rank for border (newcomers get no border)
+      avatarRankClass = ` avatar-rank-${rank.toLowerCase()}`;
     }
-    // If no preference and not admin, no border is shown
+    // If no preference and newcomer, no border is shown
     
     return `
       <div class="${entryClass}" data-entry-id="${id}" data-user-id="${userId || ''}" data-avatar-config="${avatarConfig}">

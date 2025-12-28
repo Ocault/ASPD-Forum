@@ -2831,16 +2831,17 @@ ul {
   left: 2px;
   right: 2px;
   bottom: 2px;
-  background: #1a1a1a;
+  background: #252525;
   animation: preview-breathe 2s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(120, 120, 120, 0.5);
 }
 
 @keyframes preview-breathe {
   0%, 100% { 
-    box-shadow: 0 0 3px rgba(80, 80, 80, 0.3), inset 0 0 3px rgba(255, 255, 255, 0.03);
+    box-shadow: 0 0 5px rgba(100, 100, 100, 0.4), inset 0 0 3px rgba(255, 255, 255, 0.08);
   }
   50% { 
-    box-shadow: 0 0 8px rgba(120, 120, 120, 0.5), inset 0 0 6px rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 12px rgba(150, 150, 150, 0.6), inset 0 0 6px rgba(255, 255, 255, 0.12);
   }
 }
 
@@ -2853,7 +2854,7 @@ ul {
   right: 2px;
   bottom: 2px;
   background: #1a1a1a;
-  box-shadow: 0 0 4px rgba(100, 100, 100, 0.3);
+  box-shadow: 0 0 10px rgba(130, 130, 130, 0.5);
 }
 
 .border-preview-member::after {
@@ -2862,14 +2863,15 @@ ul {
   top: 2px;
   left: 2px;
   right: 2px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent);
   animation: preview-scan 2s ease-in-out infinite;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
 }
 
 @keyframes preview-scan {
-  0%, 100% { top: 2px; opacity: 0.5; }
-  50% { top: calc(100% - 4px); opacity: 1; }
+  0%, 100% { top: 2px; opacity: 0.7; }
+  50% { top: calc(100% - 5px); opacity: 1; }
 }
 
 /* REGULAR preview - Corner pulse */
@@ -2881,7 +2883,7 @@ ul {
   right: 2px;
   bottom: 2px;
   background: #1a1a1a;
-  box-shadow: 0 0 4px rgba(100, 100, 100, 0.3);
+  box-shadow: 0 0 12px rgba(140, 140, 140, 0.5);
 }
 
 .border-preview-regular::after {
@@ -2892,12 +2894,12 @@ ul {
   right: 0;
   bottom: 0;
   border: 2px solid transparent;
-  border-image: linear-gradient(45deg, rgba(255,255,255,0.5) 0%, transparent 30%, transparent 70%, rgba(255,255,255,0.5) 100%) 1;
+  border-image: linear-gradient(45deg, rgba(255,255,255,0.9) 0%, transparent 25%, transparent 75%, rgba(255,255,255,0.9) 100%) 1;
   animation: preview-corner-pulse 2s ease-in-out infinite;
 }
 
 @keyframes preview-corner-pulse {
-  0%, 100% { opacity: 0.4; }
+  0%, 100% { opacity: 0.5; }
   50% { opacity: 1; }
 }
 
@@ -6712,23 +6714,23 @@ img.loaded {
   right: -3px;
   bottom: -3px;
   z-index: 0;
-  background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+  background: linear-gradient(180deg, #252525 0%, #151515 100%);
   animation: active-breathe 3s ease-in-out infinite;
   box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 0 8px rgba(60, 60, 60, 0.4);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 0 10px rgba(120, 120, 120, 0.5);
 }
 
 @keyframes active-breathe {
   0%, 100% { 
     box-shadow: 
-      inset 0 0 0 1px rgba(255, 255, 255, 0.03),
-      0 0 4px rgba(60, 60, 60, 0.3);
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 0 6px rgba(100, 100, 100, 0.4);
   }
   50% { 
     box-shadow: 
-      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-      0 0 12px rgba(80, 80, 80, 0.5);
+      inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+      0 0 15px rgba(140, 140, 140, 0.6);
   }
 }
 
@@ -6743,10 +6745,10 @@ img.loaded {
   right: -3px;
   bottom: -3px;
   z-index: 0;
-  background: #0d0d0d;
+  background: #1a1a1a;
   box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 0 6px rgba(80, 80, 80, 0.3);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 12px rgba(130, 130, 130, 0.5);
 }
 
 .avatar-rank-member::after {
@@ -6755,22 +6757,23 @@ img.loaded {
   top: -3px;
   left: -3px;
   right: -3px;
-  height: 2px;
+  height: 3px;
   background: linear-gradient(90deg, 
     transparent 0%, 
-    rgba(255, 255, 255, 0.3) 20%,
-    rgba(255, 255, 255, 0.8) 50%,
-    rgba(255, 255, 255, 0.3) 80%,
+    rgba(255, 255, 255, 0.5) 20%,
+    rgba(255, 255, 255, 1) 50%,
+    rgba(255, 255, 255, 0.5) 80%,
     transparent 100%
   );
   animation: member-scan 2.5s ease-in-out infinite;
   z-index: 1;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
 }
 
 @keyframes member-scan {
   0%, 100% { 
     top: -3px;
-    opacity: 0.5;
+    opacity: 0.7;
   }
   50% { 
     top: calc(100% + 1px);
@@ -6789,10 +6792,10 @@ img.loaded {
   right: -3px;
   bottom: -3px;
   z-index: 0;
-  background: #0a0a0a;
+  background: #1a1a1a;
   box-shadow: 
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 0 8px rgba(80, 80, 80, 0.3);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 0 14px rgba(140, 140, 140, 0.5);
 }
 
 .avatar-rank-regular::after {
@@ -6805,13 +6808,13 @@ img.loaded {
   border: 2px solid transparent;
   border-image: linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.6) 0%,
-    transparent 20%,
-    transparent 30%,
-    rgba(255, 255, 255, 0.6) 50%,
-    transparent 70%,
-    transparent 80%,
-    rgba(255, 255, 255, 0.6) 100%
+    rgba(255, 255, 255, 0.9) 0%,
+    transparent 15%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.9) 50%,
+    transparent 65%,
+    transparent 85%,
+    rgba(255, 255, 255, 0.9) 100%
   ) 1;
   animation: regular-corner-pulse 2s ease-in-out infinite;
   z-index: 0;
@@ -6819,23 +6822,23 @@ img.loaded {
 
 @keyframes regular-corner-pulse {
   0%, 100% { 
-    opacity: 0.4;
+    opacity: 0.5;
     border-image: linear-gradient(
       45deg,
-      rgba(255, 255, 255, 0.4) 0%,
+      rgba(255, 255, 255, 0.6) 0%,
       transparent 20%,
       transparent 30%,
-      rgba(255, 255, 255, 0.4) 50%,
+      rgba(255, 255, 255, 0.6) 50%,
       transparent 70%,
       transparent 80%,
-      rgba(255, 255, 255, 0.4) 100%
+      rgba(255, 255, 255, 0.6) 100%
     ) 1;
   }
   50% { 
     opacity: 1;
     border-image: linear-gradient(
       45deg,
-      rgba(255, 255, 255, 0.9) 0%,
+      rgba(255, 255, 255, 1) 0%,
       transparent 15%,
       transparent 35%,
       rgba(255, 255, 255, 0.9) 50%,
