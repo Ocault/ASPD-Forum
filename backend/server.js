@@ -1130,6 +1130,8 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 20, 50);
   const offset = (page - 1) * limit;
   const search = req.query.search || '';
+  const sort = req.query.sort || 'newest'; // newest, oldest, popular
+  const tagFilter = req.query.tag ? parseInt(req.query.tag) : null;
   
   try {
     const roomResult = await db.query(
@@ -1143,29 +1145,54 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
     
     const room = roomResult.rows[0];
 
-    // Count total threads (with search filter)
-    let countQuery = `SELECT COUNT(*) FROM threads WHERE room_id = $1`;
-    let countParams = [room.id];
+    // Build dynamic query with filters
+    let whereClause = 't.room_id = $1';
+    let queryParams = [room.id];
+    let paramIdx = 2;
+    
     if (search) {
-      countQuery += ` AND (title ILIKE $2 OR slug ILIKE $2)`;
-      countParams.push('%' + search + '%');
+      whereClause += ` AND t.title ILIKE $${paramIdx}`;
+      queryParams.push('%' + search + '%');
+      paramIdx++;
     }
-    const countResult = await db.query(countQuery, countParams);
+    
+    if (tagFilter) {
+      whereClause += ` AND EXISTS (SELECT 1 FROM thread_tags tt WHERE tt.thread_id = t.id AND tt.tag_id = $${paramIdx})`;
+      queryParams.push(tagFilter);
+      paramIdx++;
+    }
+
+    // Count total threads
+    const countResult = await db.query(
+      `SELECT COUNT(*) FROM threads t WHERE ${whereClause}`,
+      queryParams
+    );
     const total = parseInt(countResult.rows[0].count);
     
-    // Get paginated threads
-    let threadsQuery = `SELECT t.id, t.title, t.is_pinned, t.is_locked, COUNT(e.id) FILTER (WHERE e.shadow_banned = FALSE OR e.shadow_banned IS NULL)::int AS "entriesCount"
-       FROM threads t
-       LEFT JOIN entries e ON e.thread_id = t.id
-       WHERE t.room_id = $1`;
-    let queryParams = [room.id];
-    
-    if (search) {
-      threadsQuery += ` AND t.title ILIKE $2`;
-      queryParams.push('%' + search + '%');
+    // Build ORDER BY clause based on sort
+    let orderClause = 't.is_pinned DESC, t.id DESC';
+    if (sort === 'oldest') {
+      orderClause = 't.is_pinned DESC, t.id ASC';
+    } else if (sort === 'popular') {
+      orderClause = 't.is_pinned DESC, vote_score DESC, t.id DESC';
     }
     
-    threadsQuery += ` GROUP BY t.id, t.is_pinned, t.is_locked ORDER BY t.is_pinned DESC, t.id DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+    // Get paginated threads with vote counts and tags
+    const threadsQuery = `
+      SELECT t.id, t.title, t.is_pinned, t.is_locked, 
+             COUNT(e.id) FILTER (WHERE e.shadow_banned = FALSE OR e.shadow_banned IS NULL)::int AS "entriesCount",
+             COALESCE((SELECT SUM(CASE WHEN r.reaction_type = 'like' THEN 1 WHEN r.reaction_type = 'dislike' THEN -1 ELSE 0 END) 
+                       FROM reactions r 
+                       JOIN entries en ON en.id = r.entry_id 
+                       WHERE en.thread_id = t.id), 0)::int AS vote_score,
+             (SELECT json_agg(json_build_object('id', tg.id, 'name', tg.name, 'color', tg.color))
+              FROM tags tg JOIN thread_tags ttg ON ttg.tag_id = tg.id WHERE ttg.thread_id = t.id) AS tags
+       FROM threads t
+       LEFT JOIN entries e ON e.thread_id = t.id
+       WHERE ${whereClause}
+       GROUP BY t.id, t.is_pinned, t.is_locked 
+       ORDER BY ${orderClause} 
+       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
     queryParams.push(limit, offset);
     
     const threadsResult = await db.query(threadsQuery, queryParams);
@@ -1177,6 +1204,7 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
   } catch (err) {
+    console.error('[ROOM ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -1255,15 +1283,26 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
       return res.json({ success: true, entries: entriesWithReactions });
     }
 
-    // Count total entries (exclude deleted)
-    const countResult = await db.query(
-      `SELECT COUNT(*) FROM entries WHERE thread_id = $1 AND (shadow_banned = FALSE OR shadow_banned IS NULL) AND (is_deleted = FALSE OR is_deleted IS NULL)`,
-      [thread.id]
+    // Get user's muted list for filtering
+    const userId = req.user.userId;
+    const mutedResult = await db.query(
+      'SELECT muted_user_id FROM muted_users WHERE user_id = $1',
+      [userId]
     );
+    const mutedUserIds = mutedResult.rows.map(r => r.muted_user_id);
+
+    // Count total entries (exclude deleted and muted users)
+    let countQuery = `SELECT COUNT(*) FROM entries e WHERE e.thread_id = $1 AND (e.shadow_banned = FALSE OR e.shadow_banned IS NULL) AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)`;
+    let countParams = [thread.id];
+    if (mutedUserIds.length > 0) {
+      countQuery += ` AND (e.user_id IS NULL OR e.user_id != ALL($2))`;
+      countParams.push(mutedUserIds);
+    }
+    const countResult = await db.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].count);
     
-    const entriesResult = await db.query(
-      `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
+    // Build entries query with muted filter
+    let entriesQuery = `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
               COALESCE(u.avatar_config, e.avatar_config) AS avatar_config,
               u.signature, u.reputation, u.custom_title,
               e.created_at, e.edited_at,
@@ -1271,11 +1310,20 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
               LENGTH(e.content) > $2 AS "exceedsCharLimit"
        FROM entries e
        LEFT JOIN users u ON u.id = e.user_id
-       WHERE e.thread_id = $1 AND (e.shadow_banned = FALSE OR e.shadow_banned IS NULL) AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)
-       ORDER BY e.created_at
-       LIMIT $3 OFFSET $4`,
-      [thread.id, CONTENT_CHAR_LIMIT, limit, offset]
-    );
+       WHERE e.thread_id = $1 AND (e.shadow_banned = FALSE OR e.shadow_banned IS NULL) AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)`;
+    let entriesParams = [thread.id, CONTENT_CHAR_LIMIT];
+    
+    if (mutedUserIds.length > 0) {
+      entriesQuery += ` AND (e.user_id IS NULL OR e.user_id != ALL($3))`;
+      entriesParams.push(mutedUserIds);
+      entriesQuery += ` ORDER BY e.created_at LIMIT $4 OFFSET $5`;
+      entriesParams.push(limit, offset);
+    } else {
+      entriesQuery += ` ORDER BY e.created_at LIMIT $3 OFFSET $4`;
+      entriesParams.push(limit, offset);
+    }
+    
+    const entriesResult = await db.query(entriesQuery, entriesParams);
     
     // Fetch reactions for all entries
     const entryIds = entriesResult.rows.map(e => e.id);
@@ -1336,7 +1384,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
 
 // Create new thread
 app.post('/api/threads', authMiddleware, ipBanMiddleware, userBanMiddleware, async (req, res) => {
-  const { roomId, title, content } = req.body;
+  const { roomId, title, content, tags } = req.body;
   const userId = req.user.userId;
 
   if (!roomId || !title || !content) {
@@ -1367,6 +1415,16 @@ app.post('/api/threads', authMiddleware, ipBanMiddleware, userBanMiddleware, asy
       'INSERT INTO entries (thread_id, user_id, content) VALUES ($1, $2, $3)',
       [threadId, userId, filteredContent]
     );
+
+    // Assign tags if provided
+    if (tags && Array.isArray(tags) && tags.length > 0) {
+      for (const tagId of tags) {
+        await db.query(
+          'INSERT INTO thread_tags (thread_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [threadId, tagId]
+        );
+      }
+    }
 
     // Log activity
     await logActivity(userId, 'created_thread', 'thread', threadId, filteredTitle);
@@ -3192,6 +3250,298 @@ app.get('/api/bookmarks/:threadId/check', authMiddleware, async (req, res) => {
 });
 
 // ========================================
+// THREAD TAGS
+// ========================================
+
+// Get all available tags
+app.get('/api/tags', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query('SELECT id, name, color FROM tags ORDER BY name');
+    res.json({ success: true, tags: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get tags for a thread
+app.get('/api/threads/:threadId/tags', authMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.threadId);
+  try {
+    const result = await db.query(
+      `SELECT t.id, t.name, t.color FROM tags t
+       JOIN thread_tags tt ON tt.tag_id = t.id
+       WHERE tt.thread_id = $1`,
+      [threadId]
+    );
+    res.json({ success: true, tags: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Set tags for a thread (thread owner or admin)
+app.put('/api/threads/:threadId/tags', authMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.threadId);
+  const userId = req.user.userId;
+  const { tagIds } = req.body;
+
+  if (!Array.isArray(tagIds)) {
+    return res.status(400).json({ success: false, error: 'invalid_tags' });
+  }
+
+  try {
+    // Check thread ownership or admin
+    const thread = await db.query('SELECT user_id FROM threads WHERE id = $1', [threadId]);
+    if (thread.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'thread_not_found' });
+    }
+    
+    const userResult = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+    const isAdmin = userResult.rows[0]?.is_admin;
+    
+    if (thread.rows[0].user_id !== userId && !isAdmin) {
+      return res.status(403).json({ success: false, error: 'not_authorized' });
+    }
+
+    // Clear existing tags and add new ones
+    await db.query('DELETE FROM thread_tags WHERE thread_id = $1', [threadId]);
+    
+    for (const tagId of tagIds.slice(0, 3)) { // Max 3 tags
+      await db.query(
+        'INSERT INTO thread_tags (thread_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [threadId, tagId]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// USER FOLLOWING
+// ========================================
+
+// Follow a user
+app.post('/api/users/:alias/follow', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { alias } = req.params;
+
+  try {
+    const target = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+    if (target.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    const targetId = target.rows[0].id;
+    
+    if (targetId === userId) {
+      return res.status(400).json({ success: false, error: 'cannot_follow_self' });
+    }
+
+    // Toggle follow
+    const existing = await db.query(
+      'SELECT id FROM user_follows WHERE follower_id = $1 AND following_id = $2',
+      [userId, targetId]
+    );
+
+    if (existing.rows.length > 0) {
+      await db.query('DELETE FROM user_follows WHERE id = $1', [existing.rows[0].id]);
+      res.json({ success: true, action: 'unfollowed' });
+    } else {
+      await db.query(
+        'INSERT INTO user_follows (follower_id, following_id) VALUES ($1, $2)',
+        [userId, targetId]
+      );
+      res.json({ success: true, action: 'followed' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Check if following a user
+app.get('/api/users/:alias/following', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { alias } = req.params;
+
+  try {
+    const target = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+    if (target.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    const result = await db.query(
+      'SELECT id FROM user_follows WHERE follower_id = $1 AND following_id = $2',
+      [userId, target.rows[0].id]
+    );
+    res.json({ success: true, isFollowing: result.rows.length > 0 });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get list of users I follow
+app.get('/api/my/following', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      `SELECT u.alias, u.avatar_config, uf.created_at
+       FROM user_follows uf
+       JOIN users u ON u.id = uf.following_id
+       WHERE uf.follower_id = $1
+       ORDER BY uf.created_at DESC`,
+      [userId]
+    );
+    res.json({ success: true, following: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get feed of posts from followed users
+app.get('/api/my/feed', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
+
+  try {
+    const result = await db.query(
+      `SELECT e.id, e.content, e.created_at, u.alias, u.avatar_config,
+              t.id as thread_id, t.title as thread_title, r.slug as room_slug
+       FROM entries e
+       JOIN users u ON u.id = e.user_id
+       JOIN threads t ON t.id = e.thread_id
+       JOIN rooms r ON r.id = t.room_id
+       WHERE e.user_id IN (SELECT following_id FROM user_follows WHERE follower_id = $1)
+         AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)
+       ORDER BY e.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+    
+    const countResult = await db.query(
+      `SELECT COUNT(*) FROM entries e
+       WHERE e.user_id IN (SELECT following_id FROM user_follows WHERE follower_id = $1)
+         AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)`,
+      [userId]
+    );
+    
+    res.json({
+      success: true,
+      posts: result.rows,
+      pagination: {
+        page,
+        limit,
+        total: parseInt(countResult.rows[0].count),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limit)
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// MUTED USERS
+// ========================================
+
+// Mute/unmute a user
+app.post('/api/users/:alias/mute', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { alias } = req.params;
+
+  try {
+    const target = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+    if (target.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    const targetId = target.rows[0].id;
+    
+    if (targetId === userId) {
+      return res.status(400).json({ success: false, error: 'cannot_mute_self' });
+    }
+
+    // Toggle mute
+    const existing = await db.query(
+      'SELECT id FROM muted_users WHERE user_id = $1 AND muted_user_id = $2',
+      [userId, targetId]
+    );
+
+    if (existing.rows.length > 0) {
+      await db.query('DELETE FROM muted_users WHERE id = $1', [existing.rows[0].id]);
+      res.json({ success: true, action: 'unmuted' });
+    } else {
+      await db.query(
+        'INSERT INTO muted_users (user_id, muted_user_id) VALUES ($1, $2)',
+        [userId, targetId]
+      );
+      res.json({ success: true, action: 'muted' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get list of muted users
+app.get('/api/my/muted', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      `SELECT u.alias, u.avatar_config, mu.created_at
+       FROM muted_users mu
+       JOIN users u ON u.id = mu.muted_user_id
+       WHERE mu.user_id = $1
+       ORDER BY mu.created_at DESC`,
+      [userId]
+    );
+    res.json({ success: true, muted: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Check if user is muted
+app.get('/api/users/:alias/muted', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { alias } = req.params;
+
+  try {
+    const target = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+    if (target.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    const result = await db.query(
+      'SELECT id FROM muted_users WHERE user_id = $1 AND muted_user_id = $2',
+      [userId, target.rows[0].id]
+    );
+    res.json({ success: true, isMuted: result.rows.length > 0 });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// DRAFTS LIST
+// ========================================
+
+// Note: Drafts are stored in localStorage on the client
+// This endpoint just provides a way to sync/backup drafts
+app.get('/api/my/drafts-info', authMiddleware, async (req, res) => {
+  // Frontend manages drafts in localStorage
+  // This is just a placeholder if you want server-side drafts later
+  res.json({ 
+    success: true, 
+    message: 'Drafts are stored locally in your browser',
+    hint: 'Check localStorage keys starting with "draft_" or "thread_"'
+  });
+});
+
+// ========================================
 // PRIVATE MESSAGES SYSTEM
 // ========================================
 
@@ -3895,6 +4245,51 @@ async function migrate() {
       );
       CREATE INDEX IF NOT EXISTS idx_activity_feed_created ON activity_feed(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_activity_feed_user ON activity_feed(user_id);
+      
+      -- Thread tags
+      CREATE TABLE IF NOT EXISTS tags (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(50) UNIQUE NOT NULL,
+        color VARCHAR(7) DEFAULT '#666666',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS thread_tags (
+        id SERIAL PRIMARY KEY,
+        thread_id INTEGER REFERENCES threads(id) ON DELETE CASCADE,
+        tag_id INTEGER REFERENCES tags(id) ON DELETE CASCADE,
+        UNIQUE(thread_id, tag_id)
+      );
+      
+      -- User following
+      CREATE TABLE IF NOT EXISTS user_follows (
+        id SERIAL PRIMARY KEY,
+        follower_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        following_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(follower_id, following_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_follows_follower ON user_follows(follower_id);
+      CREATE INDEX IF NOT EXISTS idx_user_follows_following ON user_follows(following_id);
+      
+      -- Muted users
+      CREATE TABLE IF NOT EXISTS muted_users (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        muted_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, muted_user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_muted_users ON muted_users(user_id);
+      
+      -- Insert default tags
+      INSERT INTO tags (name, color) VALUES 
+        ('Discussion', '#4a9eff'),
+        ('Question', '#ff9f43'),
+        ('Guide', '#26de81'),
+        ('News', '#fc5c65'),
+        ('Meta', '#a55eea')
+      ON CONFLICT (name) DO NOTHING;
       
       INSERT INTO rooms (slug, title) VALUES 
         ('general', 'General Discussion'),

@@ -192,6 +192,7 @@ const UIComponents = (function() {
     const meta = signal.meta || '';
     const isPinned = signal.is_pinned || false;
     const isLocked = signal.is_locked || false;
+    const tags = signal.tags || [];
     const deleteBtn = isAdmin ? `<button class="signal-delete-btn" data-thread-id="${id}" title="Delete Thread">×</button>` : '';
     
     // Build badges
@@ -199,10 +200,19 @@ const UIComponents = (function() {
     if (isPinned) badges += '<span class="signal-badge pinned">📌</span>';
     if (isLocked) badges += '<span class="signal-badge locked">🔒</span>';
     
+    // Build tags
+    let tagsHtml = '';
+    if (tags.length > 0) {
+      tagsHtml = '<span class="signal-tags">' + tags.map(function(tag) {
+        return '<span class="signal-tag" style="background-color:' + (tag.color || '#4a9') + '">' + (tag.name || '').toUpperCase() + '</span>';
+      }).join('') + '</span>';
+    }
+    
     return `
       <div class="signal-row-wrapper ${isPinned ? 'pinned' : ''}" data-signal-id="${id}">
         <a href="${href}" class="signal-row">
           ${badges}
+          ${tagsHtml}
           <span class="signal-title">${title}</span>
           <span class="signal-meta">${meta}</span>
         </a>

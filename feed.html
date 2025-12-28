@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASPD Forum — My Feed</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise"></div>
+
+  <!-- Feed Layout -->
+  <div class="post-history-container" data-page="feed">
+
+    <!-- Header -->
+    <header class="profile-header">
+      <div class="profile-header-left">
+        <a href="forum.html" class="profile-back">← NODES</a>
+        <span class="profile-divider">/</span>
+        <span class="profile-title">MY FEED</span>
+      </div>
+      <div class="header-right">
+        <a href="profile.html" class="header-profile">PROFILE</a>
+        <a href="#" class="header-exit" data-action="logout">EXIT</a>
+      </div>
+    </header>
+
+    <!-- Info -->
+    <div class="history-user-info" id="user-info">
+      <h1>FOLLOWING FEED</h1>
+      <p id="feed-subtitle">Posts from users you follow</p>
+    </div>
+
+    <!-- Following List -->
+    <div class="following-list" id="following-list" style="margin-bottom: 1rem;">
+      <span class="following-label">FOLLOWING:</span>
+      <span id="following-users">Loading...</span>
+    </div>
+
+    <!-- Feed List -->
+    <main class="post-history-list" id="feed-list">
+      <div class="empty-state">Loading feed...</div>
+    </main>
+
+    <!-- Pagination -->
+    <div id="pagination-container"></div>
+
+    <!-- Footer -->
+    <footer class="profile-footer">
+      <span>MY FEED</span>
+      <span>FOLLOWING</span>
+      <span data-bind="connection-status">CONN.ACTIVE</span>
+    </footer>
+
+  </div>
+
+  <!-- Theme Toggle -->
+  <button class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode" aria-pressed="false" title="Toggle theme">☀️</button>
+
+  <script src="js/utils.js"></script>
+  <script src="js/auth-state.js"></script>
+  <script src="js/ui-components.js"></script>
+  <script>
+    (function() {
+      'use strict';
+
+      var urlParams = new URLSearchParams(window.location.search);
+      var currentPage = parseInt(urlParams.get('page')) || 1;
+
+      var feedList = document.getElementById('feed-list');
+      var followingUsers = document.getElementById('following-users');
+      var paginationContainer = document.getElementById('pagination-container');
+
+      function formatDate(dateStr) {
+        if (!dateStr) return '';
+        var d = new Date(dateStr);
+        return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + 
+               ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function loadFollowing() {
+        AuthState.apiRequest('/api/my/following')
+          .then(function(data) {
+            if (data.success && data.following && data.following.length > 0) {
+              followingUsers.innerHTML = data.following.map(function(user) {
+                return '<a href="profile.html?alias=' + encodeURIComponent(user.alias) + '" class="following-tag">' + escapeHtml(user.alias) + '</a>';
+              }).join(' ');
+            } else {
+              followingUsers.textContent = 'No one yet. Visit profiles to follow users!';
+            }
+          })
+          .catch(function() {
+            followingUsers.textContent = 'Error loading';
+          });
+      }
+
+      function loadFeed(page) {
+        AuthState.apiRequest('/api/my/feed?page=' + page + '&limit=20')
+          .then(function(data) {
+            if (!data.success) {
+              feedList.innerHTML = '<div class="empty-state">Error loading feed.</div>';
+              return;
+            }
+
+            if (!data.posts || data.posts.length === 0) {
+              feedList.innerHTML = '<div class="empty-state">No posts from followed users yet. Follow some users to see their posts here!</div>';
+              return;
+            }
+
+            feedList.innerHTML = data.posts.map(function(post) {
+              var content = escapeHtml(post.content);
+              if (content.length > 500) {
+                content = content.substring(0, 500) + '...';
+              }
+              
+              return '<div class="post-history-item">' +
+                '<div class="post-history-header">' +
+                  '<a href="profile.html?alias=' + encodeURIComponent(post.alias) + '" class="post-author-link">' + escapeHtml(post.alias) + '</a>' +
+                  '<span class="post-separator">→</span>' +
+                  '<a href="thread.html?id=' + post.threadId + '" class="post-history-thread">' + escapeHtml(post.threadTitle) + '</a>' +
+                '</div>' +
+                '<div class="post-history-content">' + content + '</div>' +
+                '<div class="post-history-time">' + formatDate(post.createdAt) + '</div>' +
+              '</div>';
+            }).join('');
+
+            // Render pagination
+            if (data.pagination && data.pagination.totalPages > 1) {
+              paginationContainer.innerHTML = UIComponents.paginationControls(data.pagination);
+              
+              paginationContainer.querySelectorAll('.pagination-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                  var targetPage = parseInt(this.dataset.page);
+                  if (targetPage && !this.disabled) {
+                    window.location.href = 'feed.html?page=' + targetPage;
+                  }
+                });
+              });
+            } else {
+              paginationContainer.innerHTML = '';
+            }
+          })
+          .catch(function(err) {
+            feedList.innerHTML = '<div class="empty-state">Error loading feed.</div>';
+          });
+      }
+
+      // Logout handler
+      document.querySelector('[data-action="logout"]').addEventListener('click', function(e) {
+        e.preventDefault();
+        AuthState.logout();
+        window.location.href = 'login.html';
+      });
+      
+      // Theme toggle initialization
+      (function initTheme() {
+        var themeToggle = document.getElementById('theme-toggle');
+        var savedTheme = Utils.storage.get('forum_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        themeToggle.setAttribute('aria-pressed', savedTheme === 'light');
+        themeToggle.setAttribute('aria-label', savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+        themeToggle.innerHTML = savedTheme === 'dark' ? '☀️' : '🌙';
+        
+        themeToggle.addEventListener('click', function() {
+          var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+          var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          Utils.storage.set('forum_theme', newTheme);
+          themeToggle.setAttribute('aria-pressed', newTheme === 'light');
+          themeToggle.setAttribute('aria-label', newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+          themeToggle.innerHTML = newTheme === 'dark' ? '☀️' : '🌙';
+        });
+      })();
+
+      // Initialize
+      AuthState.init(function() {
+        if (!AuthState.hasToken()) {
+          window.location.href = 'login.html';
+          return;
+        }
+        loadFollowing();
+        loadFeed(currentPage);
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -46,6 +46,12 @@
         <button class="sort-btn active" data-sort="default" aria-pressed="true">DEFAULT</button>
         <button class="sort-btn" data-sort="newest" aria-pressed="false">NEWEST</button>
         <button class="sort-btn" data-sort="oldest" aria-pressed="false">OLDEST</button>
+        <button class="sort-btn" data-sort="popular" aria-pressed="false">POPULAR</button>
+      </div>
+      <div class="tag-filter" role="group" aria-label="Tag filter">
+        <select id="tag-filter" class="tag-filter-select" aria-label="Filter by tag">
+          <option value="">ALL TAGS</option>
+        </select>
       </div>
     </div>
 
@@ -66,6 +72,12 @@
           <input type="text" id="thread-title" class="thread-title-input" placeholder="SIGNAL TITLE..." required aria-label="Thread title">
           <label for="thread-content" class="sr-only">Initial post content</label>
           <textarea id="thread-content" class="reply-textarea" placeholder="INITIAL ENTRY..." rows="3" required aria-label="Initial post content"></textarea>
+          
+          <!-- Tag Selection -->
+          <div class="thread-tags-container">
+            <label class="tag-select-label">TAGS:</label>
+            <div id="thread-tags-select" class="thread-tags-checkboxes"></div>
+          </div>
           
           <!-- Poll Creation Toggle -->
           <div class="poll-toggle-container">
@@ -171,6 +183,7 @@
       var nodeIdEl = document.querySelector('[data-bind="node-id"]');
       var searchInput = document.getElementById('search-input');
       var sortBtns = document.querySelectorAll('.sort-btn');
+      var tagFilterSelect = document.getElementById('tag-filter');
 
       var allSignals = [];
       var currentSort = 'default';
@@ -178,6 +191,7 @@
       var currentPage = 1;
       var currentPagination = null;
       var currentRoomId = null;
+      var currentTag = '';
 
       function getRoomIdFromUrl() {
         var params = new URLSearchParams(window.location.search);
@@ -216,7 +230,7 @@
           btn.addEventListener('click', function() {
             if (btn.disabled) return;
             currentPage = parseInt(btn.dataset.page);
-            fetchRoom(currentRoomId, currentPage);
+            fetchRoom(currentRoomId, currentPage, currentSearch, currentSort, currentTag);
           });
         });
 
@@ -287,21 +301,69 @@
 
       sortBtns.forEach(function(btn) {
         btn.addEventListener('click', function() {
-          sortBtns.forEach(function(b) { b.classList.remove('active'); });
+          sortBtns.forEach(function(b) { 
+            b.classList.remove('active'); 
+            b.setAttribute('aria-pressed', 'false');
+          });
           btn.classList.add('active');
+          btn.setAttribute('aria-pressed', 'true');
           currentSort = btn.dataset.sort;
-          applyFilters();
+          currentPage = 1;
+          fetchRoom(currentRoomId, 1, currentSearch, currentSort, currentTag);
         });
       });
+
+      // Tag filter handler
+      tagFilterSelect.addEventListener('change', function() {
+        currentTag = this.value;
+        currentPage = 1;
+        fetchRoom(currentRoomId, 1, currentSearch, currentSort, currentTag);
+      });
+
+      var availableTags = [];
+      var threadTagsSelect = document.getElementById('thread-tags-select');
+
+      // Load available tags
+      function loadTags() {
+        AuthState.apiRequest('/api/tags')
+          .then(function(data) {
+            if (data.success && data.tags) {
+              availableTags = data.tags;
+              data.tags.forEach(function(tag) {
+                // Add to filter dropdown
+                var opt = document.createElement('option');
+                opt.value = tag.id;
+                opt.textContent = tag.name.toUpperCase();
+                opt.style.color = tag.color;
+                tagFilterSelect.appendChild(opt);
+                
+                // Add to new thread form checkboxes
+                var label = document.createElement('label');
+                label.className = 'tag-checkbox-label';
+                label.style.borderColor = tag.color;
+                label.innerHTML = '<input type="checkbox" value="' + tag.id + '" class="tag-checkbox"> ' + 
+                  '<span class="tag-checkbox-name" style="color:' + tag.color + '">' + tag.name.toUpperCase() + '</span>';
+                threadTagsSelect.appendChild(label);
+              });
+            }
+          })
+          .catch(function() {
+            // Tags optional
+          });
+      }
 
       /**
        * Fetch room data from API
        */
-      function fetchRoom(roomId, page, search) {
+      function fetchRoom(roomId, page, search, sort, tag) {
         page = page || 1;
         search = search || '';
+        sort = sort || 'default';
+        tag = tag || '';
         var url = '/api/room/' + roomId + '?page=' + page;
         if (search) url += '&search=' + encodeURIComponent(search);
+        if (sort && sort !== 'default') url += '&sort=' + encodeURIComponent(sort);
+        if (tag) url += '&tag=' + encodeURIComponent(tag);
         
         return AuthState.apiRequest(url)
           .then(function(data) {
@@ -314,7 +376,8 @@
                     id: thread.id,
                     title: thread.title,
                     href: 'thread.html?id=' + thread.id + '&room=' + roomId,
-                    meta: 'ENTRIES: ' + (thread.entriesCount || 0)
+                    meta: 'ENTRIES: ' + (thread.entriesCount || 0),
+                    tags: thread.tags || []
                   };
                 });
               }
@@ -329,6 +392,9 @@
       function init() {
         var roomId = getRoomIdFromUrl();
         currentRoomId = roomId;
+
+        // Load available tags for filter
+        loadTags();
 
         fetchRoom(roomId, 1)
           .then(function(data) {
@@ -408,6 +474,10 @@
         newThreadToggle.style.display = 'block';
         threadTitleInput.value = '';
         threadContentInput.value = '';
+        // Reset tag checkboxes
+        threadTagsSelect.querySelectorAll('.tag-checkbox:checked').forEach(function(cb) {
+          cb.checked = false;
+        });
         addPollCheckbox.checked = false;
         pollCreateSection.style.display = 'none';
         pollQuestionInput.value = '';
@@ -420,6 +490,12 @@
         var title = threadTitleInput.value.trim();
         var content = threadContentInput.value.trim();
         if (!title || !content) return;
+
+        // Get selected tags
+        var selectedTags = [];
+        threadTagsSelect.querySelectorAll('.tag-checkbox:checked').forEach(function(cb) {
+          selectedTags.push(parseInt(cb.value));
+        });
 
         // Check if poll is being created
         var createPoll = addPollCheckbox.checked;
@@ -458,7 +534,8 @@
           body: JSON.stringify({
             roomId: currentRoomId,
             title: title,
-            content: content
+            content: content,
+            tags: selectedTags
           })
         })
         .then(function(data) {

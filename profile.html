@@ -70,6 +70,12 @@
         <button class="edit-profile-btn" id="edit-profile-btn" aria-label="Edit your profile">EDIT PROFILE</button>
       </div>
 
+      <!-- Follow/Mute buttons (other user profiles) -->
+      <div class="profile-actions profile-social-actions" id="social-actions" style="display: none;">
+        <button class="follow-btn" id="follow-btn" aria-label="Follow this user">[FOLLOW]</button>
+        <button class="mute-btn" id="mute-btn" aria-label="Mute this user">[MUTE]</button>
+      </div>
+
       <!-- Account Settings (own profile only) -->
       <div class="profile-section account-settings-section" id="account-settings" style="display: none;">
         <h2 class="section-title">ACCOUNT SETTINGS</h2>
@@ -382,9 +388,101 @@
         if (isOwnProfile) {
           profileActions.style.display = 'block';
           document.getElementById('account-settings').style.display = 'block';
+          document.getElementById('social-actions').style.display = 'none';
           loadSubscriptions();
+        } else {
+          // Show follow/mute buttons for other users
+          profileActions.style.display = 'none';
+          document.getElementById('account-settings').style.display = 'none';
+          document.getElementById('social-actions').style.display = 'flex';
+          checkFollowMuteState(profile.alias);
         }
       }
+
+      var isFollowing = false;
+      var isMuted = false;
+
+      function checkFollowMuteState(alias) {
+        // Check if we're following this user
+        AuthState.apiRequest('/api/users/' + encodeURIComponent(alias) + '/following')
+          .then(function(data) {
+            if (data.success) {
+              isFollowing = data.following;
+              updateFollowBtn();
+            }
+          });
+        
+        // Check if we've muted this user
+        AuthState.apiRequest('/api/users/' + encodeURIComponent(alias) + '/muted')
+          .then(function(data) {
+            if (data.success) {
+              isMuted = data.muted;
+              updateMuteBtn();
+            }
+          });
+      }
+
+      function updateFollowBtn() {
+        var btn = document.getElementById('follow-btn');
+        if (isFollowing) {
+          btn.textContent = '[FOLLOWING]';
+          btn.classList.add('active');
+        } else {
+          btn.textContent = '[FOLLOW]';
+          btn.classList.remove('active');
+        }
+      }
+
+      function updateMuteBtn() {
+        var btn = document.getElementById('mute-btn');
+        if (isMuted) {
+          btn.textContent = '[MUTED]';
+          btn.classList.add('active');
+        } else {
+          btn.textContent = '[MUTE]';
+          btn.classList.remove('active');
+        }
+      }
+
+      // Follow button handler
+      document.getElementById('follow-btn').addEventListener('click', function() {
+        var alias = getAliasFromUrl() || profileAlias.textContent;
+        AuthState.apiRequest('/api/users/' + encodeURIComponent(alias) + '/follow', {
+          method: 'POST'
+        })
+          .then(function(data) {
+            if (data.success) {
+              isFollowing = data.following;
+              updateFollowBtn();
+              Notify.show(isFollowing ? 'NOW FOLLOWING' : 'UNFOLLOWED', 'info');
+            } else {
+              Notify.show(data.error || 'ERROR', 'error');
+            }
+          })
+          .catch(function(err) {
+            Notify.show(err.message || 'CONNECTION ERROR', 'error');
+          });
+      });
+
+      // Mute button handler
+      document.getElementById('mute-btn').addEventListener('click', function() {
+        var alias = getAliasFromUrl() || profileAlias.textContent;
+        AuthState.apiRequest('/api/users/' + encodeURIComponent(alias) + '/mute', {
+          method: 'POST'
+        })
+          .then(function(data) {
+            if (data.success) {
+              isMuted = data.muted;
+              updateMuteBtn();
+              Notify.show(isMuted ? 'USER MUTED' : 'USER UNMUTED', 'info');
+            } else {
+              Notify.show(data.error || 'ERROR', 'error');
+            }
+          })
+          .catch(function(err) {
+            Notify.show(err.message || 'CONNECTION ERROR', 'error');
+          });
+      });
 
       function fetchProfile(alias) {
         return AuthState.apiRequest('/api/profile/' + encodeURIComponent(alias))

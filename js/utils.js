@@ -144,7 +144,15 @@ var Utils = (function() {
     
     get: function(key) {
       var all = storage.get(this.STORAGE_KEY, {});
-      return all[key] || null;
+      var entry = all[key];
+      if (entry && typeof entry === 'object' && entry.content) {
+        return entry.content;
+      }
+      return entry || null;
+    },
+    
+    getAll: function() {
+      return storage.get(this.STORAGE_KEY, {});
     },
     
     set: function(key, content) {

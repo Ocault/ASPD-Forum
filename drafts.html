@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASPD Forum — My Drafts</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise"></div>
+
+  <!-- Drafts Layout -->
+  <div class="post-history-container" data-page="drafts">
+
+    <!-- Header -->
+    <header class="profile-header">
+      <div class="profile-header-left">
+        <a href="forum.html" class="profile-back">← NODES</a>
+        <span class="profile-divider">/</span>
+        <span class="profile-title">MY DRAFTS</span>
+      </div>
+      <div class="header-right">
+        <a href="profile.html" class="header-profile">PROFILE</a>
+        <a href="#" class="header-exit" data-action="logout">EXIT</a>
+      </div>
+    </header>
+
+    <!-- Info -->
+    <div class="history-user-info" id="user-info">
+      <h1>SAVED DRAFTS</h1>
+      <p id="drafts-subtitle">Auto-saved reply drafts (cleared after 24 hours)</p>
+    </div>
+
+    <!-- Actions -->
+    <div class="drafts-actions" id="drafts-actions" style="margin-bottom: 1rem;">
+      <button class="clear-all-drafts-btn" id="clear-all-btn">[CLEAR ALL DRAFTS]</button>
+    </div>
+
+    <!-- Drafts List -->
+    <main class="post-history-list" id="drafts-list">
+      <div class="empty-state">Loading drafts...</div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="profile-footer">
+      <span>MY DRAFTS</span>
+      <span>LOCAL STORAGE</span>
+      <span data-bind="connection-status">CONN.ACTIVE</span>
+    </footer>
+
+  </div>
+
+  <!-- Theme Toggle -->
+  <button class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode" aria-pressed="false" title="Toggle theme">☀️</button>
+
+  <script src="js/utils.js"></script>
+  <script src="js/auth-state.js"></script>
+  <script src="js/notify.js"></script>
+  <script>
+    (function() {
+      'use strict';
+
+      var draftsList = document.getElementById('drafts-list');
+      var clearAllBtn = document.getElementById('clear-all-btn');
+      var draftsActions = document.getElementById('drafts-actions');
+
+      function formatDate(timestamp) {
+        if (!timestamp) return 'Unknown';
+        var d = new Date(timestamp);
+        return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + 
+               ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function renderDrafts() {
+        var allDrafts = Utils.drafts.getAll();
+        var keys = Object.keys(allDrafts);
+        
+        if (keys.length === 0) {
+          draftsList.innerHTML = '<div class="empty-state">No saved drafts. Drafts are automatically saved when you start typing a reply in a thread.</div>';
+          draftsActions.style.display = 'none';
+          return;
+        }
+
+        draftsActions.style.display = 'block';
+        
+        draftsList.innerHTML = keys.map(function(key) {
+          var draft = allDrafts[key];
+          var content = draft.content || draft;
+          var timestamp = draft.timestamp;
+          
+          // Parse the key to get thread ID (format: reply_threadId)
+          var threadId = key.replace('reply_', '');
+          var threadLink = 'thread.html?id=' + threadId;
+          
+          // Truncate content for preview
+          var preview = escapeHtml(content);
+          if (preview.length > 300) {
+            preview = preview.substring(0, 300) + '...';
+          }
+          
+          return '<div class="draft-item" data-key="' + escapeHtml(key) + '">' +
+            '<div class="draft-header">' +
+              '<a href="' + threadLink + '" class="draft-thread-link">THREAD: ' + threadId + '</a>' +
+              '<span class="draft-time">' + formatDate(timestamp) + '</span>' +
+            '</div>' +
+            '<div class="draft-content">' + preview + '</div>' +
+            '<div class="draft-actions">' +
+              '<a href="' + threadLink + '" class="draft-edit-btn">[CONTINUE EDITING]</a>' +
+              '<button class="draft-delete-btn" data-key="' + escapeHtml(key) + '">[DELETE]</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+        
+        // Bind delete buttons
+        draftsList.querySelectorAll('.draft-delete-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var key = this.dataset.key;
+            if (confirm('Delete this draft?')) {
+              Utils.drafts.remove(key);
+              Notify.show('DRAFT DELETED', 'info');
+              renderDrafts();
+            }
+          });
+        });
+      }
+
+      // Clear all button
+      clearAllBtn.addEventListener('click', function() {
+        if (confirm('Delete ALL drafts? This cannot be undone.')) {
+          Utils.drafts.clear();
+          Notify.show('ALL DRAFTS CLEARED', 'info');
+          renderDrafts();
+        }
+      });
+
+      // Logout handler
+      document.querySelector('[data-action="logout"]').addEventListener('click', function(e) {
+        e.preventDefault();
+        AuthState.logout();
+        window.location.href = 'login.html';
+      });
+      
+      // Theme toggle initialization
+      (function initTheme() {
+        var themeToggle = document.getElementById('theme-toggle');
+        var savedTheme = Utils.storage.get('forum_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        themeToggle.setAttribute('aria-pressed', savedTheme === 'light');
+        themeToggle.setAttribute('aria-label', savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+        themeToggle.innerHTML = savedTheme === 'dark' ? '☀️' : '🌙';
+        
+        themeToggle.addEventListener('click', function() {
+          var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+          var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          Utils.storage.set('forum_theme', newTheme);
+          themeToggle.setAttribute('aria-pressed', newTheme === 'light');
+          themeToggle.setAttribute('aria-label', newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+          themeToggle.innerHTML = newTheme === 'dark' ? '☀️' : '🌙';
+        });
+      })();
+
+      // Initialize
+      AuthState.init(function() {
+        if (!AuthState.hasToken()) {
+          window.location.href = 'login.html';
+          return;
+        }
+        renderDrafts();
+      });
+    })();
+  </script>
+</body>
+</html>
