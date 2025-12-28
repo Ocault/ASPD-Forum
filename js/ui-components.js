@@ -266,11 +266,12 @@ const UIComponents = (function() {
     
     // Rank tier explanations
     const rankExplanations = {
-      'BRONZE': 'Newcomer • 10+ posts',
-      'SILVER': 'Active member • 50+ posts',
-      'GOLD': 'Established • 200+ posts',
-      'PLATINUM': 'Veteran • 500+ posts',
-      'DIAMOND': 'Elite • 1000+ posts'
+      'NEWCOMER': 'New user • <10 posts',
+      'ACTIVE': 'Active • 10+ posts',
+      'MEMBER': 'Member • 50+ posts',
+      'REGULAR': 'Regular • 100+ posts',
+      'EXPERT': 'Expert • 200+ posts',
+      'VETERAN': 'Veteran • 500+ posts'
     };
     
     // If user has custom title, show that instead of rank
@@ -390,7 +391,7 @@ const UIComponents = (function() {
           </div>`;
     
     // Avatar rank class for animated borders
-    const avatarRankClass = rank ? ` avatar-rank-${rank.toLowerCase()}` : '';
+    const avatarRankClass = rank ? ` avatar-rank-${rank.toLowerCase().replace(/\s+/g, '-')}` : '';
     
     return `
       <div class="${entryClass}" data-entry-id="${id}" data-user-id="${userId || ''}" data-avatar-config="${avatarConfig}">

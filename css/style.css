@@ -6176,71 +6176,68 @@ img.loaded {
 }
 
 /* ========================================
-   BRONZE RANK - Subtle dark pulse
+   NEWCOMER RANK - No border (default)
 ======================================== */
-.avatar-rank-bronze::before {
-  background: linear-gradient(135deg, #3d3d3d, #1a1a1a);
-  animation: bronze-pulse 3s ease-in-out infinite;
-  box-shadow: 0 0 4px rgba(80, 80, 80, 0.5);
+/* Newcomers get no special border */
+
+/* ========================================
+   ACTIVE RANK - Subtle dark pulse
+======================================== */
+.avatar-rank-active::before {
+  background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+  animation: active-pulse 3s ease-in-out infinite;
+  box-shadow: 0 0 3px rgba(60, 60, 60, 0.4);
 }
 
-@keyframes bronze-pulse {
-  0%, 100% { 
-    opacity: 0.6;
-  }
-  50% { 
-    opacity: 1;
-  }
+@keyframes active-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
 }
 
 /* ========================================
-   SILVER RANK - Grayscale shimmer
+   MEMBER RANK - Slow shimmer
 ======================================== */
-.avatar-rank-silver::before {
+.avatar-rank-member::before {
   background: linear-gradient(135deg, 
-    #2a2a2a 0%,
-    #4a4a4a 25%,
-    #3a3a3a 50%,
-    #4a4a4a 75%,
-    #2a2a2a 100%
+    #1a1a1a 0%,
+    #3a3a3a 25%,
+    #2a2a2a 50%,
+    #3a3a3a 75%,
+    #1a1a1a 100%
   );
   background-size: 200% 200%;
-  animation: silver-shimmer 4s ease-in-out infinite;
-  box-shadow: 0 0 6px rgba(100, 100, 100, 0.4);
+  animation: member-shimmer 4s ease-in-out infinite;
+  box-shadow: 0 0 4px rgba(80, 80, 80, 0.3);
 }
 
-@keyframes silver-shimmer {
-  0%, 100% { 
-    background-position: 0% 50%;
-  }
-  50% { 
-    background-position: 100% 50%;
-  }
+@keyframes member-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 /* ========================================
-   GOLD RANK - Rotating dark glow
+   REGULAR RANK - Rotating gradient
 ======================================== */
-.avatar-rank-gold::before {
+.avatar-rank-regular::before {
   background: conic-gradient(
     from 0deg,
     #1a1a1a,
+    #2a2a2a,
     #3a3a3a,
-    #505050,
-    #3a3a3a,
+    #2a2a2a,
     #1a1a1a
   );
-  animation: gold-rotate 3s linear infinite;
-  box-shadow: 0 0 8px rgba(120, 120, 120, 0.5);
+  animation: regular-rotate 4s linear infinite;
+  box-shadow: 0 0 5px rgba(90, 90, 90, 0.4);
 }
 
-@keyframes gold-rotate {
+@keyframes regular-rotate {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
-/* Inner mask for gold to show avatar */
-.avatar-rank-gold::after {
+/* Inner mask for regular to show avatar */
+.avatar-rank-regular::after {
   content: '';
   position: absolute;
   top: 0;
@@ -6253,37 +6250,37 @@ img.loaded {
 }
 
 /* ========================================
-   PLATINUM RANK - Electric static ring
+   EXPERT RANK - Electric sweep with glow
 ======================================== */
-.avatar-rank-platinum::before {
+.avatar-rank-expert::before {
   background: linear-gradient(
     90deg,
     #1a1a1a,
-    #4a4a4a,
-    #606060,
-    #4a4a4a,
+    #3a3a3a,
+    #505050,
+    #3a3a3a,
     #1a1a1a
   );
   background-size: 300% 100%;
-  animation: platinum-sweep 2s linear infinite, platinum-glow 1.5s ease-in-out infinite;
+  animation: expert-sweep 2.5s linear infinite, expert-glow 2s ease-in-out infinite;
 }
 
-@keyframes platinum-sweep {
+@keyframes expert-sweep {
   0% { background-position: 0% 50%; }
   100% { background-position: 300% 50%; }
 }
 
-@keyframes platinum-glow {
+@keyframes expert-glow {
   0%, 100% { 
-    box-shadow: 0 0 6px rgba(150, 150, 150, 0.4), 0 0 12px rgba(100, 100, 100, 0.2);
+    box-shadow: 0 0 5px rgba(120, 120, 120, 0.3), 0 0 10px rgba(80, 80, 80, 0.2);
   }
   50% { 
-    box-shadow: 0 0 12px rgba(180, 180, 180, 0.6), 0 0 24px rgba(120, 120, 120, 0.3);
+    box-shadow: 0 0 10px rgba(150, 150, 150, 0.5), 0 0 20px rgba(100, 100, 100, 0.3);
   }
 }
 
-/* Platinum inner ring */
-.avatar-rank-platinum::after {
+/* Expert inner ring */
+.avatar-rank-expert::after {
   content: '';
   position: absolute;
   top: 1px;
@@ -6296,71 +6293,71 @@ img.loaded {
 }
 
 /* ========================================
-   DIAMOND RANK - Dark void with white edge
+   VETERAN RANK - Dark void with white edge flicker
 ======================================== */
-.avatar-rank-diamond::before {
+.avatar-rank-veteran::before {
   background: conic-gradient(
     from 0deg,
     #000000,
-    #2a2a2a,
-    #4a4a4a,
-    #707070,
-    #4a4a4a,
-    #2a2a2a,
+    #1a1a1a,
+    #3a3a3a,
+    #505050,
+    #3a3a3a,
+    #1a1a1a,
     #000000
   );
-  animation: diamond-spin 2s linear infinite;
+  animation: veteran-spin 2s linear infinite;
 }
 
-@keyframes diamond-spin {
+@keyframes veteran-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
-/* Diamond outer glow ring - dark with white edge pulse */
-.avatar-rank-diamond::after {
+/* Veteran outer glow ring - dark with white edge pulse */
+.avatar-rank-veteran::after {
   content: '';
   position: absolute;
-  top: -6px;
-  left: -6px;
-  right: -6px;
-  bottom: -6px;
+  top: -5px;
+  left: -5px;
+  right: -5px;
+  bottom: -5px;
   border-radius: 50%;
   background: conic-gradient(
     from 180deg,
     transparent,
-    rgba(255, 255, 255, 0.1),
-    rgba(255, 255, 255, 0.3),
-    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0.08),
     transparent
   );
-  animation: diamond-spin-reverse 3s linear infinite;
+  animation: veteran-spin-reverse 3s linear infinite;
   z-index: -1;
 }
 
-@keyframes diamond-spin-reverse {
+@keyframes veteran-spin-reverse {
   from { transform: rotate(360deg); }
   to { transform: rotate(0deg); }
 }
 
-/* Diamond flicker effect */
-.avatar-rank-diamond {
-  animation: diamond-flicker 0.1s ease-in-out infinite alternate;
+/* Veteran flicker effect */
+.avatar-rank-veteran {
+  animation: veteran-flicker 0.15s ease-in-out infinite alternate;
 }
 
-@keyframes diamond-flicker {
+@keyframes veteran-flicker {
   0% {
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.3));
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.2));
   }
   100% {
-    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.5)) drop-shadow(0 0 12px rgba(200, 200, 200, 0.2));
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.4)) drop-shadow(0 0 10px rgba(180, 180, 180, 0.15));
   }
 }
 
 /* Ensure avatar canvas is above the effects */
-.avatar-rank-gold .avatar-mini,
-.avatar-rank-platinum .avatar-mini,
-.avatar-rank-diamond .avatar-mini {
+.avatar-rank-regular .avatar-mini,
+.avatar-rank-expert .avatar-mini,
+.avatar-rank-veteran .avatar-mini {
   position: relative;
   z-index: 2;
 }
