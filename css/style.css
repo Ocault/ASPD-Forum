@@ -6701,6 +6701,13 @@ img.loaded {
    ACTIVE RANK - Breathing edge glow
 ======================================== */
 .avatar-rank-active::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  z-index: 0;
   background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
   animation: active-breathe 3s ease-in-out infinite;
   box-shadow: 
@@ -6725,6 +6732,13 @@ img.loaded {
    MEMBER RANK - Horizontal scanner line
 ======================================== */
 .avatar-rank-member::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  z-index: 0;
   background: #0d0d0d;
   box-shadow: 
     inset 0 0 0 1px rgba(255, 255, 255, 0.05),
@@ -6764,6 +6778,13 @@ img.loaded {
    REGULAR RANK - Corner pulse markers
 ======================================== */
 .avatar-rank-regular::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  z-index: 0;
   background: #0a0a0a;
   box-shadow: 
     inset 0 0 0 1px rgba(255, 255, 255, 0.06),
@@ -6825,6 +6846,13 @@ img.loaded {
    EXPERT RANK - Edge sweep scanner
 ======================================== */
 .avatar-rank-expert::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  z-index: 0;
   background: #0a0a0a;
   box-shadow: 
     inset 0 0 0 1px rgba(255, 255, 255, 0.06),
@@ -6877,6 +6905,13 @@ img.loaded {
    VETERAN RANK - Full border pulse with inner glow
 ======================================== */
 .avatar-rank-veteran::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  z-index: 0;
   background: #000;
   box-shadow: 
     inset 0 0 15px rgba(255, 255, 255, 0.03),
@@ -6924,10 +6959,14 @@ img.loaded {
 }
 
 /* Ensure avatar canvas is above the effects */
+.avatar-rank-active .avatar-mini,
+.avatar-rank-member .avatar-mini,
 .avatar-rank-regular .avatar-mini,
 .avatar-rank-expert .avatar-mini,
 .avatar-rank-veteran .avatar-mini,
 .avatar-rank-owner .avatar-mini,
+.avatar-rank-active .avatar-large,
+.avatar-rank-member .avatar-large,
 .avatar-rank-regular .avatar-large,
 .avatar-rank-expert .avatar-large,
 .avatar-rank-veteran .avatar-large,
