@@ -332,6 +332,13 @@ const UIComponents = (function() {
     // @mentions
     formattedContent = formattedContent.replace(/@([a-zA-Z0-9_]+)/g, '<a href="profile.html?alias=$1" class="mention-link">@$1</a>');
     
+    // Spoiler tags ||hidden text||
+    formattedContent = formattedContent.replace(/\|\|(.+?)\|\|/g, '<span class="spoiler" onclick="this.classList.toggle(\'revealed\')" title="Click to reveal">$1</span>');
+    
+    // Image embeds - auto-embed image URLs
+    formattedContent = formattedContent.replace(/<a href="(https?:\/\/[^\s"]+\.(jpg|jpeg|png|gif|webp)(\?[^"]*)?)" class="auto-link"[^>]*>[^<]*<\/a>/gi, 
+      '<div class="embedded-image"><img src="$1" alt="Embedded image" loading="lazy" onclick="window.open(this.src, \'_blank\')"><a href="$1" class="image-link" target="_blank" rel="noopener">[view full]</a></div>');
+    
     // Quote lines starting with > (blockquote style)
     formattedContent = formattedContent.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
     // Merge consecutive blockquotes

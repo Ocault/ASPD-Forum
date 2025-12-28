@@ -43,6 +43,7 @@
       <span class="thread-status-badges" id="thread-badges" aria-live="polite"></span>
       <button class="subscribe-btn" id="subscribe-btn" title="Subscribe to thread" aria-label="Subscribe to this thread" aria-pressed="false">[WATCH]</button>
       <button class="bookmark-btn" id="bookmark-btn" title="Bookmark this thread" aria-label="Bookmark this thread" aria-pressed="false">[SAVE]</button>
+      <button class="share-btn" id="share-btn" title="Copy link to clipboard" aria-label="Share this thread">[SHARE]</button>
       <span class="thread-slow-mode" id="slow-mode-indicator" style="display: none;" role="status" aria-live="polite"></span>
       <!-- Admin Controls -->
       <div class="thread-admin-controls" id="thread-admin-controls" style="display: none;" role="group" aria-label="Admin controls">
@@ -109,7 +110,7 @@
     <!-- Footer -->
     <footer class="thread-footer" data-component="thread-footer" role="contentinfo">
       <span data-bind="signal-id">SIG.000</span>
-      <span aria-hidden="true">RECORD VIEW</span>
+      <span class="online-count-small" id="online-count" aria-live="polite">0 ONLINE</span>
       <span data-bind="connection-status" aria-live="polite">CONN.ACTIVE</span>
     </footer>
 
@@ -861,6 +862,41 @@
           });
       });
 
+      // Share button - copy link to clipboard
+      var shareBtn = document.getElementById('share-btn');
+      shareBtn.addEventListener('click', function() {
+        var url = window.location.href;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(function() {
+            shareBtn.textContent = '[COPIED!]';
+            Notify.show('LINK COPIED TO CLIPBOARD', 'info');
+            setTimeout(function() { shareBtn.textContent = '[SHARE]'; }, 2000);
+          }).catch(function() {
+            fallbackCopy(url);
+          });
+        } else {
+          fallbackCopy(url);
+        }
+      });
+      
+      function fallbackCopy(text) {
+        var textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          shareBtn.textContent = '[COPIED!]';
+          Notify.show('LINK COPIED TO CLIPBOARD', 'info');
+          setTimeout(function() { shareBtn.textContent = '[SHARE]'; }, 2000);
+        } catch (e) {
+          Notify.show('FAILED TO COPY', 'error');
+        }
+        document.body.removeChild(textarea);
+      }
+
       // Subscribe functionality
       var subscribeBtn = document.getElementById('subscribe-btn');
       var isSubscribed = false;
@@ -1431,6 +1467,20 @@
       
       // Start polling after initial load
       setTimeout(startPolling, 2000);
+      
+      // Fetch online user count
+      var onlineCountEl = document.getElementById('online-count');
+      function fetchOnlineCount() {
+        AuthState.apiRequest('/api/users/online')
+          .then(function(data) {
+            if (data.success) {
+              onlineCountEl.textContent = data.users.length + ' ONLINE';
+            }
+          })
+          .catch(function() {});
+      }
+      fetchOnlineCount();
+      setInterval(fetchOnlineCount, 60000); // Update every minute
       
       // Initialize theme on load
       initTheme();
