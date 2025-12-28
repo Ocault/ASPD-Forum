@@ -976,29 +976,15 @@ ul {
   transition: all 0.15s ease;
 }
 
-/* Rank avatars need special handling - opacity affects pseudo-elements */
-.entry-avatar[class*="avatar-rank-"] {
-  opacity: 1 !important;
-  width: 0;
-}
-
-.entry-avatar[class*="avatar-rank-"] .avatar-mini {
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.entry:hover .entry-avatar[class*="avatar-rank-"] .avatar-mini {
-  opacity: 0.7;
-}
-
 .entry:hover .entry-avatar {
   width: 28px;
   margin-right: var(--spacing-sm);
   opacity: 0.7;
 }
 
+/* For rank avatars, keep opacity: 1 on hover so border is fully visible */
 .entry:hover .entry-avatar[class*="avatar-rank-"] {
-  opacity: 1 !important;
+  opacity: 1;
 }
 
 .avatar-placeholder {
