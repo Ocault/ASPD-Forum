@@ -112,6 +112,8 @@
         document.title = 'ASPD Forum — ' + (roomMeta.title || 'Room');
       }
 
+      var userIsAdmin = AuthState.isAdmin();
+
       function renderSignals(signals, pagination) {
         if (!signals || !signals.length) {
           signalsContainer.innerHTML = '<div class="empty-state" data-empty="signals">NO SIGNALS AVAILABLE</div>';
@@ -120,7 +122,7 @@
           return;
         }
         signalsContainer.innerHTML = signals.map(function(signal) {
-          return UIComponents.signalRow(signal);
+          return UIComponents.signalRow(signal, userIsAdmin);
         }).join('');
         signalCountEl.textContent = pagination ? pagination.total : signals.length;
         
@@ -134,6 +136,37 @@
             currentPage = parseInt(btn.dataset.page);
             fetchRoom(currentRoomId, currentPage);
           });
+        });
+
+        // Bind delete button events (admin only)
+        if (userIsAdmin) {
+          signalsContainer.querySelectorAll('.signal-delete-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              var threadId = btn.dataset.threadId;
+              if (confirm('DELETE THIS SIGNAL? This action cannot be undone.')) {
+                deleteThread(threadId);
+              }
+            });
+          });
+        }
+      }
+
+      function deleteThread(threadId) {
+        AuthState.apiRequest('/api/admin/threads/' + threadId, {
+          method: 'DELETE'
+        })
+        .then(function(data) {
+          if (data.success) {
+            Notify.show('SIGNAL DELETED', 'info');
+            fetchRoom(currentRoomId, currentPage);
+          } else {
+            Notify.show(data.error || 'DELETE FAILED', 'error');
+          }
+        })
+        .catch(function(err) {
+          Notify.show(err.message || 'CONNECTION ERROR', 'error');
         });
       }
 

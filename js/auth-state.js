@@ -97,14 +97,25 @@ var AuthState = (function() {
   }
 
   /**
+   * Check if user is admin
+   * @returns {boolean}
+   */
+  function isAdmin() {
+    var state = get();
+    return state.isAdmin === true;
+  }
+
+  /**
    * Login - set authenticated state
    * @param {string} alias - User alias
+   * @param {boolean} isAdmin - Whether user is admin
    */
-  function login(alias) {
+  function login(alias, isAdmin) {
     set({
       authenticated: true,
       alias: alias,
-      avatarSet: true // Assume existing users have avatar
+      avatarSet: true, // Assume existing users have avatar
+      isAdmin: isAdmin || false
     });
   }
 
@@ -258,6 +269,7 @@ var AuthState = (function() {
     isAuthenticated: isAuthenticated,
     hasAvatar: hasAvatar,
     getAlias: getAlias,
+    isAdmin: isAdmin,
     login: login,
     register: register,
     setAvatar: setAvatar,

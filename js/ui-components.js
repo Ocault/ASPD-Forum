@@ -176,19 +176,24 @@ const UIComponents = (function() {
    * @param {string} signal.title - Signal title
    * @param {string} signal.href - Signal URL
    * @param {string} signal.meta - Meta information (entry count, status)
+   * @param {boolean} isAdmin - Whether current user is admin
    * @returns {string} HTML string
    */
-  function signalRow(signal) {
+  function signalRow(signal, isAdmin) {
     const id = signal.id || '';
     const title = signal.title || 'UNTITLED';
     const href = signal.href || '#';
     const meta = signal.meta || '';
+    const deleteBtn = isAdmin ? `<button class="signal-delete-btn" data-thread-id="${id}" title="Delete Thread">×</button>` : '';
     
     return `
-      <a href="${href}" class="signal-row" data-signal-id="${id}">
-        <span class="signal-title">${title}</span>
-        <span class="signal-meta">${meta}</span>
-      </a>`;
+      <div class="signal-row-wrapper" data-signal-id="${id}">
+        <a href="${href}" class="signal-row">
+          <span class="signal-title">${title}</span>
+          <span class="signal-meta">${meta}</span>
+        </a>
+        ${deleteBtn}
+      </div>`;
   }
 
   /**

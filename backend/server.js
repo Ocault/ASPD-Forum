@@ -136,7 +136,7 @@ app.post('/login', async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT id, alias, password_hash FROM users WHERE alias = $1',
+      'SELECT id, alias, password_hash, is_admin FROM users WHERE alias = $1',
       [alias]
     );
 
@@ -152,12 +152,29 @@ app.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { userId: user.id, alias: user.alias },
+      { userId: user.id, alias: user.alias, isAdmin: user.is_admin || false },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES }
     );
 
-    res.json({ success: true, token });
+    res.json({ success: true, token, isAdmin: user.is_admin || false });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Get current user info
+app.get('/api/me', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT id, alias, is_admin FROM users WHERE id = $1',
+      [req.user.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    const user = result.rows[0];
+    res.json({ success: true, user: { id: user.id, alias: user.alias, isAdmin: user.is_admin || false } });
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
   }
@@ -645,6 +662,45 @@ app.patch('/api/admin/threads/:id', authMiddleware, adminMiddleware, async (req,
 
     res.json({ success: true, thread: result.rows[0] });
   } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Delete thread and all its entries
+app.delete('/api/admin/threads/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const threadId = req.params.id;
+  const isNumeric = /^\d+$/.test(threadId);
+
+  try {
+    // Find thread
+    const threadResult = await db.query(
+      `SELECT id, title FROM threads WHERE ${isNumeric ? 'id = $1' : 'slug = $1'}`,
+      [isNumeric ? parseInt(threadId) : threadId]
+    );
+
+    if (threadResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'thread_not_found' });
+    }
+
+    const thread = threadResult.rows[0];
+
+    // Delete all entries in the thread first
+    await db.query('DELETE FROM entries WHERE thread_id = $1', [thread.id]);
+
+    // Delete the thread
+    await db.query('DELETE FROM threads WHERE id = $1', [thread.id]);
+
+    await logAudit(
+      'delete_thread',
+      'thread',
+      thread.id,
+      req.user.userId,
+      { title: thread.title }
+    );
+
+    res.json({ success: true, message: 'Thread deleted' });
+  } catch (err) {
+    console.error('[DELETE THREAD ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });

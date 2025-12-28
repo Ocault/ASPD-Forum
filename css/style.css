@@ -760,6 +760,49 @@ ul {
   margin-left: var(--spacing-md);
 }
 
+/* Signal row wrapper for admin delete button */
+.signal-row-wrapper {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.signal-row-wrapper:first-child {
+  border-top: 1px solid var(--border-color);
+}
+
+.signal-row-wrapper .signal-row {
+  flex: 1;
+  border-bottom: none;
+}
+
+.signal-row-wrapper:first-child .signal-row {
+  border-top: none;
+}
+
+.signal-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  border-left: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: all 0.15s ease;
+}
+
+.signal-delete-btn:hover {
+  background-color: rgba(100, 50, 50, 0.3);
+  color: #a66;
+  opacity: 1;
+}
+
 /* ========================================
    ROOM PAGE RESPONSIVE
 ======================================== */
