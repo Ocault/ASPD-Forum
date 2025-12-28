@@ -1239,7 +1239,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
       const newEntriesResult = await db.query(
         `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
                 COALESCE(u.avatar_config, e.avatar_config) AS avatar_config,
-                u.signature, u.reputation, u.custom_title,
+                u.signature, u.reputation, u.custom_title, u.is_admin,
                 e.created_at, e.edited_at,
                 (SELECT COUNT(*) FROM entries WHERE user_id = e.user_id AND is_deleted = FALSE) AS post_count,
                 LENGTH(e.content) > $3 AS "exceedsCharLimit"
@@ -1304,7 +1304,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     // Build entries query with muted filter
     let entriesQuery = `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
               COALESCE(u.avatar_config, e.avatar_config) AS avatar_config,
-              u.signature, u.reputation, u.custom_title,
+              u.signature, u.reputation, u.custom_title, u.is_admin,
               e.created_at, e.edited_at,
               (SELECT COUNT(*) FROM entries WHERE user_id = e.user_id AND is_deleted = FALSE) AS post_count,
               LENGTH(e.content) > $2 AS "exceedsCharLimit"

@@ -6357,9 +6357,124 @@ img.loaded {
 /* Ensure avatar canvas is above the effects */
 .avatar-rank-regular .avatar-mini,
 .avatar-rank-expert .avatar-mini,
-.avatar-rank-veteran .avatar-mini {
+.avatar-rank-veteran .avatar-mini,
+.avatar-rank-owner .avatar-mini {
   position: relative;
   z-index: 2;
+}
+
+/* ========================================
+   OWNER/ADMIN RANK - Ultimate dark void with spinning light beam
+======================================== */
+.avatar-rank-owner {
+  position: relative;
+}
+
+.avatar-rank-owner::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #000000,
+    #1a1a1a,
+    #2a2a2a,
+    #ffffff,
+    #2a2a2a,
+    #1a1a1a,
+    #000000
+  );
+  animation: owner-spin 1.5s linear infinite;
+  z-index: 0;
+}
+
+@keyframes owner-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Middle ring - inverse rotation */
+.avatar-rank-owner::after {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  right: -7px;
+  bottom: -7px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 180deg,
+    transparent 0%,
+    transparent 30%,
+    rgba(255, 255, 255, 0.6) 45%,
+    #ffffff 50%,
+    rgba(255, 255, 255, 0.6) 55%,
+    transparent 70%,
+    transparent 100%
+  );
+  animation: owner-spin-reverse 2s linear infinite;
+  z-index: -1;
+}
+
+@keyframes owner-spin-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+/* Outer ethereal glow */
+.avatar-rank-owner {
+  animation: owner-pulse 1s ease-in-out infinite alternate, owner-flicker 0.08s ease-in-out infinite alternate;
+}
+
+@keyframes owner-pulse {
+  0% {
+    filter: 
+      drop-shadow(0 0 3px rgba(255, 255, 255, 0.4))
+      drop-shadow(0 0 6px rgba(200, 200, 200, 0.2));
+  }
+  100% {
+    filter: 
+      drop-shadow(0 0 8px rgba(255, 255, 255, 0.7))
+      drop-shadow(0 0 15px rgba(255, 255, 255, 0.4))
+      drop-shadow(0 0 25px rgba(180, 180, 180, 0.2));
+  }
+}
+
+@keyframes owner-flicker {
+  0% { opacity: 0.95; }
+  100% { opacity: 1; }
+}
+
+/* Owner badge glow effect on the entry */
+.entry:has(.avatar-rank-owner) {
+  position: relative;
+}
+
+.entry:has(.avatar-rank-owner)::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.02) 0%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.01) 100%
+  );
+  pointer-events: none;
+  border-radius: inherit;
+  animation: owner-entry-shimmer 4s ease-in-out infinite;
+}
+
+@keyframes owner-entry-shimmer {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
 }
 
 /* ========================================

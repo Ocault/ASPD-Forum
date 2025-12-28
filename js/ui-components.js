@@ -263,6 +263,7 @@ const UIComponents = (function() {
     // Get rank badge and custom title - custom title replaces rank
     const rank = entry.rank || '';
     const customTitle = entry.custom_title || '';
+    const isAdmin = entry.is_admin === true;
     
     // Rank tier explanations
     const rankExplanations = {
@@ -390,8 +391,8 @@ const UIComponents = (function() {
             </button>
           </div>`;
     
-    // Avatar rank class for animated borders
-    const avatarRankClass = rank ? ` avatar-rank-${rank.toLowerCase().replace(/\s+/g, '-')}` : '';
+    // Avatar rank class for animated borders (admin overrides rank)
+    const avatarRankClass = isAdmin ? ' avatar-rank-owner' : (rank ? ` avatar-rank-${rank.toLowerCase().replace(/\s+/g, '-')}` : '');
     
     return `
       <div class="${entryClass}" data-entry-id="${id}" data-user-id="${userId || ''}" data-avatar-config="${avatarConfig}">
