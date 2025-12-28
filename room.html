@@ -66,7 +66,7 @@
     <!-- New Thread Form -->
     <section class="new-thread-container" aria-label="Create new thread">
       <button id="new-thread-toggle" class="new-thread-toggle" aria-expanded="false" aria-controls="new-thread-form-wrapper">+ NEW SIGNAL</button>
-      <div id="new-thread-form-wrapper" class="new-thread-form-wrapper" style="display:none">
+      <div id="new-thread-form-wrapper" class="new-thread-form-wrapper">
         <form id="new-thread-form" class="new-thread-form" aria-label="New thread form">
           <label for="thread-title" class="sr-only">Thread title</label>
           <input type="text" id="thread-title" class="thread-title-input" placeholder="SIGNAL TITLE..." required aria-label="Thread title">
@@ -510,13 +510,13 @@
 
       newThreadToggle.addEventListener('click', function() {
         // Show the form, hide the button
-        newThreadFormWrapper.style.display = 'block';
+        newThreadFormWrapper.classList.add('visible');
         newThreadToggle.style.display = 'none';
       });
 
       cancelThread.addEventListener('click', function() {
         // Hide the form, show the button
-        newThreadFormWrapper.style.display = 'none';
+        newThreadFormWrapper.classList.remove('visible');
         newThreadToggle.style.display = 'block';
         threadTitleInput.value = '';
         threadContentInput.value = '';
@@ -606,7 +606,7 @@
           Notify.show('SIGNAL CREATED', 'info');
           threadTitleInput.value = '';
           threadContentInput.value = '';
-          newThreadFormWrapper.style.display = 'none';
+          newThreadFormWrapper.classList.remove('visible');
           newThreadToggle.style.display = 'block';
           // Reset poll form
           addPollCheckbox.checked = false;
