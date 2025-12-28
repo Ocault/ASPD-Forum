@@ -14,6 +14,7 @@ const PORT = process.env.PORT || 3001;
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = '1h';
+const JWT_REFRESH_EXPIRES = '7d'; // Refresh tokens last 7 days
 
 // Middleware
 app.use(cors({
@@ -198,12 +199,83 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// Register
-app.post('/register', async (req, res) => {
+// Rate limiting for auth endpoints (security: prevent brute force)
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per window
+  message: { success: false, error: 'too_many_attempts', message: 'Too many attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => hashIp(getClientIp(req)) || 'unknown'
+});
+
+// Strict rate limiter for repeated failures
+const strictAuthLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 failed attempts triggers lockout
+  message: { success: false, error: 'account_locked', message: 'Too many failed attempts, account temporarily locked' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => hashIp(getClientIp(req)) || 'unknown',
+  skipSuccessfulRequests: true // Only count failed requests
+});
+
+// Password strength validation
+function validatePassword(password) {
+  const errors = [];
+  if (password.length < 8) errors.push('Password must be at least 8 characters');
+  if (!/[a-z]/.test(password)) errors.push('Password must contain a lowercase letter');
+  if (!/[A-Z]/.test(password)) errors.push('Password must contain an uppercase letter');
+  if (!/[0-9]/.test(password)) errors.push('Password must contain a number');
+  return errors;
+}
+
+// Track failed login attempts in memory (would use Redis in production)
+const failedLoginAttempts = new Map();
+const LOCKOUT_THRESHOLD = 5;
+const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+
+function checkLoginLockout(ipHash) {
+  const record = failedLoginAttempts.get(ipHash);
+  if (!record) return false;
+  if (record.count >= LOCKOUT_THRESHOLD) {
+    if (Date.now() - record.lastAttempt < LOCKOUT_DURATION) {
+      return true; // Still locked out
+    }
+    // Lockout expired, clear
+    failedLoginAttempts.delete(ipHash);
+  }
+  return false;
+}
+
+function recordFailedLogin(ipHash) {
+  const record = failedLoginAttempts.get(ipHash) || { count: 0, lastAttempt: 0 };
+  record.count++;
+  record.lastAttempt = Date.now();
+  failedLoginAttempts.set(ipHash, record);
+}
+
+function clearFailedLogin(ipHash) {
+  failedLoginAttempts.delete(ipHash);
+}
+
+// Register (with rate limiting and password validation)
+app.post('/register', authRateLimiter, async (req, res) => {
   const { alias, password } = req.body;
 
   if (!alias || !password) {
     return res.status(400).json({ success: false, error: 'missing_fields' });
+  }
+
+  // Validate alias format
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(alias)) {
+    return res.status(400).json({ success: false, error: 'invalid_alias', message: 'Alias must be 3-20 characters, alphanumeric or underscore only' });
+  }
+
+  // Validate password strength
+  const passwordErrors = validatePassword(password);
+  if (passwordErrors.length > 0) {
+    return res.status(400).json({ success: false, error: 'weak_password', message: passwordErrors.join('. ') });
   }
 
   try {
@@ -222,9 +294,15 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// Login
-app.post('/login', async (req, res) => {
+// Login (with rate limiting and lockout protection)
+app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
   const { alias, password } = req.body;
+  const ipHash = hashIp(getClientIp(req));
+
+  // Check for IP-based lockout
+  if (checkLoginLockout(ipHash)) {
+    return res.status(429).json({ success: false, error: 'too_many_attempts', message: 'Too many failed attempts. Please try again later.' });
+  }
 
   if (!alias || !password) {
     return res.status(400).json({ success: false, error: 'missing_fields' });
@@ -237,6 +315,7 @@ app.post('/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      recordFailedLogin(ipHash);
       return res.status(401).json({ success: false, error: 'invalid_credentials' });
     }
 
@@ -244,8 +323,12 @@ app.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(password, user.password_hash);
 
     if (!valid) {
+      recordFailedLogin(ipHash);
       return res.status(401).json({ success: false, error: 'invalid_credentials' });
     }
+
+    // Successful login - clear failed attempts
+    clearFailedLogin(ipHash);
 
     const token = jwt.sign(
       { userId: user.id, alias: user.alias, isAdmin: user.is_admin || false },
@@ -253,9 +336,63 @@ app.post('/login', async (req, res) => {
       { expiresIn: JWT_EXPIRES }
     );
 
-    res.json({ success: true, token, isAdmin: user.is_admin || false });
+    // Issue refresh token (longer lived)
+    const refreshToken = jwt.sign(
+      { userId: user.id, alias: user.alias, isAdmin: user.is_admin || false, type: 'refresh' },
+      JWT_SECRET,
+      { expiresIn: JWT_REFRESH_EXPIRES }
+    );
+
+    res.json({ success: true, token, refreshToken, isAdmin: user.is_admin || false });
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Refresh token endpoint - get new access token using refresh token
+app.post('/api/auth/refresh', async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(400).json({ success: false, error: 'missing_refresh_token' });
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, JWT_SECRET);
+    
+    // Verify it's a refresh token
+    if (decoded.type !== 'refresh') {
+      return res.status(401).json({ success: false, error: 'invalid_token_type' });
+    }
+
+    // Verify user still exists and isn't banned
+    const result = await db.query(
+      'SELECT id, alias, is_admin, is_banned FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'user_not_found' });
+    }
+
+    const user = result.rows[0];
+    if (user.is_banned) {
+      return res.status(403).json({ success: false, error: 'user_banned' });
+    }
+
+    // Issue new access token
+    const newToken = jwt.sign(
+      { userId: user.id, alias: user.alias, isAdmin: user.is_admin || false },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES }
+    );
+
+    res.json({ success: true, token: newToken });
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ success: false, error: 'refresh_token_expired' });
+    }
+    return res.status(401).json({ success: false, error: 'invalid_refresh_token' });
   }
 });
 

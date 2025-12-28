@@ -73,6 +73,9 @@
         .then(function(data) {
           if (data.success && data.token) {
             AuthState.setToken(data.token);
+            if (data.refreshToken) {
+              AuthState.setRefreshToken(data.refreshToken);
+            }
             AuthState.login(alias, data.isAdmin);
             window.location.href = 'forum.html?notify=' + encodeURIComponent('AUTH.OK') + '&notify_type=info';
           } else {

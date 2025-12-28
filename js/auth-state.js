@@ -8,6 +8,7 @@ var AuthState = (function() {
 
   var STORAGE_KEY = 'aspd_auth';
   var TOKEN_KEY = 'authToken';
+  var REFRESH_TOKEN_KEY = 'authRefreshToken';
   
   // Auto-detect API base: use current origin in production, localhost for dev
   var API_BASE = window.location.hostname === 'localhost' 
@@ -219,7 +220,66 @@ var AuthState = (function() {
   function clearToken() {
     try {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
     } catch (e) {}
+  }
+
+  /**
+   * Get stored refresh token
+   * @returns {string|null}
+   */
+  function getRefreshToken() {
+    try {
+      return localStorage.getItem(REFRESH_TOKEN_KEY);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Set refresh token
+   * @param {string} token
+   */
+  function setRefreshToken(token) {
+    try {
+      localStorage.setItem(REFRESH_TOKEN_KEY, token);
+    } catch (e) {}
+  }
+
+  /**
+   * Refresh the access token using refresh token
+   * @returns {Promise<boolean>} True if refresh successful
+   */
+  var isRefreshing = false;
+  var refreshPromise = null;
+  
+  function refreshAccessToken() {
+    if (isRefreshing) return refreshPromise;
+    
+    var refreshToken = getRefreshToken();
+    if (!refreshToken) return Promise.resolve(false);
+    
+    isRefreshing = true;
+    refreshPromise = fetch(API_BASE + '/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: refreshToken })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      isRefreshing = false;
+      if (data.success && data.token) {
+        setToken(data.token);
+        return true;
+      }
+      return false;
+    })
+    .catch(function() {
+      isRefreshing = false;
+      return false;
+    });
+    
+    return refreshPromise;
   }
 
   /**
@@ -244,7 +304,7 @@ var AuthState = (function() {
   }
 
   /**
-   * Make authenticated API request
+   * Make authenticated API request with automatic token refresh
    * @param {string} endpoint - API endpoint
    * @param {Object} options - Fetch options
    * @returns {Promise}
@@ -252,11 +312,27 @@ var AuthState = (function() {
   function apiRequest(endpoint, options) {
     options = options || {};
     options.headers = Object.assign({}, getAuthHeaders(), options.headers || {});
+    
     return fetch(API_BASE + endpoint, options)
       .then(function(res) {
         if (res.status === 401) {
-          logout();
-          return Promise.reject(new Error('unauthorized'));
+          // Try to refresh the token
+          return refreshAccessToken().then(function(refreshed) {
+            if (refreshed) {
+              // Retry the request with new token
+              options.headers = Object.assign({}, getAuthHeaders(), options.headers || {});
+              return fetch(API_BASE + endpoint, options).then(function(retryRes) {
+                if (retryRes.status === 401) {
+                  logout();
+                  return Promise.reject(new Error('unauthorized'));
+                }
+                return retryRes.json();
+              });
+            } else {
+              logout();
+              return Promise.reject(new Error('unauthorized'));
+            }
+          });
         }
         return res.json();
       });
@@ -321,6 +397,9 @@ var AuthState = (function() {
     apiRequest: apiRequest,
     startHeartbeat: startHeartbeat,
     stopHeartbeat: stopHeartbeat,
+    getRefreshToken: getRefreshToken,
+    setRefreshToken: setRefreshToken,
+    refreshAccessToken: refreshAccessToken,
     API_BASE: API_BASE
   };
 

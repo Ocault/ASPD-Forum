@@ -77,6 +77,14 @@
         headerRight.insertBefore(adminLink, headerRight.querySelector('.header-messages'));
       }
 
+      // Escape HTML to prevent XSS
+      function escapeHtml(text) {
+        if (!text) return '';
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
       // Load announcements
       (function loadAnnouncements() {
         fetch(AuthState.API_BASE + '/api/announcements')
@@ -86,9 +94,9 @@
               var banner = document.getElementById('announcements-banner');
               banner.style.display = 'block';
               banner.innerHTML = data.announcements.map(function(a) {
-                return '<div class="announcement announcement--' + a.type + '">' +
-                  '<strong>' + a.title + '</strong>' +
-                  (a.content ? ' — ' + a.content : '') +
+                return '<div class="announcement announcement--' + escapeHtml(a.type) + '">' +
+                  '<strong>' + escapeHtml(a.title) + '</strong>' +
+                  (a.content ? ' — ' + escapeHtml(a.content) : '') +
                 '</div>';
               }).join('');
             }

@@ -246,6 +246,14 @@
       var currentProfile = null;
       var isOwnProfile = false;
 
+      // Escape HTML to prevent XSS
+      function escapeHtml(text) {
+        if (!text) return '';
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
       function getAliasFromUrl() {
         var params = new URLSearchParams(window.location.search);
         return params.get('alias');
@@ -289,13 +297,13 @@
         
         if (profile.customTitle) {
           // Show custom title, hide rank
-          profileCustomTitle.innerHTML = '<span class="user-title">' + profile.customTitle + '</span>';
+          profileCustomTitle.innerHTML = '<span class="user-title">' + escapeHtml(profile.customTitle) + '</span>';
           profileRank.textContent = '';
         } else {
           // No custom title, show rank
           profileCustomTitle.textContent = '';
           if (profile.rank) {
-            profileRank.innerHTML = '<span class="rank-badge rank-' + profile.rank.toLowerCase() + '">' + profile.rank + '</span>';
+            profileRank.innerHTML = '<span class="rank-badge rank-' + escapeHtml(profile.rank.toLowerCase()) + '">' + escapeHtml(profile.rank) + '</span>';
           }
         }
         statRep.textContent = profile.reputation || 0;
@@ -303,7 +311,7 @@
         // Display signature
         var profileSignature = document.getElementById('profile-signature');
         if (profile.signature) {
-          profileSignature.innerHTML = '<span class="signature-text">"' + profile.signature + '"</span>';
+          profileSignature.innerHTML = '<span class="signature-text">"' + escapeHtml(profile.signature) + '"</span>';
         } else {
           profileSignature.textContent = '';
         }
