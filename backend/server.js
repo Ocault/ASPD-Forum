@@ -599,7 +599,7 @@ app.get('/api/rooms', authMiddleware, async (req, res) => {
     const result = await db.query(
       `SELECT slug AS id, title, description,
               (SELECT COUNT(*) FROM threads WHERE room_id = rooms.id) as thread_count
-       FROM rooms ORDER BY id`
+       FROM rooms ORDER BY display_order, id`
     );
     res.json({ success: true, rooms: result.rows });
   } catch (err) {
@@ -4292,19 +4292,30 @@ async function migrate() {
         ('Meta', '#a55eea')
       ON CONFLICT (name) DO NOTHING;
       
-      INSERT INTO rooms (slug, title, description) VALUES 
-        ('general', 'General Discussion', 'Open discussion for the community'),
-        ('stories', 'Stories', 'Share your experiences and personal accounts'),
-        ('confessions', 'Confessions', 'Anonymous-style confessions and admissions'),
-        ('relationships', 'Relationships', 'Navigating relationships, family, and social dynamics'),
-        ('workplace', 'Work & Career', 'Professional life, manipulation of corporate environments'),
-        ('self-awareness', 'Self-Awareness', 'Understanding your own patterns and behaviors'),
-        ('coping', 'Coping Strategies', 'Methods for managing impulses and fitting in'),
-        ('diagnosis', 'Diagnosis & Treatment', 'Therapy experiences, psychiatric encounters, medication'),
-        ('media', 'Media & Representation', 'ASPD in movies, TV, books - accurate or not'),
-        ('questions', 'Questions', 'Ask the community anything'),
-        ('off-topic', 'Off-Topic', 'Everything else')
-      ON CONFLICT (slug) DO NOTHING;
+      INSERT INTO rooms (slug, title, description, display_order) VALUES 
+        -- Core Discussion
+        ('general', 'General Discussion', 'Open discussion for the community', 1),
+        ('questions', 'Questions', 'Ask the community anything', 2),
+        
+        -- Personal
+        ('stories', 'Stories', 'Share your experiences and personal accounts', 10),
+        ('confessions', 'Confessions', 'Anonymous-style confessions and admissions', 11),
+        ('self-awareness', 'Self-Awareness', 'Understanding your own patterns and behaviors', 12),
+        
+        -- Life & Society
+        ('relationships', 'Relationships', 'Navigating relationships, family, and social dynamics', 20),
+        ('workplace', 'Work & Career', 'Professional life and career strategies', 21),
+        ('coping', 'Coping Strategies', 'Methods for managing impulses and navigating society', 22),
+        
+        -- Clinical
+        ('diagnosis', 'Diagnosis & Treatment', 'Therapy experiences, psychiatric encounters, medication', 30),
+        
+        -- Other
+        ('media', 'Media & Representation', 'ASPD in movies, TV, books - accurate or not', 40),
+        ('off-topic', 'Off-Topic', 'Everything else', 99)
+      ON CONFLICT (slug) DO UPDATE SET 
+        description = EXCLUDED.description,
+        display_order = EXCLUDED.display_order;
     `);
     console.log('[MIGRATE] Database tables ready');
   } catch (err) {
