@@ -564,7 +564,9 @@ app.put('/api/profile', authMiddleware, async (req, res) => {
 app.get('/api/rooms', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT slug AS id, title FROM rooms ORDER BY id'
+      `SELECT slug AS id, title, description,
+              (SELECT COUNT(*) FROM threads WHERE room_id = rooms.id) as thread_count
+       FROM rooms ORDER BY id`
     );
     res.json({ success: true, rooms: result.rows });
   } catch (err) {
@@ -1433,6 +1435,32 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
       await logActivity(userId, 'posted_reply', 'thread', threadDbId, threadTitle);
     } catch (actErr) {
       // Silent fail
+    }
+
+    // Notify thread subscribers
+    try {
+      const threadTitleResult = await db.query('SELECT title FROM threads WHERE id = $1', [threadDbId]);
+      const threadTitle = threadTitleResult.rows[0]?.title || 'Unknown thread';
+      
+      // Get all subscribers except the poster
+      const subscribersResult = await db.query(
+        `SELECT user_id FROM thread_subscriptions WHERE thread_id = $1 AND user_id != $2`,
+        [threadDbId, userId]
+      );
+      
+      for (const sub of subscribersResult.rows) {
+        await db.query(
+          `INSERT INTO notifications (user_id, type, title, message, link, related_entry_id, related_user_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [sub.user_id, 'thread_reply', `New reply in "${threadTitle.substring(0, 50)}"`, 
+           `${entryAlias} posted: ${content.substring(0, 80)}${content.length > 80 ? '...' : ''}`,
+           `thread.html?id=${threadDbId}#entry-${entryId}`,
+           entryId, userId]
+        );
+      }
+    } catch (subErr) {
+      // Silent fail - subscription notifications should not break posting
+      console.error('[SUBSCRIPTION NOTIFICATION ERROR]', subErr.message);
     }
 
     res.json({ success: true, entry: insertResult.rows[0] });
@@ -2712,6 +2740,97 @@ app.get('/api/users/:alias/last-seen', async (req, res) => {
       return res.status(404).json({ success: false, error: 'user_not_found' });
     }
     res.json({ success: true, last_seen_at: result.rows[0].last_seen_at });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// WHO'S ONLINE
+// ========================================
+
+// Get users who were active in the last 5 minutes
+app.get('/api/users/online', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT alias, avatar_config, custom_title, 
+              (SELECT COUNT(*) FROM entries WHERE user_id = users.id AND is_deleted = FALSE) as post_count
+       FROM users 
+       WHERE last_seen_at > NOW() - INTERVAL '5 minutes'
+       ORDER BY last_seen_at DESC
+       LIMIT 50`
+    );
+    
+    // Calculate rank for each user
+    const onlineUsers = result.rows.map(u => {
+      let rank = 'NEWCOMER';
+      const postCount = parseInt(u.post_count);
+      if (postCount >= 500) rank = 'VETERAN';
+      else if (postCount >= 200) rank = 'EXPERT';
+      else if (postCount >= 100) rank = 'REGULAR';
+      else if (postCount >= 50) rank = 'MEMBER';
+      else if (postCount >= 10) rank = 'ACTIVE';
+      
+      return {
+        alias: u.alias,
+        avatarConfig: u.avatar_config,
+        customTitle: u.custom_title,
+        rank: u.custom_title ? null : rank
+      };
+    });
+    
+    // Get total online count
+    const countResult = await db.query(
+      `SELECT COUNT(*) FROM users WHERE last_seen_at > NOW() - INTERVAL '5 minutes'`
+    );
+    
+    res.json({ 
+      success: true, 
+      users: onlineUsers,
+      count: parseInt(countResult.rows[0].count)
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// FIRST UNREAD POST
+// ========================================
+
+// Get the first unread entry ID in a thread
+app.get('/api/threads/:id/first-unread', authMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.id);
+  const userId = req.user.userId;
+
+  try {
+    // Get last read entry for this user/thread
+    const readResult = await db.query(
+      `SELECT last_read_entry_id FROM thread_reads 
+       WHERE user_id = $1 AND thread_id = $2`,
+      [userId, threadId]
+    );
+    
+    const lastReadId = readResult.rows[0]?.last_read_entry_id || 0;
+    
+    // Find first entry after last read
+    const firstUnreadResult = await db.query(
+      `SELECT id FROM entries 
+       WHERE thread_id = $1 AND id > $2 AND (is_deleted = FALSE OR is_deleted IS NULL)
+       ORDER BY id ASC
+       LIMIT 1`,
+      [threadId, lastReadId]
+    );
+    
+    if (firstUnreadResult.rows.length === 0) {
+      return res.json({ success: true, firstUnreadId: null, hasUnread: false });
+    }
+    
+    res.json({ 
+      success: true, 
+      firstUnreadId: firstUnreadResult.rows[0].id,
+      hasUnread: true
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
   }

@@ -76,12 +76,27 @@
     <div id="pagination-container"></div>
 
     <!-- Reply Form -->
-    <div class="reply-form-container">
+    <div class="reply-form-container" id="reply-form-container">
       <form id="reply-form" class="reply-form">
-        <textarea id="reply-content" class="reply-textarea" placeholder="ENTER YOUR RESPONSE..." rows="3" required></textarea>
+        <!-- Markdown Toolbar -->
+        <div class="markdown-toolbar">
+          <button type="button" class="md-btn" data-md="bold" title="Bold (**text**)"><strong>B</strong></button>
+          <button type="button" class="md-btn" data-md="italic" title="Italic (*text*)"><em>I</em></button>
+          <button type="button" class="md-btn" data-md="strike" title="Strikethrough (~~text~~)"><del>S</del></button>
+          <button type="button" class="md-btn" data-md="code" title="Code (`code`)">&lt;/&gt;</button>
+          <button type="button" class="md-btn" data-md="link" title="Link ([text](url))">🔗</button>
+          <button type="button" class="md-btn" data-md="quote" title="Quote (> text)">&gt;</button>
+          <button type="button" class="md-btn" data-md="list" title="List (- item)">☰</button>
+          <button type="button" class="md-btn" data-md="h1" title="Heading (#)">H</button>
+          <span class="markdown-help">MARKDOWN SUPPORTED</span>
+        </div>
+        <textarea id="reply-content" class="reply-textarea" placeholder="ENTER YOUR RESPONSE... (Markdown supported: **bold**, *italic*, `code`, > quote)" rows="3" required></textarea>
         <button type="submit" class="reply-submit">TRANSMIT</button>
       </form>
     </div>
+
+    <!-- Jump to Unread Button -->
+    <button class="jump-unread-btn" id="jump-unread-btn" title="Jump to first unread">↓ NEW</button>
 
     <!-- Back to Top Button -->
     <button class="back-to-top" id="back-to-top" title="Back to top">↑ TOP</button>
@@ -434,14 +449,100 @@
         });
       }
 
-      // Quote entry - prefill reply textarea
+      // Quote entry - prefill reply textarea with structured quote format
       function quoteEntry(alias, content) {
         var replyTextarea = document.getElementById('reply-content');
-        var quotedText = '> ' + alias + ' wrote:\n> ' + content.split('\n').join('\n> ') + '\n\n';
+        // Truncate quoted content if too long
+        var quotedContent = content.length > 200 ? content.substring(0, 200) + '...' : content;
+        var quotedText = '@' + alias + ' said:\n> ' + quotedContent.split('\n').join('\n> ') + '\n\n';
         replyTextarea.value = quotedText + replyTextarea.value;
         replyTextarea.focus();
         replyTextarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
+
+      // Markdown toolbar handlers
+      document.querySelectorAll('.md-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var textarea = document.getElementById('reply-content');
+          var start = textarea.selectionStart;
+          var end = textarea.selectionEnd;
+          var text = textarea.value;
+          var selected = text.substring(start, end);
+          var replacement = '';
+          var cursorOffset = 0;
+          
+          switch(btn.dataset.md) {
+            case 'bold':
+              replacement = '**' + (selected || 'text') + '**';
+              cursorOffset = selected ? 0 : -2;
+              break;
+            case 'italic':
+              replacement = '*' + (selected || 'text') + '*';
+              cursorOffset = selected ? 0 : -1;
+              break;
+            case 'strike':
+              replacement = '~~' + (selected || 'text') + '~~';
+              cursorOffset = selected ? 0 : -2;
+              break;
+            case 'code':
+              if (selected.indexOf('\n') !== -1) {
+                replacement = '```\n' + (selected || 'code') + '\n```';
+              } else {
+                replacement = '`' + (selected || 'code') + '`';
+              }
+              cursorOffset = selected ? 0 : -1;
+              break;
+            case 'link':
+              replacement = '[' + (selected || 'text') + '](url)';
+              cursorOffset = -1;
+              break;
+            case 'quote':
+              replacement = '> ' + (selected || 'quote');
+              break;
+            case 'list':
+              replacement = '- ' + (selected || 'item');
+              break;
+            case 'h1':
+              replacement = '## ' + (selected || 'heading');
+              break;
+          }
+          
+          textarea.value = text.substring(0, start) + replacement + text.substring(end);
+          textarea.focus();
+          var newPos = start + replacement.length + cursorOffset;
+          textarea.setSelectionRange(newPos, newPos);
+        });
+      });
+
+      // Jump to first unread
+      var jumpUnreadBtn = document.getElementById('jump-unread-btn');
+      var firstUnreadId = null;
+
+      function checkFirstUnread() {
+        if (!currentSignalId) return;
+        
+        AuthState.apiRequest('/api/threads/' + currentSignalId + '/first-unread')
+          .then(function(data) {
+            if (data.success && data.hasUnread && data.firstUnreadId) {
+              firstUnreadId = data.firstUnreadId;
+              jumpUnreadBtn.classList.add('visible');
+            } else {
+              jumpUnreadBtn.classList.remove('visible');
+            }
+          })
+          .catch(function() {});
+      }
+
+      jumpUnreadBtn.addEventListener('click', function() {
+        if (firstUnreadId) {
+          var entryEl = document.querySelector('[data-entry-id="' + firstUnreadId + '"]');
+          if (entryEl) {
+            entryEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            entryEl.classList.add('highlight-entry');
+            setTimeout(function() { entryEl.classList.remove('highlight-entry'); }, 2000);
+          }
+        }
+      });
 
       // Report modal
       function showReportModal(entryId) {
@@ -648,6 +749,9 @@
               // Load poll if exists
               loadPoll(data.thread.id);
               
+              // Check for first unread post
+              checkFirstUnread();
+              
               // Mark as read with last entry ID
               if (allEntries.length > 0) {
                 var lastEntryId = allEntries[allEntries.length - 1].id;
@@ -794,17 +898,24 @@
         pollQuestion.textContent = poll.question;
         
         var metaText = 'Created by ' + poll.createdBy;
+        var expiryClass = '';
         if (poll.endsAt) {
           var endsAt = new Date(poll.endsAt);
-          metaText += ' • Ends: ' + endsAt.toLocaleDateString();
+          var now = new Date();
+          var hoursLeft = (endsAt - now) / (1000 * 60 * 60);
+          
           if (poll.isExpired) {
-            metaText += ' (EXPIRED)';
+            metaText += ' • <span class="poll-expiry expired">EXPIRED</span>';
+          } else if (hoursLeft < 24) {
+            metaText += ' • <span class="poll-expiry ending-soon">Ends in ' + Math.ceil(hoursLeft) + 'h</span>';
+          } else {
+            metaText += ' • Ends: ' + endsAt.toLocaleDateString();
           }
         }
         if (poll.allowMultiple) {
           metaText += ' • Multiple choice';
         }
-        pollMeta.textContent = metaText;
+        pollMeta.innerHTML = metaText;
 
         var hasVoted = poll.userVotes && poll.userVotes.length > 0;
         selectedOptions = poll.userVotes ? poll.userVotes.slice() : [];

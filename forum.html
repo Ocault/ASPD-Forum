@@ -45,6 +45,17 @@
       <!-- PLACEHOLDER: Room nodes will be injected here by JS -->
     </main>
 
+    <!-- Who's Online Section -->
+    <div class="whos-online-section">
+      <div class="whos-online-header">
+        <h3>WHO'S ONLINE</h3>
+        <span class="online-count" id="online-count">0 ONLINE</span>
+      </div>
+      <div class="online-users-list" id="whos-online-list">
+        <span style="color: var(--text-muted); font-size: 0.5rem;">Loading...</span>
+      </div>
+    </div>
+
     <!-- Footer -->
     <footer class="forum-footer" data-component="forum-footer">
       <span data-bind="version">SYS.1.0.0</span>
@@ -156,12 +167,43 @@
                 return {
                   id: room.id,
                   title: room.title,
+                  description: room.description || '',
+                  thread_count: room.thread_count || 0,
                   href: 'room.html?id=' + room.id
                 };
               });
             }
             return data;
           });
+      }
+
+      /**
+       * Load who's online
+       */
+      function loadWhosOnline() {
+        AuthState.apiRequest('/api/users/online')
+          .then(function(data) {
+            if (data.success && data.users) {
+              var container = document.getElementById('whos-online-list');
+              var countEl = document.getElementById('online-count');
+              
+              if (countEl) countEl.textContent = data.count + ' ONLINE';
+              
+              if (container && data.users.length > 0) {
+                container.innerHTML = data.users.map(function(u) {
+                  var label = u.customTitle || u.rank || '';
+                  return '<a href="profile.html?alias=' + encodeURIComponent(u.alias) + '" class="online-user">' +
+                    '<span class="online-indicator"></span>' +
+                    '<span>' + escapeHtml(u.alias) + '</span>' +
+                    (label ? '<span class="online-rank">[' + label + ']</span>' : '') +
+                  '</a>';
+                }).join('');
+              } else if (container) {
+                container.innerHTML = '<span style="color: var(--text-muted); font-size: 0.5rem;">No users online</span>';
+              }
+            }
+          })
+          .catch(function() {});
       }
 
       /**
@@ -182,6 +224,11 @@
             allRooms = [];
             renderRooms([]);
           });
+        
+        // Load who's online
+        loadWhosOnline();
+        // Refresh every 60 seconds
+        setInterval(loadWhosOnline, 60000);
       }
 
       if (document.readyState === 'loading') {

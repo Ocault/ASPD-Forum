@@ -155,16 +155,22 @@ const UIComponents = (function() {
    * @param {string} room.id - Room ID
    * @param {string} room.title - Room title
    * @param {string} room.href - Room URL
+   * @param {string} room.description - Room description
+   * @param {number} room.thread_count - Number of threads
    * @returns {string} HTML string
    */
   function roomNode(room) {
     const id = room.id || '';
     const title = room.title || 'UNTITLED';
     const href = room.href || '#';
+    const description = room.description || '';
+    const threadCount = room.thread_count || 0;
     
     return `
       <a href="${href}" class="room-node" data-room-id="${id}">
         <span class="room-title">${title}</span>
+        ${description ? `<span class="room-description">${description}</span>` : ''}
+        <span class="room-stats">${threadCount} THREADS</span>
         <div class="scanline"></div>
       </a>`;
   }
@@ -243,10 +249,20 @@ const UIComponents = (function() {
     // Get rank badge and custom title - custom title replaces rank
     const rank = entry.rank || '';
     const customTitle = entry.custom_title || '';
+    
+    // Rank tier explanations
+    const rankExplanations = {
+      'BRONZE': 'Newcomer • 10+ posts',
+      'SILVER': 'Active member • 50+ posts',
+      'GOLD': 'Established • 200+ posts',
+      'PLATINUM': 'Veteran • 500+ posts',
+      'DIAMOND': 'Elite • 1000+ posts'
+    };
+    
     // If user has custom title, show that instead of rank
     const badgeHtml = customTitle 
       ? `<span class="user-title">${customTitle}</span>` 
-      : (rank ? `<span class="entry-rank rank-badge rank-${rank.toLowerCase()}">${rank}</span>` : '');
+      : (rank ? `<span class="entry-rank rank-badge rank-${rank.toLowerCase()}" title="${rankExplanations[rank] || rank}">${rank}<span class="rank-info-tooltip">${rankExplanations[rank] || rank}</span></span>` : '');
     
     // Make alias a clickable link to profile
     const identityLabel = isAnonymous 
@@ -270,22 +286,70 @@ const UIComponents = (function() {
         <div class="entry-actions">${ownerActionsHtml}${commonActionsHtml}
         </div>` : '';
     
-    // Format content with @mentions highlighted and basic markdown
+    // Enhanced markdown formatting
     let formattedContent = content;
     // Escape HTML first
     formattedContent = formattedContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    // Bold **text**
-    formattedContent = formattedContent.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    // Italic *text*
-    formattedContent = formattedContent.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    // Code `text`
+    
+    // Code blocks ```code``` (must be before inline code)
+    formattedContent = formattedContent.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    // Inline code `text`
     formattedContent = formattedContent.replace(/`(.+?)`/g, '<code>$1</code>');
+    
+    // Headers (# ## ###)
+    formattedContent = formattedContent.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    formattedContent = formattedContent.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    formattedContent = formattedContent.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    
+    // Bold **text** or __text__
+    formattedContent = formattedContent.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    formattedContent = formattedContent.replace(/__(.+?)__/g, '<strong>$1</strong>');
+    // Italic *text* or _text_
+    formattedContent = formattedContent.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    formattedContent = formattedContent.replace(/_(.+?)_/g, '<em>$1</em>');
     // Strikethrough ~~text~~
     formattedContent = formattedContent.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    
+    // Horizontal rule ---
+    formattedContent = formattedContent.replace(/^---$/gm, '<hr>');
+    
+    // Links [text](url)
+    formattedContent = formattedContent.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="auto-link" target="_blank" rel="noopener">$1</a>');
+    
+    // Auto-link URLs
+    formattedContent = formattedContent.replace(/(https?:\/\/[^\s<]+)/g, function(match) {
+      // Don't double-link already linked URLs
+      if (formattedContent.indexOf('href="' + match) !== -1) return match;
+      return '<a href="' + match + '" class="auto-link" target="_blank" rel="noopener">' + match + '</a>';
+    });
+    
+    // Lists (simple - and * for unordered, 1. for ordered)
+    formattedContent = formattedContent.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+    formattedContent = formattedContent.replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>');
+    // Wrap consecutive li elements
+    formattedContent = formattedContent.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+    
     // @mentions
     formattedContent = formattedContent.replace(/@([a-zA-Z0-9_]+)/g, '<a href="profile.html?alias=$1" class="mention-link">@$1</a>');
-    // Quote lines starting with >
-    formattedContent = formattedContent.replace(/^&gt; (.+)$/gm, '<span class="quote-line">&gt; $1</span>');
+    
+    // Quote lines starting with > (blockquote style)
+    formattedContent = formattedContent.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+    // Merge consecutive blockquotes
+    formattedContent = formattedContent.replace(/<\/blockquote>\n<blockquote>/g, '\n');
+    
+    // Check if this is a reply to another post (quoted content)
+    let quotedHtml = '';
+    const quoteMatch = content.match(/^@(\w+) said:\n&gt; ([\s\S]*?)\n\n/);
+    if (quoteMatch) {
+      const quotedAlias = quoteMatch[1];
+      const quotedText = quoteMatch[2].substring(0, 150);
+      quotedHtml = `
+        <div class="quoted-content">
+          <span class="quote-author">@${quotedAlias}</span>: ${quotedText}${quoteMatch[2].length > 150 ? '...' : ''}
+        </div>`;
+      // Remove the quote from main content display
+      formattedContent = formattedContent.replace(/^@\w+ said:\n&gt;[\s\S]*?\n\n/, '');
+    }
     
     // Reactions row
     const reactions = entry.reactions || {};
@@ -312,6 +376,7 @@ const UIComponents = (function() {
             <span class="entry-time">${timeStr}${editedStr}</span>
             ${actionsHtml}
           </div>
+          ${quotedHtml}
           <div class="entry-content">
             <p>${formattedContent}</p>
           </div>
