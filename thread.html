@@ -405,6 +405,12 @@
         var signalId = getSignalIdFromUrl();
         currentSignalId = signalId;
 
+        if (!signalId) {
+          threadTitleEl.textContent = 'SIGNAL NOT FOUND';
+          renderEntries([], {}, null);
+          return;
+        }
+
         fetchThread(signalId, 1)
           .then(function(data) {
             if (data.success) {
@@ -415,17 +421,21 @@
               currentPagination = data.pagination || null;
               renderEntries(allEntries, allAvatarConfigs, currentPagination);
             } else {
+              threadTitleEl.textContent = 'ERROR: ' + (data.error || 'UNKNOWN');
               allEntries = [];
               allAvatarConfigs = {};
               currentPagination = null;
               renderEntries([], {}, null);
+              Notify.show(data.error || 'FAILED TO LOAD SIGNAL', 'error');
             }
           })
-          .catch(function() {
+          .catch(function(err) {
+            threadTitleEl.textContent = 'CONNECTION ERROR';
             allEntries = [];
             allAvatarConfigs = {};
             currentPagination = null;
             renderEntries([], {}, null);
+            Notify.show(err.message || 'CONNECTION ERROR', 'error');
           });
       }
 
