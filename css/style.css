@@ -2079,10 +2079,12 @@ ul {
 .profile-avatar-section.avatar-rank-owner::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
   border: 3px solid #fff;
   box-shadow: 
     0 0 15px rgba(255, 255, 255, 0.6),
@@ -2107,10 +2109,12 @@ ul {
 .profile-avatar-section.avatar-rank-active::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
   border: 2px solid rgba(100, 100, 100, 0.6);
   z-index: 3;
   pointer-events: none;
@@ -2120,10 +2124,12 @@ ul {
 .profile-avatar-section.avatar-rank-member::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
   border: 2px solid rgba(130, 130, 130, 0.7);
   z-index: 3;
   pointer-events: none;
@@ -2133,10 +2139,12 @@ ul {
 .profile-avatar-section.avatar-rank-regular::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
   border: 2px solid rgba(160, 160, 160, 0.8);
   animation: regular-profile-pulse 2s ease-in-out infinite;
   z-index: 3;
@@ -2152,10 +2160,12 @@ ul {
 .profile-avatar-section.avatar-rank-expert::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
   border: 2px solid rgba(180, 180, 180, 0.8);
   box-shadow: 0 0 8px rgba(180, 180, 180, 0.4);
   animation: expert-profile-sweep 2.5s ease-in-out infinite;
@@ -2178,10 +2188,12 @@ ul {
 .profile-avatar-section.avatar-rank-veteran::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
   border: 3px solid rgba(200, 200, 200, 0.9);
   box-shadow: 
     0 0 10px rgba(200, 200, 200, 0.5),
