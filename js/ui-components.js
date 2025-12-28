@@ -232,9 +232,10 @@ const UIComponents = (function() {
    * @param {string} entry.created_at - Creation timestamp
    * @param {string} entry.edited_at - Edit timestamp (if edited)
    * @param {number} currentUserId - Current logged-in user's ID
+   * @param {number} opUserId - Original poster's user ID (for OP badge)
    * @returns {string} HTML string
    */
-  function entryElement(entry, currentUserId) {
+  function entryElement(entry, currentUserId, opUserId) {
     const id = entry.id || '';
     const content = entry.content || '';
     const alias = entry.alias || null;
@@ -243,6 +244,9 @@ const UIComponents = (function() {
     const exceedsLimit = entry.exceedsCharLimit || false;
     const createdAt = entry.created_at ? new Date(entry.created_at) : null;
     const editedAt = entry.edited_at ? new Date(entry.edited_at) : null;
+    
+    // Check if this user is the original poster
+    const isOP = opUserId && userId && opUserId === userId;
     
     // Check if current user owns this entry (for edit/delete buttons)
     const isOwner = currentUserId && userId && currentUserId === userId;
@@ -274,9 +278,12 @@ const UIComponents = (function() {
       ? `<span class="user-title">${Utils.escapeHtml(customTitle)}</span>` 
       : (rank ? `<span class="entry-rank rank-badge rank-${rank.toLowerCase()}" title="${rankExplanations[rank] || rank}">${rank}<span class="rank-info-tooltip">${rankExplanations[rank] || rank}</span></span>` : '');
     
+    // OP badge for original poster
+    const opBadgeHtml = isOP ? '<span class="op-badge" title="Original Poster">OP</span>' : '';
+    
     // Make alias a clickable link to profile
     const identityLabel = isAnonymous 
-      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${Utils.escapeHtml(alias)}</a>${badgeHtml}` 
+      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${Utils.escapeHtml(alias)}</a>${opBadgeHtml}${badgeHtml}` 
       : 'ARCHIVE';
     
     // Format timestamp
@@ -434,6 +441,97 @@ const UIComponents = (function() {
       </div>`;
   }
 
+  /**
+   * Generate skeleton room cards for loading state
+   * @param {number} count - Number of skeleton cards to generate
+   * @returns {string} HTML string
+   */
+  function skeletonRooms(count) {
+    count = count || 6;
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      html += `
+        <div class="skeleton-room">
+          <div class="skeleton skeleton-room-title"></div>
+          <div class="skeleton skeleton-room-desc"></div>
+          <div class="skeleton skeleton-room-stats"></div>
+        </div>`;
+    }
+    return html;
+  }
+
+  /**
+   * Generate skeleton signal rows for loading state
+   * @param {number} count - Number of skeleton rows to generate
+   * @returns {string} HTML string
+   */
+  function skeletonSignals(count) {
+    count = count || 8;
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      html += `
+        <div class="skeleton-signal">
+          <div class="skeleton skeleton-signal-title"></div>
+          <div class="skeleton skeleton-signal-meta"></div>
+        </div>`;
+    }
+    return html;
+  }
+
+  /**
+   * Generate skeleton entry elements for loading state
+   * @param {number} count - Number of skeleton entries to generate
+   * @returns {string} HTML string
+   */
+  function skeletonEntries(count) {
+    count = count || 5;
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      html += `
+        <div class="skeleton-entry">
+          <div class="skeleton skeleton-avatar"></div>
+          <div class="skeleton-entry-body">
+            <div class="skeleton skeleton-entry-header"></div>
+            <div class="skeleton skeleton-entry-content"></div>
+            <div class="skeleton skeleton-entry-content-2"></div>
+          </div>
+        </div>`;
+    }
+    return html;
+  }
+
+  /**
+   * Generate mobile bottom navigation
+   * @param {string} activePage - Current active page identifier
+   * @param {boolean} hasNotifications - Whether to show notification badge
+   * @returns {string} HTML string
+   */
+  function mobileNav(activePage, hasNotifications) {
+    activePage = activePage || '';
+    var items = [
+      { id: 'home', icon: '⌂', label: 'Home', href: 'forum.html' },
+      { id: 'search', icon: '⌕', label: 'Search', href: 'search.html' },
+      { id: 'notif', icon: '!', label: 'Alerts', href: '#', isNotif: true },
+      { id: 'messages', icon: '✉', label: 'Msg', href: 'messages.html' },
+      { id: 'profile', icon: '◉', label: 'Profile', href: 'profile.html' }
+    ];
+    
+    var html = '<nav class="mobile-nav" aria-label="Mobile navigation">';
+    items.forEach(function(item) {
+      var activeClass = activePage === item.id ? ' active' : '';
+      var badge = item.isNotif && hasNotifications ? '<span class="nav-badge visible"></span>' : '';
+      var clickAttr = item.isNotif ? ' id="mobile-notif-btn"' : '';
+      html += `
+        <a href="${item.href}" class="mobile-nav-item${activeClass}"${clickAttr}>
+          <span class="mobile-nav-icon">${item.icon}</span>
+          <span class="mobile-nav-label">${item.label}</span>
+          ${badge}
+        </a>`;
+    });
+    html += '</nav>';
+    return html;
+  }
+
   // Public API
   return {
     noiseOverlay,
@@ -446,7 +544,11 @@ const UIComponents = (function() {
     roomNode,
     signalRow,
     entryElement,
-    paginationControls
+    paginationControls,
+    skeletonRooms,
+    skeletonSignals,
+    skeletonEntries,
+    mobileNav
   };
 
 })();

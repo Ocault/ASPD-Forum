@@ -117,7 +117,32 @@
   </div>
 
   <!-- Theme Toggle -->
-  <button class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode" aria-pressed="false" title="Toggle theme">☀️</button>
+  <button class="theme-toggle" id="theme-toggle" aria-label="Change theme" title="Toggle theme">🎨</button>
+
+  <!-- Mobile Bottom Navigation -->
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <a href="forum.html" class="mobile-nav-item">
+      <span class="mobile-nav-icon">⌂</span>
+      <span class="mobile-nav-label">Home</span>
+    </a>
+    <a href="search.html" class="mobile-nav-item">
+      <span class="mobile-nav-icon">⌕</span>
+      <span class="mobile-nav-label">Search</span>
+    </a>
+    <a href="#" class="mobile-nav-item" id="mobile-notif-btn">
+      <span class="mobile-nav-icon">!</span>
+      <span class="mobile-nav-label">Alerts</span>
+      <span class="nav-badge" id="mobile-notif-badge"></span>
+    </a>
+    <a href="messages.html" class="mobile-nav-item">
+      <span class="mobile-nav-icon">✉</span>
+      <span class="mobile-nav-label">Msg</span>
+    </a>
+    <a href="profile.html" class="mobile-nav-item">
+      <span class="mobile-nav-icon">◉</span>
+      <span class="mobile-nav-label">Profile</span>
+    </a>
+  </nav>
 
   <!-- Keyboard Shortcuts Modal -->
   <div class="shortcuts-modal-overlay" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
@@ -180,6 +205,7 @@
       var currentPage = 1;
       var currentPagination = null;
       var currentSignalId = null;
+      var opUserId = null; // Original poster's user ID for OP badge
       
       // Get current user ID from JWT token
       var currentUserId = null;
@@ -260,7 +286,7 @@
           return;
         }
         entriesContainer.innerHTML = entries.map(function(entry) {
-          return UIComponents.entryElement(entry, currentUserId);
+          return UIComponents.entryElement(entry, currentUserId, opUserId);
         }).join('');
         entryCountEl.textContent = pagination ? pagination.total : entries.length;
 
@@ -772,6 +798,9 @@
           return;
         }
 
+        // Show skeleton loading
+        entriesContainer.innerHTML = UIComponents.skeletonEntries(5);
+
         fetchThread(signalId, 1)
           .then(function(data) {
             if (data.success) {
@@ -780,6 +809,14 @@
               allEntries = data.entries || [];
               allAvatarConfigs = data.avatarConfigs || {};
               currentPagination = data.pagination || null;
+              
+              // Set OP user ID from first entry or thread data
+              if (allEntries.length > 0 && allEntries[0].user_id) {
+                opUserId = allEntries[0].user_id;
+              } else if (data.thread.created_by) {
+                opUserId = data.thread.created_by;
+              }
+              
               renderEntries(allEntries, allAvatarConfigs, currentPagination);
               
               // Check bookmark and subscription status
@@ -1351,7 +1388,7 @@
                   
                   newEntries.forEach(function(entry) {
                     var tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = UIComponents.entryElement(entry, currentUserId);
+                    tempDiv.innerHTML = UIComponents.entryElement(entry, currentUserId, opUserId);
                     var newEntryEl = tempDiv.firstElementChild;
                     newEntryEl.style.borderLeft = '3px solid var(--success, #4caf50)';
                     newEntryEl.style.animation = 'fadeIn 0.3s ease-out';

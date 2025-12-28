@@ -74,7 +74,32 @@
   </div>
 
   <!-- Theme Toggle -->
-  <button class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode" aria-pressed="false" title="Toggle theme">☀️</button>
+  <button class="theme-toggle" id="theme-toggle" aria-label="Change theme" title="Toggle theme">🎨</button>
+
+  <!-- Mobile Bottom Navigation -->
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <a href="forum.html" class="mobile-nav-item active">
+      <span class="mobile-nav-icon">⌂</span>
+      <span class="mobile-nav-label">Home</span>
+    </a>
+    <a href="search.html" class="mobile-nav-item">
+      <span class="mobile-nav-icon">⌕</span>
+      <span class="mobile-nav-label">Search</span>
+    </a>
+    <a href="#" class="mobile-nav-item" id="mobile-notif-btn">
+      <span class="mobile-nav-icon">!</span>
+      <span class="mobile-nav-label">Alerts</span>
+      <span class="nav-badge" id="mobile-notif-badge"></span>
+    </a>
+    <a href="messages.html" class="mobile-nav-item">
+      <span class="mobile-nav-icon">✉</span>
+      <span class="mobile-nav-label">Msg</span>
+    </a>
+    <a href="profile.html" class="mobile-nav-item">
+      <span class="mobile-nav-icon">◉</span>
+      <span class="mobile-nav-label">Profile</span>
+    </a>
+  </nav>
 
   <!-- Keyboard Shortcuts Modal -->
   <div class="shortcuts-modal-overlay" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
@@ -157,11 +182,7 @@
 
       // Show loading skeletons
       function showLoadingSkeletons() {
-        var skeletons = '';
-        for (var i = 0; i < 6; i++) {
-          skeletons += '<div class="skeleton skeleton-room"></div>';
-        }
-        roomsContainer.innerHTML = skeletons;
+        roomsContainer.innerHTML = UIComponents.skeletonRooms(6);
       }
 
       /**

@@ -483,7 +483,22 @@ var Utils = (function() {
     initMentions: initMentions,
     
     /**
-     * Initialize theme toggle functionality
+     * Available themes
+     */
+    themes: ['dark', 'light', 'terminal', 'amoled', 'contrast', 'sepia', 'midnight'],
+    
+    themeNames: {
+      'dark': 'Dark',
+      'light': 'Light',
+      'terminal': 'Terminal',
+      'amoled': 'AMOLED',
+      'contrast': 'High Contrast',
+      'sepia': 'Sepia',
+      'midnight': 'Midnight'
+    },
+    
+    /**
+     * Initialize theme toggle functionality with expanded theme support
      * Call this from any page with a theme-toggle button
      */
     initTheme: function() {
@@ -492,20 +507,75 @@ var Utils = (function() {
       
       var savedTheme = storage.get('forum_theme') || 'dark';
       document.documentElement.setAttribute('data-theme', savedTheme);
-      themeToggle.setAttribute('aria-pressed', savedTheme === 'light');
-      themeToggle.setAttribute('aria-label', savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-      themeToggle.textContent = savedTheme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
       
-      themeToggle.addEventListener('click', function() {
-        var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-        var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      // Create theme selector dropdown
+      var selector = document.createElement('div');
+      selector.className = 'theme-selector';
+      selector.id = 'theme-selector';
+      
+      var themes = Utils.themes;
+      var themeNames = Utils.themeNames;
+      
+      themes.forEach(function(theme) {
+        var option = document.createElement('div');
+        option.className = 'theme-option' + (theme === savedTheme ? ' active' : '');
+        option.setAttribute('data-theme', theme);
+        option.innerHTML = '<span class="theme-swatch ' + theme + '"></span>' + themeNames[theme];
+        selector.appendChild(option);
+      });
+      
+      document.body.appendChild(selector);
+      
+      // Update toggle button appearance
+      function updateToggleIcon(theme) {
+        var icons = {
+          'dark': '☀️',
+          'light': '🌙',
+          'terminal': '💻',
+          'amoled': '⚫',
+          'contrast': '◐',
+          'sepia': '📜',
+          'midnight': '🌌'
+        };
+        themeToggle.textContent = icons[theme] || '🎨';
+        themeToggle.setAttribute('aria-label', 'Current theme: ' + themeNames[theme] + '. Click to change.');
+      }
+      
+      updateToggleIcon(savedTheme);
+      
+      // Toggle selector visibility on button click
+      themeToggle.addEventListener('click', function(e) {
+        e.stopPropagation();
+        selector.classList.toggle('visible');
+      });
+      
+      // Handle theme selection
+      selector.addEventListener('click', function(e) {
+        var option = e.target.closest('.theme-option');
+        if (!option) return;
+        
+        var newTheme = option.getAttribute('data-theme');
         document.documentElement.setAttribute('data-theme', newTheme);
         storage.set('forum_theme', newTheme);
-        themeToggle.setAttribute('aria-pressed', newTheme === 'light');
-        themeToggle.setAttribute('aria-label', newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-        themeToggle.textContent = newTheme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+        
+        // Update active state
+        selector.querySelectorAll('.theme-option').forEach(function(opt) {
+          opt.classList.remove('active');
+        });
+        option.classList.add('active');
+        
+        updateToggleIcon(newTheme);
+        selector.classList.remove('visible');
+        
         if (typeof Notify !== 'undefined') {
-          Notify.show('THEME: ' + newTheme.toUpperCase(), 'info');
+          Notify.show('THEME: ' + themeNames[newTheme].toUpperCase(), 'info');
+        }
+      });
+      
+      // Close selector when clicking outside
+      document.addEventListener('click', function(e) {
+        if (!selector.contains(e.target) && e.target !== themeToggle) {
+          selector.classList.remove('visible');
         }
       });
     }
