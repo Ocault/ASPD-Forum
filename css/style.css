@@ -972,7 +972,7 @@ ul {
   width: 0;
   margin-right: 0;
   opacity: 0;
-  overflow: hidden;
+  overflow: visible;
   transition: all 0.15s ease;
 }
 
@@ -6673,6 +6673,10 @@ img.loaded {
 /* Base avatar with rank styling */
 .entry-avatar {
   position: relative;
+}
+
+.entry-avatar[class*="avatar-rank-"] {
+  overflow: visible !important;
 }
 
 .entry-avatar .avatar-mini {
