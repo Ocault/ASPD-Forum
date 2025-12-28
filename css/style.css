@@ -3395,14 +3395,17 @@ ul {
 /* Header search link */
 .header-search {
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
   color: var(--text-muted);
   text-decoration: none;
-  letter-spacing: 0.1em;
+  opacity: 0.6;
+  transition: opacity 0.15s ease, color 0.15s ease;
 }
 
 .header-search:hover {
-  color: var(--text-primary);
+  opacity: 1;
+  color: var(--text-secondary);
 }
 
 /* ========================================
@@ -3913,13 +3916,18 @@ ul {
 }
 
 .header-link {
-  color: var(--link-color);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
   text-decoration: none;
-  font-size: 0.75rem;
+  opacity: 0.6;
+  transition: opacity 0.15s ease, color 0.15s ease;
 }
 
 .header-link:hover {
-  color: var(--link-hover);
+  opacity: 1;
+  color: var(--text-secondary);
 }
 
 .avatar-mini-img {
