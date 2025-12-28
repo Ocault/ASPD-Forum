@@ -1724,6 +1724,243 @@ app.put('/api/my/warnings/:id/acknowledge', authMiddleware, async (req, res) => 
 });
 
 // ========================================
+// ACCOUNT SETTINGS
+// ========================================
+
+// Change password
+app.put('/api/my/password', authMiddleware, async (req, res) => {
+  const { current_password, new_password } = req.body;
+  const userId = req.user.userId;
+
+  if (!current_password || !new_password) {
+    return res.status(400).json({ success: false, error: 'both passwords required' });
+  }
+
+  if (new_password.length < 6) {
+    return res.status(400).json({ success: false, error: 'password too short' });
+  }
+
+  try {
+    const userResult = await db.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+
+    const valid = await bcrypt.compare(current_password, userResult.rows[0].password_hash);
+    if (!valid) {
+      return res.status(401).json({ success: false, error: 'invalid_current_password' });
+    }
+
+    const newHash = await bcrypt.hash(new_password, SALT_ROUNDS);
+    await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Delete account (GDPR)
+app.delete('/api/my/account', authMiddleware, async (req, res) => {
+  const { password } = req.body;
+  const userId = req.user.userId;
+
+  if (!password) {
+    return res.status(400).json({ success: false, error: 'password required' });
+  }
+
+  try {
+    const userResult = await db.query('SELECT password_hash, alias FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+
+    const valid = await bcrypt.compare(password, userResult.rows[0].password_hash);
+    if (!valid) {
+      return res.status(401).json({ success: false, error: 'invalid_password' });
+    }
+
+    // Anonymize user data instead of hard delete (preserve post integrity)
+    const anonAlias = 'deleted_' + Date.now();
+    await db.query(
+      `UPDATE users SET 
+       alias = $1, password_hash = '', bio = NULL, avatar_config = NULL, 
+       is_banned = TRUE, ban_reason = 'Account deleted by user'
+       WHERE id = $2`,
+      [anonAlias, userId]
+    );
+
+    // Update all entries to show anonymized alias
+    await db.query('UPDATE entries SET alias = $1 WHERE user_id = $2', [anonAlias, userId]);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// THREAD SUBSCRIPTIONS
+// ========================================
+
+// Get subscriptions
+app.get('/api/my/subscriptions', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      `SELECT s.thread_id, t.title, t.slug, r.slug AS room_slug,
+              (SELECT COUNT(*) FROM entries WHERE thread_id = t.id AND is_deleted = FALSE) as entry_count,
+              (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id AND is_deleted = FALSE) as last_activity
+       FROM thread_subscriptions s
+       JOIN threads t ON t.id = s.thread_id
+       JOIN rooms r ON r.id = t.room_id
+       ORDER BY last_activity DESC`,
+      [userId]
+    );
+    res.json({ success: true, subscriptions: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Subscribe to thread
+app.post('/api/threads/:id/subscribe', authMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.id);
+  const userId = req.user.userId;
+
+  try {
+    await db.query(
+      `INSERT INTO thread_subscriptions (user_id, thread_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [userId, threadId]
+    );
+    res.json({ success: true, subscribed: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Unsubscribe from thread
+app.delete('/api/threads/:id/subscribe', authMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.id);
+  const userId = req.user.userId;
+
+  try {
+    await db.query('DELETE FROM thread_subscriptions WHERE user_id = $1 AND thread_id = $2', [userId, threadId]);
+    res.json({ success: true, subscribed: false });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Check subscription status
+app.get('/api/threads/:id/subscribe', authMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.id);
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      'SELECT id FROM thread_subscriptions WHERE user_id = $1 AND thread_id = $2',
+      [userId, threadId]
+    );
+    res.json({ success: true, subscribed: result.rows.length > 0 });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// READ TRACKING
+// ========================================
+
+// Mark thread as read
+app.post('/api/threads/:id/read', authMiddleware, async (req, res) => {
+  const threadId = parseInt(req.params.id);
+  const userId = req.user.userId;
+  const { last_entry_id } = req.body;
+
+  try {
+    await db.query(
+      `INSERT INTO thread_reads (user_id, thread_id, last_read_entry_id, last_read_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id, thread_id) 
+       DO UPDATE SET last_read_entry_id = $3, last_read_at = NOW()`,
+      [userId, threadId, last_entry_id || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get read status for threads
+app.get('/api/my/read-status', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const threadIds = req.query.threads ? req.query.threads.split(',').map(Number) : [];
+
+  if (threadIds.length === 0) {
+    return res.json({ success: true, read_status: {} });
+  }
+
+  try {
+    const result = await db.query(
+      `SELECT tr.thread_id, tr.last_read_entry_id, tr.last_read_at,
+              (SELECT MAX(id) FROM entries WHERE thread_id = tr.thread_id AND is_deleted = FALSE) as latest_entry_id
+       FROM thread_reads tr
+       WHERE tr.user_id = $1 AND tr.thread_id = ANY($2)`,
+      [userId, threadIds]
+    );
+
+    const readStatus = {};
+    result.rows.forEach(function(r) {
+      readStatus[r.thread_id] = {
+        last_read_entry_id: r.last_read_entry_id,
+        latest_entry_id: r.latest_entry_id,
+        has_unread: r.latest_entry_id > r.last_read_entry_id
+      };
+    });
+
+    res.json({ success: true, read_status: readStatus });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// LAST SEEN
+// ========================================
+
+// Update last seen (called periodically by frontend)
+app.post('/api/my/heartbeat', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    await db.query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [userId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get user's last seen (public for profiles)
+app.get('/api/users/:alias/last-seen', async (req, res) => {
+  const alias = req.params.alias;
+
+  try {
+    const result = await db.query(
+      'SELECT last_seen_at FROM users WHERE alias = $1',
+      [alias]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    res.json({ success: true, last_seen_at: result.rows[0].last_seen_at });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
 // REACTIONS SYSTEM
 // ========================================
 
@@ -2623,6 +2860,28 @@ async function migrate() {
       ALTER TABLE rooms ADD COLUMN IF NOT EXISTS description TEXT;
       ALTER TABLE rooms ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE;
       ALTER TABLE rooms ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0;
+      
+      -- Thread subscriptions
+      CREATE TABLE IF NOT EXISTS thread_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        thread_id INTEGER REFERENCES threads(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, thread_id)
+      );
+      
+      -- Read tracking
+      CREATE TABLE IF NOT EXISTS thread_reads (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        thread_id INTEGER REFERENCES threads(id),
+        last_read_entry_id INTEGER,
+        last_read_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, thread_id)
+      );
+      
+      -- Add last_seen to users
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP;
       
       INSERT INTO rooms (slug, title) VALUES 
         ('general', 'General Discussion'),

@@ -37,6 +37,7 @@
     <!-- Thread Title -->
     <div class="thread-title-bar">
       <h1 class="thread-title" data-bind="thread-title">Loading...</h1>
+      <button class="subscribe-btn" id="subscribe-btn" title="Subscribe to thread">[WATCH]</button>
       <button class="bookmark-btn" id="bookmark-btn" title="Bookmark this thread">[SAVE]</button>
       <span class="thread-slow-mode" id="slow-mode-indicator" style="display: none;"></span>
     </div>
@@ -66,6 +67,9 @@
         <button type="submit" class="reply-submit">TRANSMIT</button>
       </form>
     </div>
+
+    <!-- Back to Top Button -->
+    <button class="back-to-top" id="back-to-top" title="Back to top">↑ TOP</button>
 
     <!-- Footer -->
     <footer class="thread-footer" data-component="thread-footer">
@@ -174,13 +178,32 @@
         paginationContainer.innerHTML = UIComponents.paginationControls(pagination);
         
         // Bind pagination events
-        paginationContainer.querySelectorAll('.pagination-btn').forEach(function(btn) {
+        paginationContainer.querySelectorAll('.pagination-btn:not(.pagination-go-btn)').forEach(function(btn) {
           btn.addEventListener('click', function() {
             if (btn.disabled) return;
             currentPage = parseInt(btn.dataset.page);
             fetchThread(currentSignalId, currentPage);
           });
         });
+        
+        // Bind pagination jump events
+        var jumpInput = paginationContainer.querySelector('.pagination-jump-input');
+        var goBtn = paginationContainer.querySelector('.pagination-go-btn');
+        if (jumpInput && goBtn) {
+          goBtn.addEventListener('click', function() {
+            var pageNum = parseInt(jumpInput.value);
+            if (pageNum >= 1 && pageNum <= pagination.totalPages) {
+              currentPage = pageNum;
+              fetchThread(currentSignalId, currentPage);
+            }
+          });
+          jumpInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              goBtn.click();
+            }
+          });
+        }
 
         // Bind edit button events
         entriesContainer.querySelectorAll('.entry-edit-btn').forEach(function(btn) {
@@ -578,8 +601,15 @@
               currentPagination = data.pagination || null;
               renderEntries(allEntries, allAvatarConfigs, currentPagination);
               
-              // Check bookmark status
+              // Check bookmark and subscription status
               checkBookmarkStatus(data.thread.id);
+              checkSubscriptionStatus(data.thread.id);
+              
+              // Mark as read with last entry ID
+              if (allEntries.length > 0) {
+                var lastEntryId = allEntries[allEntries.length - 1].id;
+                markThreadAsRead(data.thread.id, lastEntryId);
+              }
             } else {
               threadTitleEl.textContent = 'ERROR: ' + (data.error || 'UNKNOWN');
               allEntries = [];
@@ -643,6 +673,59 @@
           });
       });
 
+      // Subscribe functionality
+      var subscribeBtn = document.getElementById('subscribe-btn');
+      var isSubscribed = false;
+
+      function checkSubscriptionStatus(threadId) {
+        AuthState.apiRequest('/api/threads/' + threadId + '/subscribe')
+          .then(function(data) {
+            if (data.success) {
+              isSubscribed = data.subscribed;
+              updateSubscribeButton();
+            }
+          });
+      }
+
+      function updateSubscribeButton() {
+        if (isSubscribed) {
+          subscribeBtn.textContent = '[WATCHING]';
+          subscribeBtn.classList.add('subscribed');
+        } else {
+          subscribeBtn.textContent = '[WATCH]';
+          subscribeBtn.classList.remove('subscribed');
+        }
+      }
+
+      subscribeBtn.addEventListener('click', function() {
+        if (!currentThreadDbId) return;
+        subscribeBtn.disabled = true;
+        
+        var method = isSubscribed ? 'DELETE' : 'POST';
+        AuthState.apiRequest('/api/threads/' + currentThreadDbId + '/subscribe', { method: method })
+          .then(function(data) {
+            if (data.success) {
+              isSubscribed = data.subscribed;
+              updateSubscribeButton();
+              Notify.show(isSubscribed ? 'SUBSCRIBED' : 'UNSUBSCRIBED', 'info');
+            }
+          })
+          .catch(function(err) {
+            Notify.show(err.message || 'ERROR', 'error');
+          })
+          .finally(function() {
+            subscribeBtn.disabled = false;
+          });
+      });
+
+      // Mark thread as read when viewing
+      function markThreadAsRead(threadId, lastEntryId) {
+        AuthState.apiRequest('/api/threads/' + threadId + '/read', {
+          method: 'POST',
+          body: JSON.stringify({ last_entry_id: lastEntryId })
+        });
+      }
+
       // Reply form handler
       var replyForm = document.getElementById('reply-form');
       var replyContent = document.getElementById('reply-content');
@@ -688,6 +771,70 @@
           submitBtn.disabled = false;
           submitBtn.textContent = 'TRANSMIT';
         });
+      });
+
+      // Back to top button
+      var backToTopBtn = document.getElementById('back-to-top');
+      
+      window.addEventListener('scroll', function() {
+        if (window.scrollY > 300) {
+          backToTopBtn.classList.add('visible');
+        } else {
+          backToTopBtn.classList.remove('visible');
+        }
+      });
+      
+      backToTopBtn.addEventListener('click', function() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', function(e) {
+        // Don't trigger shortcuts when typing in inputs
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        
+        // 'r' - Focus reply textarea
+        if (e.key === 'r' && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          replyContent.focus();
+        }
+        
+        // 'g' then 't' - Go to top
+        if (e.key === 't' && !e.ctrlKey && !e.metaKey) {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        // 'g' then 'b' - Go to bottom
+        if (e.key === 'b' && !e.ctrlKey && !e.metaKey) {
+          window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+        
+        // 'j' - Scroll down
+        if (e.key === 'j' && !e.ctrlKey && !e.metaKey) {
+          window.scrollBy({ top: 100, behavior: 'smooth' });
+        }
+        
+        // 'k' - Scroll up
+        if (e.key === 'k' && !e.ctrlKey && !e.metaKey) {
+          window.scrollBy({ top: -100, behavior: 'smooth' });
+        }
+        
+        // '[' - Previous page
+        if (e.key === '[' && currentPagination && currentPage > 1) {
+          currentPage--;
+          fetchThread(currentSignalId, currentPage);
+        }
+        
+        // ']' - Next page
+        if (e.key === ']' && currentPagination && currentPage < currentPagination.totalPages) {
+          currentPage++;
+          fetchThread(currentSignalId, currentPage);
+        }
+        
+        // '?' - Show keyboard shortcuts help
+        if (e.key === '?' && e.shiftKey) {
+          Notify.show('SHORTCUTS: r=reply, t=top, b=bottom, j/k=scroll, []=prev/next page', 'info');
+        }
       });
 
       if (document.readyState === 'loading') {

@@ -67,6 +67,9 @@
       </div>
     </div>
 
+    <!-- Back to Top Button -->
+    <button class="back-to-top" id="back-to-top" title="Back to top">↑ TOP</button>
+
     <!-- Footer -->
     <footer class="room-footer" data-component="room-footer">
       <span data-bind="node-id">NODE.000</span>
@@ -340,6 +343,21 @@
           submitBtn.disabled = false;
           submitBtn.textContent = 'CREATE SIGNAL';
         });
+      });
+
+      // Back to top button
+      var backToTopBtn = document.getElementById('back-to-top');
+      
+      window.addEventListener('scroll', function() {
+        if (window.scrollY > 300) {
+          backToTopBtn.classList.add('visible');
+        } else {
+          backToTopBtn.classList.remove('visible');
+        }
+      });
+      
+      backToTopBtn.addEventListener('click', function() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
 
       document.querySelector('[data-action="logout"]').addEventListener('click', function(e) {

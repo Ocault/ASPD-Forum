@@ -39,6 +39,7 @@
           <h1 class="profile-alias" id="profile-alias">Loading...</h1>
           <div class="profile-meta">
             <span class="profile-joined" id="profile-joined">JOINED: ---</span>
+            <span class="profile-last-seen" id="profile-last-seen"></span>
           </div>
           <div class="profile-bio" id="profile-bio">No bio set.</div>
         </div>
@@ -57,6 +58,52 @@
       <!-- Edit Profile Button (own profile only) -->
       <div class="profile-actions" id="profile-actions" style="display: none;">
         <button class="edit-profile-btn" id="edit-profile-btn">EDIT PROFILE</button>
+      </div>
+
+      <!-- Account Settings (own profile only) -->
+      <div class="profile-section account-settings-section" id="account-settings" style="display: none;">
+        <h2 class="section-title">ACCOUNT SETTINGS</h2>
+        
+        <!-- Change Password -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <span class="settings-icon">🔐</span>
+            <span class="settings-label">CHANGE PASSWORD</span>
+          </div>
+          <form id="change-password-form" class="settings-form">
+            <div class="form-row">
+              <input type="password" id="current-password" placeholder="Current Password" required>
+            </div>
+            <div class="form-row">
+              <input type="password" id="new-password" placeholder="New Password (min 6 chars)" minlength="6" required>
+            </div>
+            <div class="form-row">
+              <input type="password" id="confirm-password" placeholder="Confirm New Password" required>
+            </div>
+            <button type="submit" class="settings-btn">UPDATE PASSWORD</button>
+          </form>
+        </div>
+
+        <!-- Thread Subscriptions -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <span class="settings-icon">🔔</span>
+            <span class="settings-label">THREAD SUBSCRIPTIONS</span>
+          </div>
+          <div class="subscriptions-list" id="subscriptions-list">
+            <div class="empty-state">Loading...</div>
+          </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="settings-card danger-zone">
+          <div class="settings-card-header">
+            <span class="settings-icon">⚠️</span>
+            <span class="settings-label">DANGER ZONE</span>
+          </div>
+          <p class="danger-warning">Deleting your account is permanent. Your posts will be anonymized and you cannot recover your account.</p>
+          <button type="button" class="settings-btn danger" id="delete-account-btn">DELETE ACCOUNT</button>
+        </div>
       </div>
 
       <!-- Recent Activity -->
@@ -140,6 +187,24 @@
     </div>
   </div>
 
+  <!-- Delete Account Confirmation Modal -->
+  <div class="edit-profile-modal-overlay" id="delete-modal" style="display: none;">
+    <div class="edit-profile-modal delete-account-modal">
+      <div class="modal-title danger">⚠️ DELETE ACCOUNT</div>
+      <p class="delete-warning">This action is <strong>permanent</strong>. Your account will be deactivated and your posts anonymized. You cannot undo this.</p>
+      <form id="delete-account-form">
+        <div class="form-group">
+          <label for="delete-password">Enter your password to confirm:</label>
+          <input type="password" id="delete-password" placeholder="Password" required>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="cancel-btn" id="delete-cancel">CANCEL</button>
+          <button type="submit" class="settings-btn danger">DELETE MY ACCOUNT</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="js/auth-state.js"></script>
   <script src="js/notify.js"></script>
   <script src="js/avatar-renderer.js"></script>
@@ -180,6 +245,22 @@
         return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
       }
 
+      function formatLastSeen(dateStr) {
+        if (!dateStr) return 'Never';
+        var d = new Date(dateStr);
+        var now = new Date();
+        var diffMs = now - d;
+        var diffMins = Math.floor(diffMs / 60000);
+        var diffHours = Math.floor(diffMs / 3600000);
+        var diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 5) return 'Online now';
+        if (diffMins < 60) return diffMins + 'm ago';
+        if (diffHours < 24) return diffHours + 'h ago';
+        if (diffDays < 7) return diffDays + 'd ago';
+        return formatDate(dateStr);
+      }
+
       function renderProfile(profile) {
         currentProfile = profile;
         profileAlias.textContent = profile.alias;
@@ -188,6 +269,18 @@
         statPosts.textContent = profile.stats.posts;
         statThreads.textContent = profile.stats.threads;
         document.title = 'ASPD Forum — ' + profile.alias;
+
+        // Fetch and display last seen
+        var profileLastSeen = document.getElementById('profile-last-seen');
+        AuthState.apiRequest('/api/users/' + encodeURIComponent(profile.alias) + '/last-seen')
+          .then(function(data) {
+            if (data.success) {
+              var lastSeenText = formatLastSeen(data.last_seen_at);
+              var isOnline = lastSeenText === 'Online now';
+              profileLastSeen.innerHTML = '<span class="' + (isOnline ? 'status-online' : 'status-offline') + '">' + 
+                (isOnline ? '● ONLINE' : '○ ' + lastSeenText.toUpperCase()) + '</span>';
+            }
+          });
 
         // Render avatar (handle custom image for admins)
         if (profile.avatarConfig && profile.avatarConfig.customImage) {
@@ -228,9 +321,11 @@
           recentPosts.innerHTML = '<div class="empty-state">NO RECENT ACTIVITY</div>';
         }
 
-        // Show edit button if own profile
+        // Show edit button and account settings if own profile
         if (isOwnProfile) {
           profileActions.style.display = 'block';
+          document.getElementById('account-settings').style.display = 'block';
+          loadSubscriptions();
         }
       }
 
@@ -472,6 +567,125 @@
         .finally(function() {
           saveBtn.disabled = false;
           saveBtn.textContent = 'SAVE';
+        });
+      });
+
+      // ========================================
+      // ACCOUNT SETTINGS
+      // ========================================
+
+      var changePasswordForm = document.getElementById('change-password-form');
+      var deleteAccountBtn = document.getElementById('delete-account-btn');
+      var deleteModal = document.getElementById('delete-modal');
+      var deleteAccountForm = document.getElementById('delete-account-form');
+      var deleteCancel = document.getElementById('delete-cancel');
+      var subscriptionsList = document.getElementById('subscriptions-list');
+
+      // Load subscriptions
+      function loadSubscriptions() {
+        AuthState.apiRequest('/api/my/subscriptions')
+          .then(function(data) {
+            if (data.success && data.subscriptions.length > 0) {
+              subscriptionsList.innerHTML = data.subscriptions.map(function(sub) {
+                return '<div class="subscription-item">' +
+                  '<a href="thread.html?id=' + sub.thread_id + '" class="subscription-title">' + sub.title + '</a>' +
+                  '<span class="subscription-room">in ' + sub.room_slug + '</span>' +
+                  '<button class="unsub-btn" data-thread="' + sub.thread_id + '">UNSUBSCRIBE</button>' +
+                '</div>';
+              }).join('');
+
+              // Add unsubscribe handlers
+              subscriptionsList.querySelectorAll('.unsub-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                  var threadId = this.getAttribute('data-thread');
+                  AuthState.apiRequest('/api/threads/' + threadId + '/subscribe', {
+                    method: 'DELETE'
+                  }).then(function(data) {
+                    if (data.success) {
+                      loadSubscriptions();
+                      Notify.show('UNSUBSCRIBED', 'info');
+                    }
+                  });
+                });
+              });
+            } else {
+              subscriptionsList.innerHTML = '<div class="empty-state">NO SUBSCRIPTIONS</div>';
+            }
+          });
+      }
+
+      // Change password
+      changePasswordForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var currentPwd = document.getElementById('current-password').value;
+        var newPwd = document.getElementById('new-password').value;
+        var confirmPwd = document.getElementById('confirm-password').value;
+
+        if (newPwd !== confirmPwd) {
+          Notify.show('PASSWORDS DO NOT MATCH', 'error');
+          return;
+        }
+
+        if (newPwd.length < 6) {
+          Notify.show('PASSWORD TOO SHORT', 'error');
+          return;
+        }
+
+        AuthState.apiRequest('/api/my/password', {
+          method: 'PUT',
+          body: JSON.stringify({ current_password: currentPwd, new_password: newPwd })
+        })
+        .then(function(data) {
+          if (data.success) {
+            Notify.show('PASSWORD UPDATED', 'info');
+            changePasswordForm.reset();
+          } else {
+            Notify.show(data.error || 'UPDATE FAILED', 'error');
+          }
+        })
+        .catch(function(err) {
+          Notify.show('ERROR', 'error');
+        });
+      });
+
+      // Delete account modal
+      deleteAccountBtn.addEventListener('click', function() {
+        deleteModal.style.display = 'flex';
+      });
+
+      deleteCancel.addEventListener('click', function() {
+        deleteModal.style.display = 'none';
+      });
+
+      deleteModal.addEventListener('click', function(e) {
+        if (e.target === deleteModal) {
+          deleteModal.style.display = 'none';
+        }
+      });
+
+      // Delete account submit
+      deleteAccountForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var password = document.getElementById('delete-password').value;
+
+        if (!confirm('Are you ABSOLUTELY sure? This cannot be undone!')) {
+          return;
+        }
+
+        AuthState.apiRequest('/api/my/account', {
+          method: 'DELETE',
+          body: JSON.stringify({ password: password })
+        })
+        .then(function(data) {
+          if (data.success) {
+            Notify.show('ACCOUNT DELETED', 'info');
+            AuthState.logout();
+          } else {
+            Notify.show(data.error || 'DELETE FAILED', 'error');
+          }
+        })
+        .catch(function(err) {
+          Notify.show('ERROR', 'error');
         });
       });
 

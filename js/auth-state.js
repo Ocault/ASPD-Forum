@@ -262,6 +262,42 @@ var AuthState = (function() {
       });
   }
 
+  /**
+   * Send heartbeat to update last_seen_at
+   * Called every 60 seconds when user is active
+   */
+  var heartbeatInterval = null;
+  
+  function startHeartbeat() {
+    if (heartbeatInterval) return;
+    
+    // Send initial heartbeat
+    sendHeartbeat();
+    
+    // Send heartbeat every 60 seconds
+    heartbeatInterval = setInterval(sendHeartbeat, 60000);
+  }
+  
+  function sendHeartbeat() {
+    if (!hasToken()) return;
+    fetch(API_BASE + '/api/my/heartbeat', {
+      method: 'POST',
+      headers: getAuthHeaders()
+    }).catch(function() {});
+  }
+  
+  function stopHeartbeat() {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+  }
+  
+  // Auto-start heartbeat if authenticated
+  if (hasToken()) {
+    startHeartbeat();
+  }
+
   return {
     get: get,
     set: set,
@@ -283,6 +319,8 @@ var AuthState = (function() {
     hasToken: hasToken,
     getAuthHeaders: getAuthHeaders,
     apiRequest: apiRequest,
+    startHeartbeat: startHeartbeat,
+    stopHeartbeat: stopHeartbeat,
     API_BASE: API_BASE
   };
 

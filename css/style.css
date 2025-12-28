@@ -1121,6 +1121,35 @@ ul {
   letter-spacing: 0.1em;
 }
 
+.pagination-jump {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-left: var(--spacing-md);
+}
+
+.pagination-jump-input {
+  width: 50px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: var(--spacing-xs);
+  text-align: center;
+}
+
+.pagination-jump-input:focus {
+  outline: none;
+  border-color: var(--border-hover);
+}
+
+.pagination-jump-input::-webkit-outer-spin-button,
+.pagination-jump-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* ========================================
    EMPTY STATE
 ======================================== */
@@ -3000,4 +3029,240 @@ ul {
 
 .bookmark-item:hover {
   background: var(--bg-secondary);
+}
+
+/* ========================================
+   ACCOUNT SETTINGS
+======================================== */
+
+.account-settings-section {
+  margin-top: var(--spacing-lg);
+}
+
+.settings-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.settings-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.settings-icon {
+  font-size: 1rem;
+}
+
+.settings-label {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  color: var(--text-primary);
+}
+
+.settings-form .form-row {
+  margin-bottom: var(--spacing-sm);
+}
+
+.settings-form input {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: var(--spacing-sm);
+}
+
+.settings-form input:focus {
+  outline: none;
+  border-color: var(--border-hover);
+}
+
+.settings-btn {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  padding: var(--spacing-sm) var(--spacing-md);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: var(--spacing-sm);
+}
+
+.settings-btn:hover {
+  background: var(--border-color);
+}
+
+.settings-btn.danger {
+  border-color: #c62828;
+  color: #ff5252;
+}
+
+.settings-btn.danger:hover {
+  background: #c62828;
+  color: #fff;
+}
+
+.danger-zone {
+  border-color: #c62828;
+}
+
+.danger-zone .settings-card-header {
+  border-color: #c62828;
+}
+
+.danger-warning {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-md);
+}
+
+/* Subscriptions list */
+.subscriptions-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.subscription-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.subscription-item:last-child {
+  border-bottom: none;
+}
+
+.subscription-title {
+  flex: 1;
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 0.75rem;
+}
+
+.subscription-title:hover {
+  text-decoration: underline;
+}
+
+.subscription-room {
+  font-size: 0.625rem;
+  color: var(--text-muted);
+}
+
+.unsub-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+.unsub-btn:hover {
+  border-color: #c62828;
+  color: #ff5252;
+}
+
+/* Delete account modal */
+.delete-account-modal .modal-title.danger {
+  color: #ff5252;
+}
+
+.delete-warning {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-md);
+  line-height: 1.6;
+}
+
+.delete-warning strong {
+  color: #ff5252;
+}
+
+/* Subscribe button */
+.subscribe-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  cursor: pointer;
+  margin-left: var(--spacing-sm);
+  transition: all 0.2s;
+}
+
+.subscribe-btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.subscribe-btn.subscribed {
+  border-color: #4caf50;
+  color: #4caf50;
+}
+
+/* Online/Offline status */
+.status-online {
+  color: #4caf50;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.05em;
+}
+
+.status-offline {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.05em;
+}
+
+.profile-last-seen {
+  margin-left: var(--spacing-md);
+}
+
+/* ========================================
+   BACK TO TOP BUTTON
+======================================== */
+
+.back-to-top {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  padding: var(--spacing-sm) var(--spacing-md);
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  z-index: 100;
+}
+
+.back-to-top.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.back-to-top:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
 }

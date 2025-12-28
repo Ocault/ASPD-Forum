@@ -318,12 +318,20 @@ const UIComponents = (function() {
     const { page, totalPages, total } = pagination;
     const prevDisabled = page <= 1 ? 'disabled' : '';
     const nextDisabled = page >= totalPages ? 'disabled' : '';
+    const firstDisabled = page <= 1 ? 'disabled' : '';
+    const lastDisabled = page >= totalPages ? 'disabled' : '';
     
     return `
       <div class="pagination">
+        <button class="pagination-btn" data-page="1" ${firstDisabled}>« FIRST</button>
         <button class="pagination-btn" data-page="${page - 1}" ${prevDisabled}>← PREV</button>
         <span class="pagination-info">${page} / ${totalPages}</span>
         <button class="pagination-btn" data-page="${page + 1}" ${nextDisabled}>NEXT →</button>
+        <button class="pagination-btn" data-page="${totalPages}" ${lastDisabled}>LAST »</button>
+        <div class="pagination-jump">
+          <input type="number" class="pagination-jump-input" min="1" max="${totalPages}" placeholder="#" title="Jump to page">
+          <button class="pagination-btn pagination-go-btn">GO</button>
+        </div>
       </div>`;
   }
 
