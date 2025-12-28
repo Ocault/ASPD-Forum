@@ -1739,6 +1739,11 @@ ul {
 
 .new-thread-form-wrapper {
   margin-top: var(--spacing-sm);
+  display: none;
+}
+
+.new-thread-form-wrapper.visible {
+  display: block;
 }
 
 .new-thread-form {
