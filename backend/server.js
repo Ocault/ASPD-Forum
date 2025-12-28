@@ -1358,6 +1358,340 @@ app.get('/api/admin/mod-stats', authMiddleware, adminMiddleware, async (req, res
   }
 });
 
+// Admin: Get comprehensive dashboard stats
+app.get('/api/admin/dashboard-stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    // Basic counts
+    const totalUsers = await db.query('SELECT COUNT(*) FROM users');
+    const totalThreads = await db.query('SELECT COUNT(*) FROM threads');
+    const totalPosts = await db.query('SELECT COUNT(*) FROM entries WHERE is_deleted = FALSE');
+    const totalRooms = await db.query('SELECT COUNT(*) FROM rooms');
+
+    // Today's activity
+    const todayUsers = await db.query("SELECT COUNT(*) FROM users WHERE created_at > CURRENT_DATE");
+    const todayPosts = await db.query("SELECT COUNT(*) FROM entries WHERE created_at > CURRENT_DATE AND is_deleted = FALSE");
+    const todayThreads = await db.query("SELECT COUNT(*) FROM threads WHERE created_at > CURRENT_DATE");
+
+    // Last 7 days activity (for graphs)
+    const dailyPosts = await db.query(`
+      SELECT DATE(created_at) as date, COUNT(*) as count
+      FROM entries
+      WHERE created_at > NOW() - INTERVAL '7 days' AND is_deleted = FALSE
+      GROUP BY DATE(created_at)
+      ORDER BY date
+    `);
+
+    const dailyUsers = await db.query(`
+      SELECT DATE(created_at) as date, COUNT(*) as count
+      FROM users
+      WHERE created_at > NOW() - INTERVAL '7 days'
+      GROUP BY DATE(created_at)
+      ORDER BY date
+    `);
+
+    const dailyThreads = await db.query(`
+      SELECT DATE(created_at) as date, COUNT(*) as count
+      FROM threads
+      WHERE created_at > NOW() - INTERVAL '7 days'
+      GROUP BY DATE(created_at)
+      ORDER BY date
+    `);
+
+    // Top posters (last 7 days)
+    const topPosters = await db.query(`
+      SELECT u.alias, COUNT(e.id) as post_count
+      FROM entries e
+      JOIN users u ON u.id = e.user_id
+      WHERE e.created_at > NOW() - INTERVAL '7 days' AND e.is_deleted = FALSE
+      GROUP BY u.id, u.alias
+      ORDER BY post_count DESC
+      LIMIT 10
+    `);
+
+    // Most active threads (last 7 days)
+    const activeThreads = await db.query(`
+      SELECT t.id, t.title, COUNT(e.id) as post_count
+      FROM entries e
+      JOIN threads t ON t.id = e.thread_id
+      WHERE e.created_at > NOW() - INTERVAL '7 days' AND e.is_deleted = FALSE
+      GROUP BY t.id, t.title
+      ORDER BY post_count DESC
+      LIMIT 10
+    `);
+
+    // Room activity
+    const roomActivity = await db.query(`
+      SELECT r.slug, r.title, COUNT(t.id) as thread_count,
+             (SELECT COUNT(*) FROM entries e JOIN threads t2 ON t2.id = e.thread_id WHERE t2.room_id = r.id AND e.is_deleted = FALSE) as post_count
+      FROM rooms r
+      LEFT JOIN threads t ON t.room_id = r.id
+      GROUP BY r.id, r.slug, r.title
+      ORDER BY post_count DESC
+    `);
+
+    res.json({
+      success: true,
+      stats: {
+        totals: {
+          users: parseInt(totalUsers.rows[0].count),
+          threads: parseInt(totalThreads.rows[0].count),
+          posts: parseInt(totalPosts.rows[0].count),
+          rooms: parseInt(totalRooms.rows[0].count)
+        },
+        today: {
+          users: parseInt(todayUsers.rows[0].count),
+          posts: parseInt(todayPosts.rows[0].count),
+          threads: parseInt(todayThreads.rows[0].count)
+        },
+        graphs: {
+          daily_posts: dailyPosts.rows,
+          daily_users: dailyUsers.rows,
+          daily_threads: dailyThreads.rows
+        },
+        top_posters: topPosters.rows,
+        active_threads: activeThreads.rows,
+        room_activity: roomActivity.rows
+      }
+    });
+  } catch (err) {
+    console.error('[DASHBOARD STATS ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// ROOM MANAGEMENT
+// ========================================
+
+// Admin: Get all rooms with details
+app.get('/api/admin/rooms', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT r.*, 
+             (SELECT COUNT(*) FROM threads WHERE room_id = r.id) as thread_count,
+             (SELECT COUNT(*) FROM entries e JOIN threads t ON t.id = e.thread_id WHERE t.room_id = r.id AND e.is_deleted = FALSE) as post_count
+      FROM rooms r
+      ORDER BY r.display_order, r.id
+    `);
+    res.json({ success: true, rooms: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Create room
+app.post('/api/admin/rooms', authMiddleware, adminMiddleware, async (req, res) => {
+  const { slug, title, description, slow_mode_seconds, is_locked, display_order } = req.body;
+  const adminId = req.user.userId;
+
+  if (!slug || !title) {
+    return res.status(400).json({ success: false, error: 'slug and title required' });
+  }
+
+  // Validate slug format
+  if (!/^[a-z0-9-]+$/.test(slug)) {
+    return res.status(400).json({ success: false, error: 'slug must be lowercase alphanumeric with hyphens only' });
+  }
+
+  try {
+    const result = await db.query(
+      `INSERT INTO rooms (slug, title, description, slow_mode_seconds, is_locked, display_order)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [slug, title, description || null, slow_mode_seconds || 0, is_locked || false, display_order || 0]
+    );
+    await logAudit('create_room', 'room', result.rows[0].id, adminId, { slug, title });
+    res.json({ success: true, room_id: result.rows[0].id });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ success: false, error: 'slug_exists' });
+    }
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Update room
+app.put('/api/admin/rooms/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const roomId = parseInt(req.params.id);
+  const { title, description, slow_mode_seconds, is_locked, display_order } = req.body;
+  const adminId = req.user.userId;
+
+  try {
+    await db.query(
+      `UPDATE rooms SET title = COALESCE($1, title), description = $2, 
+       slow_mode_seconds = COALESCE($3, slow_mode_seconds),
+       is_locked = COALESCE($4, is_locked), display_order = COALESCE($5, display_order)
+       WHERE id = $6`,
+      [title, description, slow_mode_seconds, is_locked, display_order, roomId]
+    );
+    await logAudit('update_room', 'room', roomId, adminId, { title, description });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Delete room (only if empty)
+app.delete('/api/admin/rooms/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const roomId = parseInt(req.params.id);
+  const adminId = req.user.userId;
+
+  try {
+    // Check if room has threads
+    const threadCheck = await db.query('SELECT COUNT(*) FROM threads WHERE room_id = $1', [roomId]);
+    if (parseInt(threadCheck.rows[0].count) > 0) {
+      return res.status(400).json({ success: false, error: 'room_not_empty', message: 'Move or delete all threads first' });
+    }
+
+    const roomResult = await db.query('SELECT slug FROM rooms WHERE id = $1', [roomId]);
+    await db.query('DELETE FROM rooms WHERE id = $1', [roomId]);
+    await logAudit('delete_room', 'room', roomId, adminId, { slug: roomResult.rows[0]?.slug });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// ANNOUNCEMENTS
+// ========================================
+
+// Get active announcements (public)
+app.get('/api/announcements', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT id, title, content, type, starts_at, expires_at
+      FROM announcements
+      WHERE is_active = TRUE 
+        AND (starts_at IS NULL OR starts_at <= NOW())
+        AND (expires_at IS NULL OR expires_at > NOW())
+      ORDER BY created_at DESC
+    `);
+    res.json({ success: true, announcements: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Get all announcements
+app.get('/api/admin/announcements', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT a.*, u.alias AS created_by_alias
+      FROM announcements a
+      LEFT JOIN users u ON u.id = a.created_by
+      ORDER BY a.created_at DESC
+    `);
+    res.json({ success: true, announcements: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Create announcement
+app.post('/api/admin/announcements', authMiddleware, adminMiddleware, async (req, res) => {
+  const { title, content, type, is_active, starts_at, expires_at } = req.body;
+  const adminId = req.user.userId;
+
+  if (!title) {
+    return res.status(400).json({ success: false, error: 'title required' });
+  }
+
+  const validTypes = ['info', 'warning', 'success', 'error'];
+  const announcementType = validTypes.includes(type) ? type : 'info';
+
+  try {
+    const result = await db.query(
+      `INSERT INTO announcements (title, content, type, is_active, starts_at, expires_at, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [title, content || null, announcementType, is_active !== false, starts_at || null, expires_at || null, adminId]
+    );
+    await logAudit('create_announcement', 'announcement', result.rows[0].id, adminId, { title });
+    res.json({ success: true, announcement_id: result.rows[0].id });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Update announcement
+app.put('/api/admin/announcements/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const announcementId = parseInt(req.params.id);
+  const { title, content, type, is_active, starts_at, expires_at } = req.body;
+  const adminId = req.user.userId;
+
+  try {
+    await db.query(
+      `UPDATE announcements SET 
+       title = COALESCE($1, title), content = $2, type = COALESCE($3, type),
+       is_active = COALESCE($4, is_active), starts_at = $5, expires_at = $6
+       WHERE id = $7`,
+      [title, content, type, is_active, starts_at || null, expires_at || null, announcementId]
+    );
+    await logAudit('update_announcement', 'announcement', announcementId, adminId, { title });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Delete announcement
+app.delete('/api/admin/announcements/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const announcementId = parseInt(req.params.id);
+  const adminId = req.user.userId;
+
+  try {
+    await db.query('DELETE FROM announcements WHERE id = $1', [announcementId]);
+    await logAudit('delete_announcement', 'announcement', announcementId, adminId, null);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Update user (edit alias, toggle admin, etc)
+app.put('/api/admin/users/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { alias, is_admin, bio } = req.body;
+  const adminId = req.user.userId;
+
+  try {
+    // Build dynamic update
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (alias !== undefined) {
+      updates.push(`alias = $${paramIndex++}`);
+      values.push(alias);
+    }
+    if (is_admin !== undefined) {
+      updates.push(`is_admin = $${paramIndex++}`);
+      values.push(is_admin);
+    }
+    if (bio !== undefined) {
+      updates.push(`bio = $${paramIndex++}`);
+      values.push(bio);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: 'no_fields_to_update' });
+    }
+
+    values.push(userId);
+    await db.query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIndex}`,
+      values
+    );
+
+    await logAudit('update_user', 'user', userId, adminId, { alias, is_admin, bio });
+    res.json({ success: true });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ success: false, error: 'alias_exists' });
+    }
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // User: Get own warnings
 app.get('/api/my/warnings', authMiddleware, async (req, res) => {
   const userId = req.user.userId;
@@ -2271,6 +2605,24 @@ async function migrate() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_expires_at TIMESTAMP;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_by INTEGER REFERENCES users(id);
+      
+      -- Announcements
+      CREATE TABLE IF NOT EXISTS announcements (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(200) NOT NULL,
+        content TEXT,
+        type VARCHAR(20) DEFAULT 'info',
+        is_active BOOLEAN DEFAULT TRUE,
+        starts_at TIMESTAMP DEFAULT NOW(),
+        expires_at TIMESTAMP,
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- Add description to rooms
+      ALTER TABLE rooms ADD COLUMN IF NOT EXISTS description TEXT;
+      ALTER TABLE rooms ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE;
+      ALTER TABLE rooms ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0;
       
       INSERT INTO rooms (slug, title) VALUES 
         ('general', 'General Discussion'),

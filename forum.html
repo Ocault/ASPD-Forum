@@ -30,6 +30,9 @@
       </div>
     </header>
 
+    <!-- Announcements Banner -->
+    <div class="announcements-banner" id="announcements-banner" style="display: none;"></div>
+
     <!-- Filter Bar -->
     <div class="filter-bar">
       <input type="text" id="filter-input" class="filter-input" placeholder="FILTER BY TITLE...">
@@ -71,6 +74,25 @@
         adminLink.textContent = 'ADMIN';
         headerRight.insertBefore(adminLink, headerRight.querySelector('.header-messages'));
       }
+
+      // Load announcements
+      (function loadAnnouncements() {
+        fetch(AuthState.API_BASE + '/api/announcements')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.success && data.announcements && data.announcements.length > 0) {
+              var banner = document.getElementById('announcements-banner');
+              banner.style.display = 'block';
+              banner.innerHTML = data.announcements.map(function(a) {
+                return '<div class="announcement announcement--' + a.type + '">' +
+                  '<strong>' + a.title + '</strong>' +
+                  (a.content ? ' — ' + a.content : '') +
+                '</div>';
+              }).join('');
+            }
+          })
+          .catch(function() {});
+      })();
 
       const roomsContainer = document.getElementById('rooms-container');
       const roomCountEl = document.getElementById('room-count');

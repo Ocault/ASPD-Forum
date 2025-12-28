@@ -1409,6 +1409,47 @@ ul {
 }
 
 /* ========================================
+   ANNOUNCEMENTS BANNER
+======================================== */
+
+.announcements-banner {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.announcement {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  color: var(--text-secondary);
+  border-left: 3px solid var(--border-color);
+}
+
+.announcement strong {
+  color: var(--text-primary);
+}
+
+.announcement--info {
+  border-left-color: #48c;
+  background: rgba(68, 136, 204, 0.05);
+}
+
+.announcement--warning {
+  border-left-color: #c84;
+  background: rgba(204, 136, 68, 0.05);
+}
+
+.announcement--success {
+  border-left-color: #4c8;
+  background: rgba(68, 204, 136, 0.05);
+}
+
+.announcement--error {
+  border-left-color: #c44;
+  background: rgba(204, 68, 68, 0.05);
+}
+
+/* ========================================
    FILTER BAR
 ======================================== */
 
