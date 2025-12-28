@@ -115,6 +115,38 @@
 
   </div>
 
+  <!-- Theme Toggle -->
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">☽</button>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div class="shortcuts-modal-overlay" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+    <div class="shortcuts-modal">
+      <h2 class="shortcuts-title" id="shortcuts-title">KEYBOARD SHORTCUTS</h2>
+      <div class="shortcuts-section">
+        <h3 class="shortcuts-section-title">Navigation</h3>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">?</span></span><span class="shortcut-desc">Show this help</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">g</span><span class="shortcut-key">h</span></span><span class="shortcut-desc">Go to home</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">/</span></span><span class="shortcut-desc">Focus search</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">Esc</span></span><span class="shortcut-desc">Close modal</span></div>
+      </div>
+      <div class="shortcuts-section">
+        <h3 class="shortcuts-section-title">Thread View</h3>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">r</span></span><span class="shortcut-desc">Focus reply</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">j</span></span><span class="shortcut-desc">Next entry</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">k</span></span><span class="shortcut-desc">Previous entry</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">t</span></span><span class="shortcut-desc">Go to top</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">b</span></span><span class="shortcut-desc">Go to bottom</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">[</span></span><span class="shortcut-desc">Previous page</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">]</span></span><span class="shortcut-desc">Next page</span></div>
+      </div>
+      <button class="shortcuts-close" id="shortcuts-close">CLOSE [ESC]</button>
+    </div>
+  </div>
+
+  <!-- Scroll Progress -->
+  <div class="scroll-progress" id="scroll-progress"></div>
+
+  <script src="js/utils.js"></script>
   <script src="js/auth-state.js"></script>
   <script src="js/notify.js"></script>
   <script src="js/notifications.js"></script>
@@ -681,9 +713,14 @@
         renderEntries(filtered, allAvatarConfigs, currentPagination);
       }
 
-      searchInput.addEventListener('input', function() {
-        currentSearch = this.value;
+      // Debounced search for better performance
+      var debouncedSearch = Utils.debounce(function(value) {
+        currentSearch = value;
         applyFilters();
+      }, 200);
+      
+      searchInput.addEventListener('input', function() {
+        debouncedSearch(this.value);
       });
 
       sortBtns.forEach(function(btn) {
@@ -1014,6 +1051,35 @@
       // Reply form handler
       var replyForm = document.getElementById('reply-form');
       var replyContent = document.getElementById('reply-content');
+      var draftIndicator = document.createElement('span');
+      draftIndicator.className = 'draft-indicator';
+      draftIndicator.textContent = 'Draft saved';
+      draftIndicator.style.display = 'none';
+      replyForm.querySelector('.reply-submit').parentNode.insertBefore(draftIndicator, replyForm.querySelector('.reply-submit'));
+      
+      // Draft auto-save with debounce
+      var draftKey = 'thread_' + getSignalIdFromUrl();
+      var savedDraft = Utils.drafts.get(draftKey);
+      if (savedDraft) {
+        replyContent.value = savedDraft;
+        draftIndicator.style.display = 'inline';
+      }
+      
+      var saveDraft = Utils.debounce(function(content) {
+        if (content.trim()) {
+          Utils.drafts.set(draftKey, content);
+          draftIndicator.style.display = 'inline';
+          draftIndicator.classList.add('pulse');
+          setTimeout(function() { draftIndicator.classList.remove('pulse'); }, 500);
+        } else {
+          Utils.drafts.remove(draftKey);
+          draftIndicator.style.display = 'none';
+        }
+      }, 1000);
+      
+      replyContent.addEventListener('input', function() {
+        saveDraft(this.value);
+      });
       
       replyForm.addEventListener('submit', function(e) {
         e.preventDefault();
@@ -1034,6 +1100,8 @@
         .then(function(data) {
           if (data.success) {
             replyContent.value = '';
+            Utils.drafts.remove(draftKey);
+            draftIndicator.style.display = 'none';
             Notify.show('ENTRY RECORDED', 'info');
             // Reload entries
             fetchThread(currentSignalId, currentPage)
@@ -1171,11 +1239,66 @@
           fetchThread(currentSignalId, currentPage);
         }
         
-        // '?' - Show keyboard shortcuts help
+        // '?' - Show keyboard shortcuts modal
         if (e.key === '?' && e.shiftKey) {
-          Notify.show('SHORTCUTS: r=reply, t=top, b=bottom, j/k=scroll, []=prev/next page', 'info');
+          e.preventDefault();
+          shortcutsOverlay.classList.add('active');
+        }
+        
+        // Escape - Close shortcuts modal
+        if (e.key === 'Escape') {
+          shortcutsOverlay.classList.remove('active');
         }
       });
+      
+      // Theme toggle initialization
+      function initTheme() {
+        var themeToggle = document.getElementById('theme-toggle');
+        var savedTheme = Utils.storage.get('forum_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        themeToggle.setAttribute('aria-pressed', savedTheme === 'light');
+        themeToggle.setAttribute('aria-label', savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+        themeToggle.innerHTML = savedTheme === 'dark' ? '☀️' : '🌙';
+        
+        themeToggle.addEventListener('click', function() {
+          var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+          var newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          Utils.storage.set('forum_theme', newTheme);
+          themeToggle.setAttribute('aria-pressed', newTheme === 'light');
+          themeToggle.setAttribute('aria-label', newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+          themeToggle.innerHTML = newTheme === 'dark' ? '☀️' : '🌙';
+          Notify.show('THEME: ' + newTheme.toUpperCase(), 'info');
+        });
+      }
+      
+      // Keyboard shortcuts modal
+      var shortcutsOverlay = document.getElementById('shortcuts-modal');
+      var shortcutsClose = shortcutsOverlay.querySelector('.shortcuts-close');
+      
+      shortcutsClose.addEventListener('click', function() {
+        shortcutsOverlay.classList.remove('active');
+      });
+      
+      shortcutsOverlay.addEventListener('click', function(e) {
+        if (e.target === shortcutsOverlay) {
+          shortcutsOverlay.classList.remove('active');
+        }
+      });
+      
+      // Scroll progress bar
+      var scrollProgress = document.getElementById('scroll-progress');
+      var updateScrollProgress = Utils.throttle(function() {
+        var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        var progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+        scrollProgress.style.width = progress + '%';
+      }, 16);
+      
+      window.addEventListener('scroll', updateScrollProgress, { passive: true });
+      
+      // Initialize theme on load
+      initTheme();
 
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);

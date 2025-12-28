@@ -69,6 +69,33 @@
 
   </div>
 
+  <!-- Theme Toggle -->
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">☽</button>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div class="shortcuts-modal-overlay" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+    <div class="shortcuts-modal">
+      <h2 class="shortcuts-title" id="shortcuts-title">KEYBOARD SHORTCUTS</h2>
+      <div class="shortcuts-section">
+        <h3 class="shortcuts-section-title">Navigation</h3>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">?</span></span><span class="shortcut-desc">Show this help</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">g</span><span class="shortcut-key">h</span></span><span class="shortcut-desc">Go to home</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">/</span></span><span class="shortcut-desc">Focus search</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">Esc</span></span><span class="shortcut-desc">Close modal</span></div>
+      </div>
+      <div class="shortcuts-section">
+        <h3 class="shortcuts-section-title">Thread View</h3>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">r</span></span><span class="shortcut-desc">Focus reply</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">j</span></span><span class="shortcut-desc">Next entry</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">k</span></span><span class="shortcut-desc">Previous entry</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">t</span></span><span class="shortcut-desc">Go to top</span></div>
+        <div class="shortcut-row"><span class="shortcut-keys"><span class="shortcut-key">b</span></span><span class="shortcut-desc">Go to bottom</span></div>
+      </div>
+      <button class="shortcuts-close" id="shortcuts-close">CLOSE [ESC]</button>
+    </div>
+  </div>
+
+  <script src="js/utils.js"></script>
   <script src="js/auth-state.js"></script>
   <script src="js/notify.js"></script>
   <script src="js/notifications.js"></script>
@@ -125,6 +152,15 @@
 
       var allRooms = [];
 
+      // Show loading skeletons
+      function showLoadingSkeletons() {
+        var skeletons = '';
+        for (var i = 0; i < 6; i++) {
+          skeletons += '<div class="skeleton skeleton-room"></div>';
+        }
+        roomsContainer.innerHTML = skeletons;
+      }
+
       /**
        * Render rooms to the grid
        * @param {Array} rooms - Array of room objects from DataLoader or backend
@@ -142,19 +178,20 @@
       }
 
       /**
-       * Filter rooms by title
+       * Filter rooms by title (debounced)
        */
-      function filterRooms(query) {
+      var filterRooms = Utils.debounce(function(query) {
         if (!query) {
           renderRooms(allRooms);
           return;
         }
         var q = query.toLowerCase();
         var filtered = allRooms.filter(function(room) {
-          return room.title.toLowerCase().indexOf(q) !== -1;
+          return room.title.toLowerCase().indexOf(q) !== -1 ||
+                 (room.description && room.description.toLowerCase().indexOf(q) !== -1);
         });
         renderRooms(filtered);
-      }
+      }, 200);
 
       filterInput.addEventListener('input', function() {
         filterRooms(this.value);
@@ -214,6 +251,9 @@
        * Initialize page
        */
       function init() {
+        // Show loading skeletons
+        showLoadingSkeletons();
+        
         fetchRooms()
           .then(function(data) {
             if (data.success && data.rooms) {
@@ -233,6 +273,86 @@
         loadWhosOnline();
         // Refresh every 60 seconds
         setInterval(loadWhosOnline, 60000);
+        
+        // Initialize theme
+        initTheme();
+        
+        // Initialize keyboard shortcuts
+        initKeyboardShortcuts();
+      }
+
+      // Theme toggle
+      function initTheme() {
+        var themeToggle = document.getElementById('theme-toggle');
+        var savedTheme = Utils.storage.get('aspd_theme', 'dark');
+        
+        if (savedTheme === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+          themeToggle.textContent = '☀';
+        }
+        
+        themeToggle.addEventListener('click', function() {
+          var current = document.documentElement.getAttribute('data-theme');
+          if (current === 'light') {
+            document.documentElement.removeAttribute('data-theme');
+            Utils.storage.set('aspd_theme', 'dark');
+            themeToggle.textContent = '☽';
+          } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+            Utils.storage.set('aspd_theme', 'light');
+            themeToggle.textContent = '☀';
+          }
+        });
+      }
+
+      // Keyboard shortcuts
+      function initKeyboardShortcuts() {
+        var modal = document.getElementById('shortcuts-modal');
+        var closeBtn = document.getElementById('shortcuts-close');
+        
+        function showShortcuts() {
+          modal.classList.add('visible');
+        }
+        
+        function hideShortcuts() {
+          modal.classList.remove('visible');
+        }
+        
+        closeBtn.addEventListener('click', hideShortcuts);
+        modal.addEventListener('click', function(e) {
+          if (e.target === modal) hideShortcuts();
+        });
+        
+        document.addEventListener('keydown', function(e) {
+          // Don't trigger when typing
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            if (e.key === 'Escape') e.target.blur();
+            return;
+          }
+          
+          switch(e.key) {
+            case '?':
+              e.preventDefault();
+              showShortcuts();
+              break;
+            case 'Escape':
+              hideShortcuts();
+              break;
+            case '/':
+              e.preventDefault();
+              filterInput.focus();
+              break;
+            case 'g':
+              // Wait for next key
+              document.addEventListener('keydown', function handleG(e2) {
+                document.removeEventListener('keydown', handleG);
+                if (e2.key === 'h') {
+                  window.location.href = 'forum.html';
+                }
+              }, { once: true });
+              break;
+          }
+        });
       }
 
       if (document.readyState === 'loading') {
