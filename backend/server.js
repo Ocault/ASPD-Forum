@@ -752,11 +752,17 @@ async function migrate() {
         id SERIAL PRIMARY KEY,
         room_id INTEGER REFERENCES rooms(id),
         title VARCHAR(200) NOT NULL,
+        slug VARCHAR(100),
         user_id INTEGER REFERENCES users(id),
+        slow_mode_interval INTEGER DEFAULT 0,
         is_locked BOOLEAN DEFAULT FALSE,
         is_pinned BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT NOW()
       );
+      
+      -- Add columns if they don't exist
+      ALTER TABLE threads ADD COLUMN IF NOT EXISTS slug VARCHAR(100);
+      ALTER TABLE threads ADD COLUMN IF NOT EXISTS slow_mode_interval INTEGER DEFAULT 0;
       
       CREATE TABLE IF NOT EXISTS entries (
         id SERIAL PRIMARY KEY,
