@@ -6700,19 +6700,6 @@ img.loaded {
   overflow: visible !important;
 }
 
-/* TEST: Make ALL rank borders super obvious */
-.entry-avatar[class*="avatar-rank-"]::before {
-  content: '' !important;
-  position: absolute !important;
-  width: 34px !important;
-  height: 34px !important;
-  top: -3px !important;
-  left: -3px !important;
-  z-index: 0 !important;
-  background: red !important;
-  box-shadow: 0 0 20px red !important;
-}
-
 /* Make rank borders always visible at full opacity on hover */
 .entry:hover .entry-avatar[class*="avatar-rank-"]::before,
 .entry:hover .entry-avatar[class*="avatar-rank-"]::after {

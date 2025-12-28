@@ -413,8 +413,11 @@
         } else if (profile.isAdmin) {
           // Default for admin if no preference set
           avatarWrapper.classList.add('avatar-rank-owner');
+        } else if (profile.rank && profile.rank !== 'NEWCOMER') {
+          // Use the user's rank for border (newcomers get no border)
+          avatarWrapper.classList.add('avatar-rank-' + profile.rank.toLowerCase());
         }
-        // If no preference and not admin, no border is shown
+        // If no preference and newcomer, no border is shown
 
         // Display signature
         var profileSignature = document.getElementById('profile-signature');
