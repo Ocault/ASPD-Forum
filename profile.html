@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASPD Forum — Profile</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise"></div>
+
+  <!-- Profile Layout -->
+  <div class="profile-container" data-page="profile">
+
+    <!-- Header -->
+    <header class="profile-header">
+      <div class="profile-header-left">
+        <a href="forum.html" class="profile-back">← NODES</a>
+        <span class="profile-divider">/</span>
+        <span class="profile-title">USER PROFILE</span>
+      </div>
+      <div class="header-right">
+        <a href="#" class="header-exit" data-action="logout">EXIT</a>
+      </div>
+    </header>
+
+    <!-- Profile Content -->
+    <main class="profile-main">
+      
+      <!-- Profile Card -->
+      <div class="profile-card">
+        <div class="profile-avatar-section">
+          <canvas id="profile-avatar" class="avatar-large" width="80" height="80"></canvas>
+        </div>
+        <div class="profile-info">
+          <h1 class="profile-alias" id="profile-alias">Loading...</h1>
+          <div class="profile-meta">
+            <span class="profile-joined" id="profile-joined">JOINED: ---</span>
+          </div>
+          <div class="profile-bio" id="profile-bio">No bio set.</div>
+        </div>
+        <div class="profile-stats">
+          <div class="stat-item">
+            <span class="stat-value" id="stat-posts">0</span>
+            <span class="stat-label">POSTS</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="stat-threads">0</span>
+            <span class="stat-label">THREADS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Profile Button (own profile only) -->
+      <div class="profile-actions" id="profile-actions" style="display: none;">
+        <button class="edit-profile-btn" id="edit-profile-btn">EDIT PROFILE</button>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="profile-section">
+        <h2 class="section-title">RECENT ACTIVITY</h2>
+        <div class="recent-posts" id="recent-posts">
+          <div class="empty-state">NO RECENT ACTIVITY</div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="profile-footer">
+      <span>PROFILE</span>
+      <span>USER DATA</span>
+      <span data-bind="connection-status">CONN.ACTIVE</span>
+    </footer>
+
+  </div>
+
+  <!-- Edit Profile Modal -->
+  <div class="edit-profile-modal-overlay" id="edit-modal" style="display: none;">
+    <div class="edit-profile-modal">
+      <div class="modal-title">EDIT PROFILE</div>
+      <form id="edit-profile-form">
+        <div class="form-group">
+          <label for="edit-bio">BIO (500 chars max)</label>
+          <textarea id="edit-bio" class="edit-bio-input" rows="4" maxlength="500" placeholder="Tell us about yourself..."></textarea>
+          <span class="char-count" id="bio-char-count">0/500</span>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="cancel-btn" id="edit-cancel">CANCEL</button>
+          <button type="submit" class="reply-submit" id="edit-save">SAVE</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/auth-state.js"></script>
+  <script src="js/notify.js"></script>
+  <script src="js/avatar-renderer.js"></script>
+  <script>
+    (function() {
+      'use strict';
+
+      Notify.checkUrlNotify();
+
+      if (!AuthState.gateProtected()) return;
+
+      var profileAlias = document.getElementById('profile-alias');
+      var profileJoined = document.getElementById('profile-joined');
+      var profileBio = document.getElementById('profile-bio');
+      var profileAvatar = document.getElementById('profile-avatar');
+      var statPosts = document.getElementById('stat-posts');
+      var statThreads = document.getElementById('stat-threads');
+      var recentPosts = document.getElementById('recent-posts');
+      var profileActions = document.getElementById('profile-actions');
+      var editProfileBtn = document.getElementById('edit-profile-btn');
+      var editModal = document.getElementById('edit-modal');
+      var editForm = document.getElementById('edit-profile-form');
+      var editBio = document.getElementById('edit-bio');
+      var bioCharCount = document.getElementById('bio-char-count');
+      var editCancel = document.getElementById('edit-cancel');
+
+      var currentProfile = null;
+      var isOwnProfile = false;
+
+      function getAliasFromUrl() {
+        var params = new URLSearchParams(window.location.search);
+        return params.get('alias');
+      }
+
+      function formatDate(dateStr) {
+        if (!dateStr) return '---';
+        var d = new Date(dateStr);
+        return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      }
+
+      function renderProfile(profile) {
+        currentProfile = profile;
+        profileAlias.textContent = profile.alias;
+        profileJoined.textContent = 'JOINED: ' + formatDate(profile.createdAt);
+        profileBio.textContent = profile.bio || 'No bio set.';
+        statPosts.textContent = profile.stats.posts;
+        statThreads.textContent = profile.stats.threads;
+        document.title = 'ASPD Forum — ' + profile.alias;
+
+        // Render avatar
+        if (profile.avatarConfig) {
+          AvatarRenderer.render(profileAvatar, profile.avatarConfig);
+        } else {
+          AvatarRenderer.render(profileAvatar, AvatarRenderer.generateDefault());
+        }
+
+        // Render recent posts
+        if (profile.recentPosts && profile.recentPosts.length > 0) {
+          recentPosts.innerHTML = profile.recentPosts.map(function(post) {
+            return '<a href="thread.html?id=' + post.threadId + '" class="recent-post-item">' +
+              '<div class="recent-post-thread">' + post.threadTitle + '</div>' +
+              '<div class="recent-post-content">' + post.content + '</div>' +
+              '<div class="recent-post-date">' + formatDate(post.createdAt) + '</div>' +
+            '</a>';
+          }).join('');
+        } else {
+          recentPosts.innerHTML = '<div class="empty-state">NO RECENT ACTIVITY</div>';
+        }
+
+        // Show edit button if own profile
+        if (isOwnProfile) {
+          profileActions.style.display = 'block';
+        }
+      }
+
+      function fetchProfile(alias) {
+        return AuthState.apiRequest('/api/profile/' + encodeURIComponent(alias))
+          .then(function(data) {
+            if (data.success) {
+              renderProfile(data.profile);
+            } else {
+              profileAlias.textContent = 'USER NOT FOUND';
+              Notify.show(data.error || 'USER NOT FOUND', 'error');
+            }
+          })
+          .catch(function(err) {
+            profileAlias.textContent = 'ERROR';
+            Notify.show(err.message || 'CONNECTION ERROR', 'error');
+          });
+      }
+
+      function fetchOwnProfile() {
+        return AuthState.apiRequest('/api/me')
+          .then(function(data) {
+            if (data.success) {
+              isOwnProfile = true;
+              return fetchProfile(data.user.alias);
+            }
+          });
+      }
+
+      function init() {
+        var alias = getAliasFromUrl();
+        var currentAlias = AuthState.getAlias();
+
+        if (!alias) {
+          // No alias in URL - show own profile
+          isOwnProfile = true;
+          fetchOwnProfile();
+        } else if (alias === currentAlias) {
+          // Viewing own profile
+          isOwnProfile = true;
+          fetchProfile(alias);
+        } else {
+          // Viewing someone else's profile
+          isOwnProfile = false;
+          fetchProfile(alias);
+        }
+      }
+
+      // Edit profile handlers
+      editProfileBtn.addEventListener('click', function() {
+        editBio.value = currentProfile ? currentProfile.bio || '' : '';
+        bioCharCount.textContent = editBio.value.length + '/500';
+        editModal.style.display = 'flex';
+      });
+
+      editBio.addEventListener('input', function() {
+        bioCharCount.textContent = editBio.value.length + '/500';
+      });
+
+      editCancel.addEventListener('click', function() {
+        editModal.style.display = 'none';
+      });
+
+      editModal.addEventListener('click', function(e) {
+        if (e.target === editModal) editModal.style.display = 'none';
+      });
+
+      editForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var bio = editBio.value.trim();
+        var saveBtn = document.getElementById('edit-save');
+        
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'SAVING...';
+
+        AuthState.apiRequest('/api/profile', {
+          method: 'PUT',
+          body: JSON.stringify({ bio: bio })
+        })
+        .then(function(data) {
+          if (data.success) {
+            Notify.show('PROFILE UPDATED', 'info');
+            editModal.style.display = 'none';
+            // Refresh profile
+            fetchProfile(AuthState.getAlias());
+          } else {
+            Notify.show(data.error || 'UPDATE FAILED', 'error');
+          }
+        })
+        .catch(function(err) {
+          Notify.show(err.message || 'ERROR', 'error');
+        })
+        .finally(function() {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'SAVE';
+        });
+      });
+
+      // Logout handler
+      document.querySelector('[data-action="logout"]').addEventListener('click', function(e) {
+        e.preventDefault();
+        AuthState.logout();
+      });
+
+      init();
+    })();
+  </script>
+
+</body>
+</html>

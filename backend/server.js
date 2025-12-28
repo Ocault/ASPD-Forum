@@ -167,15 +167,120 @@ app.post('/login', async (req, res) => {
 app.get('/api/me', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT id, alias, is_admin FROM users WHERE id = $1',
+      'SELECT id, alias, is_admin, bio, avatar_config, created_at FROM users WHERE id = $1',
       [req.user.userId]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'user_not_found' });
     }
     const user = result.rows[0];
-    res.json({ success: true, user: { id: user.id, alias: user.alias, isAdmin: user.is_admin || false } });
+    res.json({ 
+      success: true, 
+      user: { 
+        id: user.id, 
+        alias: user.alias, 
+        isAdmin: user.is_admin || false,
+        bio: user.bio || '',
+        avatarConfig: user.avatar_config || null,
+        createdAt: user.created_at
+      } 
+    });
   } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Get user profile by alias
+app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
+  const alias = req.params.alias;
+  
+  try {
+    // Get user info
+    const userResult = await db.query(
+      'SELECT id, alias, bio, avatar_config, created_at FROM users WHERE alias = $1',
+      [alias]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Get post count
+    const postCountResult = await db.query(
+      'SELECT COUNT(*) FROM entries WHERE user_id = $1 AND (is_deleted = FALSE OR is_deleted IS NULL)',
+      [user.id]
+    );
+    const postCount = parseInt(postCountResult.rows[0].count);
+    
+    // Get thread count
+    const threadCountResult = await db.query(
+      'SELECT COUNT(*) FROM threads WHERE user_id = $1',
+      [user.id]
+    );
+    const threadCount = parseInt(threadCountResult.rows[0].count);
+    
+    // Get recent posts (last 5)
+    const recentPostsResult = await db.query(
+      `SELECT e.id, e.content, e.created_at, t.id AS thread_id, t.title AS thread_title
+       FROM entries e
+       JOIN threads t ON t.id = e.thread_id
+       WHERE e.user_id = $1 AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)
+       ORDER BY e.created_at DESC
+       LIMIT 5`,
+      [user.id]
+    );
+    
+    res.json({
+      success: true,
+      profile: {
+        alias: user.alias,
+        bio: user.bio || '',
+        avatarConfig: user.avatar_config || null,
+        createdAt: user.created_at,
+        stats: {
+          posts: postCount,
+          threads: threadCount
+        },
+        recentPosts: recentPostsResult.rows.map(p => ({
+          id: p.id,
+          content: p.content.substring(0, 100) + (p.content.length > 100 ? '...' : ''),
+          createdAt: p.created_at,
+          threadId: p.thread_id,
+          threadTitle: p.thread_title
+        }))
+      }
+    });
+  } catch (err) {
+    console.error('[PROFILE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Update own profile
+app.put('/api/profile', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { bio, avatar_config } = req.body;
+  
+  try {
+    // Validate bio length
+    if (bio && bio.length > 500) {
+      return res.status(400).json({ success: false, error: 'bio_too_long', message: 'Bio must be 500 characters or less' });
+    }
+    
+    const result = await db.query(
+      'UPDATE users SET bio = $1, avatar_config = $2 WHERE id = $3 RETURNING id, alias, bio, avatar_config',
+      [bio || '', avatar_config || null, userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    console.error('[UPDATE PROFILE ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -792,10 +897,16 @@ async function migrate() {
         id SERIAL PRIMARY KEY,
         alias VARCHAR(50) UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
+        bio TEXT,
+        avatar_config JSONB,
         is_admin BOOLEAN DEFAULT FALSE,
         is_shadow_banned BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT NOW()
       );
+      
+      -- Add columns if they don't exist
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_config JSONB;
       
       CREATE TABLE IF NOT EXISTS rooms (
         id SERIAL PRIMARY KEY,

@@ -230,8 +230,12 @@ const UIComponents = (function() {
     const isAnonymous = alias !== null;
     let entryClass = isAnonymous ? 'entry entry--anonymous' : 'entry entry--system';
     if (exceedsLimit) entryClass += ' entry--long';
-    const identityLabel = isAnonymous ? alias : 'ARCHIVE';
     const identityClass = isAnonymous ? 'entry-alias' : 'entry-system-label';
+    
+    // Make alias a clickable link to profile
+    const identityLabel = isAnonymous 
+      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${alias}</a>` 
+      : 'ARCHIVE';
     
     // Format timestamp
     const timeStr = createdAt ? createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
