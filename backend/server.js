@@ -356,32 +356,28 @@ const entriesLimiter = rateLimit({
   legacyHeaders: false
 });
 
-// API: Create entry (anonymous posting)
+// API: Create entry (authenticated posting)
 app.post('/api/entries', authMiddleware, entriesLimiter, async (req, res) => {
-  const { thread_id, content, alias, avatar_config } = req.body;
+  const { threadId, thread_id, content, alias, avatar_config } = req.body;
+  const userId = req.user.userId;
+  const userAlias = req.user.alias;
+  
+  // Support both threadId (new) and thread_id (legacy)
+  const threadIdentifier = threadId || thread_id;
 
-  if (!thread_id || !content || !alias) {
+  if (!threadIdentifier || !content) {
     return res.status(400).json({ success: false, error: 'missing_fields' });
-  }
-
-  // Validate alias format
-  const aliasRegex = /^[a-zA-Z0-9_\-.]{3,20}$/;
-  if (!aliasRegex.test(alias)) {
-    return res.status(400).json({
-      success: false,
-      error: 'invalid_alias',
-      message: 'Alias must be 3-20 characters using only letters, numbers, underscores, hyphens, and periods.'
-    });
   }
 
   const clientIp = getClientIp(req);
   const ipHash = hashIp(clientIp);
 
   try {
-    // Verify thread exists and get slow-mode settings
+    // Support both numeric ID and slug lookup
+    const isNumeric = /^\d+$/.test(String(threadIdentifier));
     const threadResult = await db.query(
-      'SELECT id, slow_mode_interval FROM threads WHERE slug = $1',
-      [thread_id]
+      `SELECT id, slow_mode_interval FROM threads WHERE ${isNumeric ? 'id = $1' : 'slug = $1'}`,
+      [isNumeric ? parseInt(threadIdentifier) : threadIdentifier]
     );
 
     if (threadResult.rows.length === 0) {
@@ -417,11 +413,14 @@ app.post('/api/entries', authMiddleware, entriesLimiter, async (req, res) => {
       }
     }
 
+    // Use provided alias or user's alias
+    const entryAlias = alias || userAlias;
+
     const insertResult = await db.query(
       `INSERT INTO entries (thread_id, content, alias, avatar_config, user_id, ip_hash, shadow_banned)
-       VALUES ($1, $2, $3, $4, NULL, $5, FALSE)
-       RETURNING id, thread_id AS "threadId", content, alias, avatar_config AS "avatarConfig", created_at AS "createdAt"`,
-      [threadDbId, content, alias, avatar_config || null, ipHash]
+       VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+       RETURNING id, thread_id AS "threadId", content, alias, avatar_config AS "avatarConfig", created_at AS "createdAt", user_id`,
+      [threadDbId, content, entryAlias, avatar_config || null, userId, ipHash]
     );
 
     // Audit log for post tracking
@@ -430,7 +429,7 @@ app.post('/api/entries', authMiddleware, entriesLimiter, async (req, res) => {
       await db.query(
         `INSERT INTO post_audit (entry_id, ip_hash, alias, content_length)
          VALUES ($1, $2, $3, $4)`,
-        [entryId, ipHash, alias, content.length]
+        [entryId, ipHash, entryAlias, content.length]
       );
     } catch (auditErr) {
       // Silent fail - audit should not break posting
@@ -438,6 +437,7 @@ app.post('/api/entries', authMiddleware, entriesLimiter, async (req, res) => {
 
     res.json({ success: true, entry: insertResult.rows[0] });
   } catch (err) {
+    console.error('[CREATE ENTRY ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
