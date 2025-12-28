@@ -2070,8 +2070,10 @@ ul {
 }
 
 /* Profile avatar animated border support - override for larger avatar */
-/* OWNER - Ultimate void with blazing light beam */
+/* OWNER - 3D Void Portal with layered depth */
 .profile-avatar-section.avatar-rank-owner {
+  transform-style: preserve-3d;
+  perspective: 600px;
   animation: owner-presence 4s ease-in-out infinite;
 }
 
@@ -2083,38 +2085,54 @@ ul {
   right: 2px;
   bottom: 2px;
   border-radius: 6px;
-  background: conic-gradient(
-    from 0deg,
-    #000000 0%, #0a0a0a 10%, #1a1a1a 20%, #2a2a2a 30%, 
-    #4a4a4a 40%, #8a8a8a 45%, #ffffff 50%, #8a8a8a 55%, 
-    #4a4a4a 60%, #2a2a2a 70%, #1a1a1a 80%, #0a0a0a 90%, #000000 100%
-  );
-  animation: owner-spin 4s linear infinite;
+  background: 
+    radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+    conic-gradient(
+      from 0deg,
+      #000000 0%, #050505 5%, #0a0a0a 10%, #151515 15%, #1a1a1a 20%,
+      #252525 25%, #303030 30%, #404040 35%, #555555 40%, 
+      #707070 44%, #909090 47%, #ffffff 50%, #909090 53%, #707070 56%,
+      #555555 60%, #404040 65%, #303030 70%, #252525 75%,
+      #1a1a1a 80%, #151515 85%, #0a0a0a 90%, #050505 95%, #000000 100%
+    );
+  animation: owner-core-spin 5s linear infinite;
   box-shadow: 
-    inset 0 0 30px rgba(0, 0, 0, 0.95),
-    0 0 15px rgba(150, 150, 150, 0.3),
-    0 0 30px rgba(100, 100, 100, 0.2);
+    inset 0 0 50px rgba(0, 0, 0, 0.98),
+    inset 0 0 20px rgba(255, 255, 255, 0.05),
+    0 0 25px rgba(100, 100, 100, 0.4),
+    0 0 50px rgba(60, 60, 60, 0.25);
   z-index: 0;
+  transform: translateZ(0px);
 }
 
 .profile-avatar-section.avatar-rank-owner::after {
   content: '';
   position: absolute;
-  top: -4px;
-  left: -4px;
-  right: -4px;
-  bottom: -4px;
-  border-radius: 8px;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+  border-radius: 12px;
   background: conic-gradient(
-    from 180deg,
-    transparent 0%, transparent 25%,
-    rgba(255, 255, 255, 0.15) 35%, rgba(255, 255, 255, 0.4) 42%,
-    rgba(255, 255, 255, 0.7) 47%, #ffffff 50%, rgba(255, 255, 255, 0.7) 53%,
-    rgba(255, 255, 255, 0.4) 58%, rgba(255, 255, 255, 0.15) 65%,
-    transparent 75%, transparent 100%
+    from 0deg,
+    transparent 0%, transparent 20%,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.1) 32%,
+    rgba(255, 255, 255, 0.25) 38%,
+    rgba(255, 255, 255, 0.5) 44%,
+    rgba(255, 255, 255, 0.8) 48%,
+    #ffffff 50%,
+    rgba(255, 255, 255, 0.8) 52%,
+    rgba(255, 255, 255, 0.5) 56%,
+    rgba(255, 255, 255, 0.25) 62%,
+    rgba(255, 255, 255, 0.1) 68%,
+    rgba(255, 255, 255, 0.03) 75%,
+    transparent 80%, transparent 100%
   );
-  animation: owner-spin-reverse 5s linear infinite;
+  animation: owner-orbit 6s linear infinite;
   z-index: -1;
+  transform-origin: center;
   filter: blur(0.5px);
 }
 
@@ -3053,7 +3071,12 @@ ul {
   z-index: -1;
 }
 
-/* OWNER preview - Ultimate void with blazing beam */
+/* OWNER preview - 3D Void Portal */
+.border-preview-owner {
+  transform-style: preserve-3d;
+  perspective: 300px;
+}
+
 .border-preview-owner::before {
   content: '';
   position: absolute;
@@ -3062,49 +3085,57 @@ ul {
   right: -1px;
   bottom: -1px;
   border-radius: 5px;
-  background: conic-gradient(
-    from 0deg,
-    #000000 0%, #0a0a0a 10%, #1a1a1a 20%, #2a2a2a 30%, 
-    #4a4a4a 40%, #8a8a8a 45%, #ffffff 50%, #8a8a8a 55%, 
-    #4a4a4a 60%, #2a2a2a 70%, #1a1a1a 80%, #0a0a0a 90%, #000000 100%
-  );
-  animation: owner-spin 4s linear infinite;
+  background: 
+    radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.12) 0%, transparent 50%),
+    conic-gradient(
+      from 0deg,
+      #000000 0%, #0a0a0a 10%, #1a1a1a 20%, #303030 30%, 
+      #505050 40%, #808080 45%, #ffffff 50%, #808080 55%, 
+      #505050 60%, #303030 70%, #1a1a1a 80%, #0a0a0a 90%, #000000 100%
+    );
+  animation: owner-core-spin 5s linear infinite;
   box-shadow: 
-    inset 0 0 15px rgba(0, 0, 0, 0.95),
-    0 0 8px rgba(150, 150, 150, 0.3);
+    inset 0 0 20px rgba(0, 0, 0, 0.95),
+    0 0 10px rgba(150, 150, 150, 0.35);
 }
 
 .border-preview-owner::after {
   content: '';
   position: absolute;
-  top: -4px;
-  left: -4px;
-  right: -4px;
-  bottom: -4px;
-  border-radius: 7px;
+  top: -5px;
+  left: -5px;
+  right: -5px;
+  bottom: -5px;
+  border-radius: 8px;
   background: conic-gradient(
-    from 180deg, transparent 0%, transparent 25%, 
-    rgba(255, 255, 255, 0.15) 35%, rgba(255, 255, 255, 0.4) 42%, 
-    rgba(255, 255, 255, 0.7) 47%, #ffffff 50%, rgba(255, 255, 255, 0.7) 53%, 
-    rgba(255, 255, 255, 0.4) 58%, rgba(255, 255, 255, 0.15) 65%, 
-    transparent 75%, transparent 100%
+    from 0deg,
+    transparent 0%, transparent 20%,
+    rgba(255, 255, 255, 0.1) 32%,
+    rgba(255, 255, 255, 0.4) 44%,
+    rgba(255, 255, 255, 0.8) 48%,
+    #ffffff 50%,
+    rgba(255, 255, 255, 0.8) 52%,
+    rgba(255, 255, 255, 0.4) 56%,
+    rgba(255, 255, 255, 0.1) 68%,
+    transparent 80%, transparent 100%
   );
-  animation: owner-spin-reverse 5s linear infinite;
+  animation: owner-orbit 6s linear infinite;
   z-index: -1;
-  filter: blur(0.5px);
+  filter: blur(0.3px);
 }
 
 .border-option-owner {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.25);
   animation: owner-option-glow 4s ease-in-out infinite;
+  overflow: visible;
 }
 
 @keyframes owner-option-glow {
   0%, 100% { 
-    box-shadow: 0 0 4px rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 6px rgba(255, 255, 255, 0.15), 0 0 12px rgba(150, 150, 150, 0.1);
   }
   50% { 
-    box-shadow: 0 0 10px rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.35), 0 0 25px rgba(150, 150, 150, 0.2);
   }
 }
 
@@ -7139,90 +7170,119 @@ img.loaded {
 }
 
 /* ========================================
-   OWNER/ADMIN RANK - Ultimate void with blazing light beam
+   OWNER/ADMIN RANK - 3D Void Portal with layered depth
 ======================================== */
 .avatar-rank-owner {
   position: relative;
-  animation: owner-presence 4s ease-in-out infinite;
+  transform-style: preserve-3d;
+  perspective: 500px;
 }
 
 @keyframes owner-presence {
   0%, 100% {
     filter: 
-      drop-shadow(0 0 4px rgba(255, 255, 255, 0.3))
-      drop-shadow(0 0 8px rgba(200, 200, 200, 0.2));
+      drop-shadow(0 0 6px rgba(255, 255, 255, 0.4))
+      drop-shadow(0 0 12px rgba(200, 200, 200, 0.25))
+      drop-shadow(0 0 20px rgba(150, 150, 150, 0.15));
   }
   50% {
     filter: 
-      drop-shadow(0 0 8px rgba(255, 255, 255, 0.5))
-      drop-shadow(0 0 16px rgba(200, 200, 200, 0.3))
-      drop-shadow(0 0 25px rgba(150, 150, 150, 0.2));
+      drop-shadow(0 0 10px rgba(255, 255, 255, 0.6))
+      drop-shadow(0 0 20px rgba(200, 200, 200, 0.4))
+      drop-shadow(0 0 35px rgba(150, 150, 150, 0.25));
   }
 }
 
+/* Inner void core - deepest layer */
 .avatar-rank-owner::before {
   content: '';
   position: absolute;
-  top: -5px;
-  left: -5px;
-  right: -5px;
-  bottom: -5px;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
   border-radius: 6px;
+  background: 
+    radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+    conic-gradient(
+      from 0deg,
+      #000000 0%, #050505 5%, #0a0a0a 10%, #151515 15%, #1a1a1a 20%,
+      #252525 25%, #303030 30%, #404040 35%, #555555 40%, 
+      #707070 44%, #909090 47%, #ffffff 50%, #909090 53%, #707070 56%,
+      #555555 60%, #404040 65%, #303030 70%, #252525 75%,
+      #1a1a1a 80%, #151515 85%, #0a0a0a 90%, #050505 95%, #000000 100%
+    );
+  animation: owner-core-spin 5s linear infinite;
+  box-shadow: 
+    inset 0 0 40px rgba(0, 0, 0, 0.98),
+    inset 0 0 15px rgba(255, 255, 255, 0.05),
+    0 0 20px rgba(100, 100, 100, 0.4),
+    0 0 40px rgba(60, 60, 60, 0.25);
+  z-index: 0;
+  transform: translateZ(0px);
+}
+
+@keyframes owner-core-spin {
+  from { transform: translateZ(0px) rotate(0deg); }
+  to { transform: translateZ(0px) rotate(360deg); }
+}
+
+/* Outer 3D orbiting ring */
+.avatar-rank-owner::after {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  border-radius: 10px;
   background: conic-gradient(
     from 0deg,
-    #000000 0%,
-    #0a0a0a 10%,
-    #1a1a1a 20%,
-    #2a2a2a 30%,
-    #4a4a4a 40%,
-    #8a8a8a 45%,
+    transparent 0%, transparent 20%,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.1) 32%,
+    rgba(255, 255, 255, 0.25) 38%,
+    rgba(255, 255, 255, 0.5) 44%,
+    rgba(255, 255, 255, 0.8) 48%,
     #ffffff 50%,
-    #8a8a8a 55%,
-    #4a4a4a 60%,
-    #2a2a2a 70%,
-    #1a1a1a 80%,
-    #0a0a0a 90%,
-    #000000 100%
+    rgba(255, 255, 255, 0.8) 52%,
+    rgba(255, 255, 255, 0.5) 56%,
+    rgba(255, 255, 255, 0.25) 62%,
+    rgba(255, 255, 255, 0.1) 68%,
+    rgba(255, 255, 255, 0.03) 75%,
+    transparent 80%, transparent 100%
   );
-  animation: owner-spin 4s linear infinite;
-  box-shadow: 
-    inset 0 0 30px rgba(0, 0, 0, 0.95),
-    0 0 15px rgba(150, 150, 150, 0.3),
-    0 0 30px rgba(100, 100, 100, 0.2);
-  z-index: 0;
+  animation: owner-orbit 6s linear infinite;
+  z-index: -1;
+  transform-origin: center;
+  filter: blur(0.5px);
+}
+
+@keyframes owner-orbit {
+  0% { 
+    transform: rotateX(60deg) rotateZ(0deg);
+    opacity: 0.9;
+  }
+  25% {
+    opacity: 1;
+  }
+  50% { 
+    transform: rotateX(60deg) rotateZ(180deg);
+    opacity: 0.9;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% { 
+    transform: rotateX(60deg) rotateZ(360deg);
+    opacity: 0.9;
+  }
 }
 
 @keyframes owner-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-/* Outer blazing ring - inverse rotation */
-.avatar-rank-owner::after {
-  content: '';
-  position: absolute;
-  top: -9px;
-  left: -9px;
-  right: -9px;
-  bottom: -9px;
-  border-radius: 8px;
-  background: conic-gradient(
-    from 180deg,
-    transparent 0%,
-    transparent 25%,
-    rgba(255, 255, 255, 0.15) 35%,
-    rgba(255, 255, 255, 0.4) 42%,
-    rgba(255, 255, 255, 0.7) 47%,
-    #ffffff 50%,
-    rgba(255, 255, 255, 0.7) 53%,
-    rgba(255, 255, 255, 0.4) 58%,
-    rgba(255, 255, 255, 0.15) 65%,
-    transparent 75%,
-    transparent 100%
-  );
-  animation: owner-spin-reverse 5s linear infinite;
-  z-index: -1;
-  filter: blur(0.5px);
 }
 
 @keyframes owner-spin-reverse {
@@ -7232,26 +7292,7 @@ img.loaded {
 
 /* Outer ethereal glow */
 .avatar-rank-owner {
-  animation: owner-pulse 1s ease-in-out infinite alternate, owner-flicker 0.08s ease-in-out infinite alternate;
-}
-
-@keyframes owner-pulse {
-  0% {
-    filter: 
-      drop-shadow(0 0 3px rgba(255, 255, 255, 0.4))
-      drop-shadow(0 0 6px rgba(200, 200, 200, 0.2));
-  }
-  100% {
-    filter: 
-      drop-shadow(0 0 8px rgba(255, 255, 255, 0.7))
-      drop-shadow(0 0 15px rgba(255, 255, 255, 0.4))
-      drop-shadow(0 0 25px rgba(180, 180, 180, 0.2));
-  }
-}
-
-@keyframes owner-flicker {
-  0% { opacity: 0.95; }
-  100% { opacity: 1; }
+  animation: owner-presence 4s ease-in-out infinite;
 }
 
 /* Owner badge glow effect on the entry */
