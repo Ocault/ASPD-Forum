@@ -6096,11 +6096,22 @@ app.post('/api/users/:alias/follow', authMiddleware, async (req, res) => {
       );
       isFollowing = true;
       
-      // Notify the target user that someone followed them
+      // Create database notification for the target user
+      const notificationTitle = 'New Follower';
+      const notificationMessage = `${req.user.alias} started following you`;
+      await db.query(
+        `INSERT INTO notifications (user_id, type, title, message, link, related_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [targetId, 'new_follower', notificationTitle, notificationMessage, `profile.html?u=${req.user.alias}`, userId]
+      );
+      
+      // Send real-time notification via WebSocket
       notifyUserRealtime(targetId, {
         type: 'new_follower',
-        message: `${req.user.alias} started following you`,
-        fromAlias: req.user.alias
+        title: notificationTitle,
+        message: notificationMessage,
+        fromAlias: req.user.alias,
+        link: `profile.html?u=${req.user.alias}`
       });
     }
     
