@@ -22,6 +22,7 @@ const STATIC_ASSETS = [
   '/js/notifications.js',
   '/js/ui-components.js',
   '/js/avatar-renderer.js',
+  '/js/websocket.js',
   '/favicon.svg'
 ];
 

@@ -10,7 +10,18 @@ const helmet = require('helmet');
 const sanitizeHtml = require('sanitize-html');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 const db = require('./db');
+
+// Optional WebSocket for real-time features
+let WebSocket = null;
+let wss = null;
+try {
+  WebSocket = require('ws');
+  console.log('[WS] WebSocket library loaded successfully');
+} catch (err) {
+  console.log('[WS] ws not installed - WebSocket features disabled. Run: npm install ws');
+}
 
 // Optional 2FA dependencies - gracefully degrade if not installed
 let speakeasy = null;
@@ -365,6 +376,230 @@ async function sendNotificationEmail(userId, type, title, preview, link) {
   } catch (err) {
     console.error('[NOTIFICATION EMAIL ERROR]', err.message);
   }
+}
+
+// ========================================
+// WEBSOCKET SERVER
+// ========================================
+
+// Connected clients map: userId -> Set of WebSocket connections
+const wsClients = new Map();
+
+// Initialize WebSocket server (called after HTTP server starts)
+function initWebSocket(server) {
+  if (!WebSocket) {
+    console.log('[WS] WebSocket not available - skipping initialization');
+    return;
+  }
+
+  const WebSocketServer = WebSocket.Server;
+  wss = new WebSocketServer({ 
+    server,
+    path: '/ws'
+  });
+
+  console.log('[WS] WebSocket server initialized on /ws');
+
+  wss.on('connection', (ws, req) => {
+    let userId = null;
+    let userAlias = null;
+
+    // Parse token from query string
+    const url = new URL(req.url, 'ws://localhost');
+    const token = url.searchParams.get('token');
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = decoded.userId;
+        userAlias = decoded.alias;
+        
+        // Add to clients map
+        if (!wsClients.has(userId)) {
+          wsClients.set(userId, new Set());
+        }
+        wsClients.get(userId).add(ws);
+
+        // Update last_seen
+        db.query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [userId]);
+
+        console.log(`[WS] User ${userAlias} connected (${wsClients.get(userId).size} connections)`);
+
+        // Send connection success
+        ws.send(JSON.stringify({ type: 'connected', userId, alias: userAlias }));
+
+        // Broadcast user online status
+        broadcastOnlineStatus(userId, userAlias, true);
+
+      } catch (err) {
+        console.log('[WS] Invalid token:', err.message);
+        ws.send(JSON.stringify({ type: 'error', message: 'Invalid token' }));
+        ws.close();
+        return;
+      }
+    } else {
+      // Allow anonymous connections for public broadcasts (optional)
+      ws.send(JSON.stringify({ type: 'connected', anonymous: true }));
+    }
+
+    // Handle incoming messages
+    ws.on('message', (data) => {
+      try {
+        const message = JSON.parse(data);
+        handleWsMessage(ws, userId, userAlias, message);
+      } catch (err) {
+        console.error('[WS] Invalid message:', err.message);
+      }
+    });
+
+    // Handle disconnect
+    ws.on('close', () => {
+      if (userId && wsClients.has(userId)) {
+        wsClients.get(userId).delete(ws);
+        if (wsClients.get(userId).size === 0) {
+          wsClients.delete(userId);
+          // User fully offline - broadcast status
+          broadcastOnlineStatus(userId, userAlias, false);
+          console.log(`[WS] User ${userAlias} disconnected (offline)`);
+        } else {
+          console.log(`[WS] User ${userAlias} tab closed (${wsClients.get(userId).size} remaining)`);
+        }
+      }
+    });
+
+    // Handle errors
+    ws.on('error', (err) => {
+      console.error('[WS] Connection error:', err.message);
+    });
+  });
+
+  // Ping clients every 30 seconds to keep connections alive
+  setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (ws.isAlive === false) {
+        return ws.terminate();
+      }
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+
+  wss.on('connection', (ws) => {
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+  });
+}
+
+// Handle incoming WebSocket messages
+function handleWsMessage(ws, userId, userAlias, message) {
+  switch (message.type) {
+    case 'ping':
+      ws.send(JSON.stringify({ type: 'pong' }));
+      break;
+
+    case 'typing':
+      // Broadcast typing indicator to thread viewers
+      if (message.threadId && userId) {
+        broadcastToThread(message.threadId, {
+          type: 'typing',
+          threadId: message.threadId,
+          userId,
+          alias: userAlias
+        }, userId);
+      }
+      break;
+
+    case 'subscribe':
+      // Subscribe to thread updates
+      if (message.threadId) {
+        ws.subscribedThreads = ws.subscribedThreads || new Set();
+        ws.subscribedThreads.add(message.threadId);
+      }
+      break;
+
+    case 'unsubscribe':
+      if (message.threadId && ws.subscribedThreads) {
+        ws.subscribedThreads.delete(message.threadId);
+      }
+      break;
+
+    default:
+      console.log('[WS] Unknown message type:', message.type);
+  }
+}
+
+// Send message to specific user (all their connections)
+function sendToUser(userId, message) {
+  if (!wss || !wsClients.has(userId)) return;
+  
+  const connections = wsClients.get(userId);
+  const messageStr = JSON.stringify(message);
+  
+  connections.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(messageStr);
+    }
+  });
+}
+
+// Broadcast to all connected clients
+function broadcast(message, excludeUserId = null) {
+  if (!wss) return;
+  
+  const messageStr = JSON.stringify(message);
+  
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(messageStr);
+    }
+  });
+}
+
+// Broadcast to all users subscribed to a thread
+function broadcastToThread(threadId, message, excludeUserId = null) {
+  if (!wss) return;
+  
+  const messageStr = JSON.stringify(message);
+  
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN && 
+        ws.subscribedThreads && 
+        ws.subscribedThreads.has(threadId)) {
+      ws.send(messageStr);
+    }
+  });
+}
+
+// Broadcast online status change
+function broadcastOnlineStatus(userId, alias, isOnline) {
+  broadcast({
+    type: 'userStatus',
+    userId,
+    alias,
+    isOnline
+  });
+}
+
+// Notify user of new notification
+function notifyUserRealtime(userId, notification) {
+  sendToUser(userId, {
+    type: 'notification',
+    notification
+  });
+}
+
+// Notify thread subscribers of new post
+function notifyNewPost(threadId, entry) {
+  broadcastToThread(threadId, {
+    type: 'newPost',
+    threadId,
+    entry: {
+      id: entry.id,
+      alias: entry.alias,
+      content: entry.content.substring(0, 200),
+      createdAt: entry.created_at
+    }
+  });
 }
 
 // XSS Sanitization helper
@@ -3485,6 +3720,14 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
             [mentionedUserId, 'mention', notificationTitle, notificationPreview, notificationLink, entryId, userId]
           );
           
+          // Send real-time WebSocket notification
+          notifyUserRealtime(mentionedUserId, {
+            type: 'mention',
+            title: notificationTitle,
+            message: notificationPreview,
+            link: notificationLink
+          });
+          
           // Send email notification (non-blocking)
           sendNotificationEmail(mentionedUserId, 'mention', notificationTitle, notificationPreview, notificationLink);
         }
@@ -3525,6 +3768,14 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
           [sub.user_id, 'thread_reply', notificationTitle, notificationPreview, notificationLink, entryId, userId]
         );
         
+        // Send real-time WebSocket notification
+        notifyUserRealtime(sub.user_id, {
+          type: 'thread_reply',
+          title: notificationTitle,
+          message: notificationPreview,
+          link: notificationLink
+        });
+        
         // Send email notification (non-blocking)
         sendNotificationEmail(sub.user_id, 'thread_reply', notificationTitle, notificationPreview, notificationLink);
       }
@@ -3532,6 +3783,14 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
       // Silent fail - subscription notifications should not break posting
       console.error('[SUBSCRIPTION NOTIFICATION ERROR]', subErr.message);
     }
+
+    // Broadcast new post to all users viewing this thread via WebSocket
+    notifyNewPost(threadDbId, {
+      id: entryId,
+      alias: entryAlias,
+      content: content,
+      created_at: insertResult.rows[0].created_at
+    });
 
     // Check for badge achievements (async, non-blocking)
     checkAndAwardBadges(userId).catch(() => {});
@@ -7767,12 +8026,18 @@ async function cleanupExpiredTokens() {
   }
 }
 
-// Start server
+// Start server with WebSocket support
 migrate().then(() => {
-  app.listen(PORT, () => {
-    console.log('[SERVER] Port ' + PORT);
+  const server = http.createServer(app);
+  
+  // Initialize WebSocket server
+  initWebSocket(server);
+  
+  server.listen(PORT, () => {
+    console.log('[SERVER] HTTP + WebSocket server on port ' + PORT);
     
     // Run cleanup on startup and every hour
     cleanupExpiredTokens();
-    setInterval(cleanupExpiredTokens, 60 * 60 * 1000);  });
+    setInterval(cleanupExpiredTokens, 60 * 60 * 1000);
+  });
 });

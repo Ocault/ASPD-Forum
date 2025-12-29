@@ -227,8 +227,35 @@ const NotificationSystem = (function() {
       });
     }
 
-    // Poll for new notifications every 60 seconds
-    setInterval(fetchUnreadCount, 60000);
+    // Poll for new notifications every 60 seconds (fallback if WebSocket disconnected)
+    setInterval(function() {
+      // Only poll if WebSocket is not connected
+      if (typeof ForumWS === 'undefined' || !ForumWS.isConnected()) {
+        fetchUnreadCount();
+      }
+    }, 60000);
+    
+    // Listen for WebSocket notifications
+    if (typeof ForumWS !== 'undefined') {
+      ForumWS.on('notification', function(notification) {
+        // Increment badge count
+        var badge = document.getElementById('notif-badge');
+        if (badge) {
+          var current = parseInt(badge.textContent) || 0;
+          updateBadge(current + 1);
+        }
+        
+        // Show toast notification
+        if (typeof Notify !== 'undefined') {
+          Notify.show(notification.title, 'info');
+        }
+        
+        // If dropdown is open, refresh it
+        if (isDropdownOpen) {
+          fetchNotifications();
+        }
+      });
+    }
   }
 
   return {
