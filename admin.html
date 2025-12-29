@@ -478,6 +478,8 @@
               <div class="stat-value" id="stat-warnings">0</div>
               <div class="stat-label">WARNINGS (7D)</div>
             </div>
+          </div>
+        </div>
 
         <!-- My Permissions -->
         <div class="admin-section" id="section-permissions">
@@ -939,16 +941,20 @@
       // Hide nav items based on role
       document.querySelectorAll('.admin-nav-btn').forEach(function(btn) {
         var requiredRole = btn.dataset.role;
+        var shouldShow = true;
+        
         // Owner-only items: hide from everyone except owner
         if (requiredRole === 'owner' && !isOwner) {
-          btn.style.display = 'none';
+          shouldShow = false;
         }
         // Admin items: show to admin and owner
         else if (requiredRole === 'admin' && !isAdmin) {
-          btn.style.display = 'none';
+          shouldShow = false;
         }
-        // Mod items: show to everyone who can access admin panel
-        // (already gated by isMod check at top)
+        // Mod items: always show (gated by isMod check at top)
+        
+        btn.style.display = shouldShow ? 'block' : 'none';
+        console.log('[NAV] Button:', btn.dataset.section, 'requiredRole:', requiredRole, 'shouldShow:', shouldShow);
       });
 
       // Update permissions display based on role
