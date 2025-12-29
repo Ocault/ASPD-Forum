@@ -565,8 +565,8 @@
         if (profile.recentPosts && profile.recentPosts.length > 0) {
           recentPosts.innerHTML = profile.recentPosts.map(function(post) {
             return '<a href="thread.html?id=' + post.threadId + '" class="recent-post-item">' +
-              '<div class="recent-post-thread">' + post.threadTitle + '</div>' +
-              '<div class="recent-post-content">' + post.content + '</div>' +
+              '<div class="recent-post-thread">' + escapeHtml(post.threadTitle) + '</div>' +
+              '<div class="recent-post-content">' + escapeHtml(post.content) + '</div>' +
               '<div class="recent-post-date">' + formatDate(post.createdAt) + '</div>' +
             '</a>';
           }).join('');

@@ -1022,8 +1022,7 @@
         if (!isOwner) return;
         
         // Load list of current admins
-        AuthState.fetchWithAuth('/admin/users?filter=all')
-          .then(function(res) { return res.json(); })
+        AuthState.apiRequest('/api/admin/users?filter=all')
           .then(function(data) {
             if (data.success) {
               var admins = data.users.filter(function(u) { return u.role === 'admin' || u.role === 'owner'; });
@@ -1054,10 +1053,11 @@
         }
         
         Notify.show('Preparing download...', 'info');
-        AuthState.fetchWithAuth('/admin/users/' + encodeURIComponent(username) + '/export')
-          .then(function(res) {
-            if (!res.ok) throw new Error('User not found');
-            return res.blob();
+        AuthState.apiRequest('/api/admin/users/' + encodeURIComponent(username) + '/export')
+          .then(function(data) {
+            // Convert JSON data to blob for download
+            var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            return blob;
           })
           .then(function(blob) {
             var url = URL.createObjectURL(blob);
@@ -1098,8 +1098,7 @@
         var list = document.getElementById('audit-list');
         list.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading...</td></tr>';
         
-        AuthState.fetchWithAuth('/admin/audit?page=' + auditPage + '&limit=25')
-          .then(function(res) { return res.json(); })
+        AuthState.apiRequest('/api/admin/audit?page=' + auditPage + '&limit=25')
           .then(function(data) {
             if (!data.success) throw new Error(data.error);
             list.innerHTML = '';

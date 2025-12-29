@@ -4414,7 +4414,7 @@ app.post('/api/admin/users/:id/role', authMiddleware, adminMiddleware, async (re
 });
 
 // Owner: Export any user's data (GDPR compliance tool)
-app.get('/admin/users/:alias/export', authMiddleware, ownerMiddleware, async (req, res) => {
+app.get('/api/admin/users/:alias/export', authMiddleware, ownerMiddleware, async (req, res) => {
   const { alias } = req.params;
 
   try {
