@@ -26,7 +26,7 @@
   <meta name="twitter:description" content="A private discussion forum for individuals with Antisocial Personality Disorder.">
   <meta name="twitter:image" content="https://www.aspdforum.com/sigil.png">
   
-  <link rel="icon" type="image/png" href="sigil.png">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" href="sigil.png">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css?v=20251229">
@@ -48,18 +48,32 @@
     }
     
     .intro-screen.fade-out {
-      animation: voidOpen 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      animation: introExit 1.8s ease-in-out forwards;
     }
     
-    @keyframes voidOpen {
+    @keyframes introExit {
       0% { 
         opacity: 1;
-        clip-path: circle(100% at 50% 50%);
+      }
+      40% {
+        opacity: 1;
       }
       100% { 
         opacity: 0;
-        clip-path: circle(0% at 50% 50%);
+        visibility: hidden;
       }
+    }
+    
+    .intro-screen.fade-out .void-container,
+    .intro-screen.fade-out .intro-title,
+    .intro-screen.fade-out .intro-line,
+    .intro-screen.fade-out .void-particles {
+      animation: elementsFade 0.8s ease-out forwards;
+    }
+    
+    @keyframes elementsFade {
+      0% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.95); }
     }
     
     /* Void effect - breathing darkness */
@@ -299,11 +313,15 @@
       setTimeout(function() {
         sessionStorage.setItem('intro_seen', '1');
         introScreen.classList.add('fade-out');
-        landing.classList.add('visible');
+        
+        // Delay landing reveal until intro elements have faded
+        setTimeout(function() {
+          landing.classList.add('visible');
+        }, 600);
         
         setTimeout(function() {
           introScreen.style.display = 'none';
-        }, 1500);
+        }, 1800);
       }, 3200);
     })();
   </script>

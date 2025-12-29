@@ -1,7 +1,7 @@
 {
   "name": "ASPD Forum",
   "short_name": "ASPD",
-  "description": "Dark, clinical forum interface for data exchange",
+  "description": "A private discussion forum for individuals with Antisocial Personality Disorder",
   "start_url": "/forum.html",
   "display": "standalone",
   "background_color": "#0a0a0a",
@@ -10,20 +10,27 @@
   "scope": "/",
   "icons": [
     {
+      "src": "sigil.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "sigil.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "sigil.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
       "src": "favicon.svg",
       "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/svg+xml"
     }
   ],
   "categories": ["social", "news"],

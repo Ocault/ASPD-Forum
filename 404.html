@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0a">
+  
+  <title>404 — Page Not Found</title>
+  <meta name="robots" content="noindex, nofollow">
+  
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="sigil.png">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .error-container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 2rem;
+    }
+    
+    .error-code {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 6rem;
+      font-weight: 200;
+      color: #252525;
+      letter-spacing: 0.2em;
+      margin: 0;
+      line-height: 1;
+    }
+    
+    .error-title {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.75rem;
+      font-weight: 400;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: #505050;
+      margin: 1.5rem 0 0.5rem;
+    }
+    
+    .error-desc {
+      font-size: 0.8rem;
+      color: #404040;
+      margin: 0 0 2rem;
+      max-width: 300px;
+    }
+    
+    .error-links {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    
+    .error-link {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #505050;
+      text-decoration: none;
+      padding: 0.75rem 1.5rem;
+      border: 1px solid #252525;
+      transition: all 0.3s ease;
+    }
+    
+    .error-link:hover {
+      color: #707070;
+      border-color: #404040;
+      background: rgba(255, 255, 255, 0.02);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise" aria-hidden="true"></div>
+
+  <main class="error-container" role="main">
+    <h1 class="error-code">404</h1>
+    <p class="error-title">Page Not Found</p>
+    <p class="error-desc">This page doesn't exist or has been removed.</p>
+    
+    <nav class="error-links" aria-label="Navigation options">
+      <a href="index.html" class="error-link">← Return Home</a>
+      <a href="forum.html" class="error-link">Go to Forum</a>
+    </nav>
+  </main>
+
+</body>
+</html>
