@@ -357,6 +357,7 @@
         <button class="admin-nav-btn" data-section="bans">IP BANS</button>
         <button class="admin-nav-btn" data-section="filters">WORD FILTERS</button>
         <button class="admin-nav-btn" data-section="audit">AUDIT LOG</button>
+        <button class="admin-nav-btn" data-section="badges">BADGES</button>
       </div>
 
       <div class="admin-content" id="admin-content">
@@ -686,6 +687,32 @@
             <button class="admin-btn" id="audit-next">NEXT ►</button>
           </div>
         </div>
+
+        <!-- Badges Section -->
+        <div class="admin-section" id="section-badges">
+          <div class="admin-section-title">BADGE MANAGEMENT</div>
+          <p style="font-size: 0.5rem; color: var(--text-muted); margin-bottom: var(--spacing-md);">Manage badges and award them to users.</p>
+          
+          <div style="margin-bottom: var(--spacing-lg);">
+            <div style="font-size: 0.55rem; font-weight: bold; margin-bottom: var(--spacing-sm);">AWARD BADGE TO USER</div>
+            <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap; align-items: flex-end;">
+              <div>
+                <label style="font-size: 0.45rem; color: var(--text-muted);">USERNAME</label>
+                <input type="text" id="badge-username" class="admin-input" placeholder="Enter username..." style="width: 200px;">
+              </div>
+              <div>
+                <label style="font-size: 0.45rem; color: var(--text-muted);">BADGE</label>
+                <select id="badge-select" class="admin-input" style="width: 250px;">
+                  <option value="">Select a badge...</option>
+                </select>
+              </div>
+              <button class="admin-btn admin-btn-primary" id="award-badge-btn">AWARD BADGE</button>
+            </div>
+          </div>
+
+          <div style="font-size: 0.55rem; font-weight: bold; margin-bottom: var(--spacing-sm);">ALL BADGES</div>
+          <div id="badges-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--spacing-md);"></div>
+        </div>
       </div>
     </div>
 
@@ -741,6 +768,7 @@
         else if (section === 'bans') loadIpBans();
         else if (section === 'filters') loadFilters();
         else if (section === 'audit') loadAuditLog();
+        else if (section === 'badges') loadBadges();
       }
 
       // Audit Log
@@ -1409,6 +1437,73 @@
             });
         }
       };
+
+      // Badges
+      function loadBadges() {
+        var list = document.getElementById('badges-list');
+        var select = document.getElementById('badge-select');
+        list.innerHTML = '<div style="color: var(--text-muted);">Loading badges...</div>';
+        
+        Utils.apiRequest('/badges')
+          .then(function(response) {
+            var badges = response.badges || [];
+            select.innerHTML = '<option value="">Select a badge...</option>';
+            badges.forEach(function(badge) {
+              select.innerHTML += '<option value="' + badge.id + '">' + badge.icon + ' ' + badge.name + '</option>';
+            });
+            
+            if (badges.length === 0) {
+              list.innerHTML = '<div style="color: var(--text-muted);">No badges found.</div>';
+              return;
+            }
+            
+            var rarityColors = {
+              common: '#9ca3af',
+              uncommon: '#22c55e',
+              rare: '#3b82f6',
+              epic: '#a855f7',
+              legendary: '#f59e0b'
+            };
+            
+            list.innerHTML = badges.map(function(badge) {
+              var color = rarityColors[badge.rarity] || '#9ca3af';
+              return '<div style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: var(--spacing-md); display: flex; align-items: center; gap: var(--spacing-sm);">' +
+                '<span style="font-size: 1.5rem;">' + badge.icon + '</span>' +
+                '<div style="flex: 1;">' +
+                  '<div style="font-size: 0.55rem; font-weight: bold;">' + badge.name + '</div>' +
+                  '<div style="font-size: 0.45rem; color: var(--text-muted);">' + badge.description + '</div>' +
+                  '<div style="font-size: 0.4rem; color: ' + color + '; text-transform: uppercase; margin-top: 2px;">' + badge.rarity + '</div>' +
+                '</div>' +
+              '</div>';
+            }).join('');
+          })
+          .catch(function(err) {
+            list.innerHTML = '<div style="color: var(--error-color);">Error loading badges: ' + err.message + '</div>';
+          });
+      }
+      
+      document.getElementById('award-badge-btn').addEventListener('click', function() {
+        var username = document.getElementById('badge-username').value.trim();
+        var badgeId = document.getElementById('badge-select').value;
+        
+        if (!username || !badgeId) {
+          Utils.notify('Please enter a username and select a badge', 'error');
+          return;
+        }
+        
+        Utils.apiRequest('/admin/badges/award', {
+          method: 'POST',
+          body: JSON.stringify({ alias: username, badge_id: parseInt(badgeId) })
+        })
+          .then(function(res) {
+            Utils.notify(res.message || 'Badge awarded successfully!', 'success');
+            document.getElementById('badge-username').value = '';
+            document.getElementById('badge-select').value = '';
+          })
+          .catch(function(err) {
+            Utils.notify('Error: ' + err.message, 'error');
+          });
+      });
 
       // Logout
       document.querySelector('[data-action="logout"]').addEventListener('click', function(e) {

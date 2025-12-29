@@ -3468,7 +3468,7 @@ app.get('/api/users/:alias/badges', authMiddleware, async (req, res) => {
 
 // Award badge to user (admin only)
 app.post('/api/admin/badges/award', authMiddleware, async (req, res) => {
-  const { userId, badgeSlug } = req.body;
+  const { alias, badge_id } = req.body;
   const adminId = req.user.userId;
   
   try {
@@ -3478,22 +3478,34 @@ app.post('/api/admin/badges/award', authMiddleware, async (req, res) => {
       return res.status(403).json({ success: false, error: 'forbidden' });
     }
     
+    // Get user by alias
+    const user = await db.query('SELECT id, alias FROM users WHERE alias = $1', [alias]);
+    if (user.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found', message: 'User not found' });
+    }
+    
     // Get badge
-    const badge = await db.query('SELECT id FROM badges WHERE slug = $1', [badgeSlug]);
+    const badge = await db.query('SELECT id, name FROM badges WHERE id = $1', [badge_id]);
     if (badge.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'badge_not_found' });
+      return res.status(404).json({ success: false, error: 'badge_not_found', message: 'Badge not found' });
     }
     
     // Award badge
-    await db.query(
+    const result = await db.query(
       `INSERT INTO user_badges (user_id, badge_id, awarded_by)
        VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, badge_id) DO NOTHING`,
-      [userId, badge.rows[0].id, adminId]
+       ON CONFLICT (user_id, badge_id) DO NOTHING
+       RETURNING id`,
+      [user.rows[0].id, badge.rows[0].id, adminId]
     );
     
-    res.json({ success: true });
+    if (result.rows.length === 0) {
+      return res.json({ success: true, message: 'User already has this badge' });
+    }
+    
+    res.json({ success: true, message: 'Badge "' + badge.rows[0].name + '" awarded to ' + user.rows[0].alias });
   } catch (err) {
+    console.error('Award badge error:', err);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
