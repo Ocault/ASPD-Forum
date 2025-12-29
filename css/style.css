@@ -942,50 +942,48 @@ ul {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-xs) var(--spacing-lg);
-  background: var(--bg-secondary);
+  padding: 6px var(--spacing-lg);
+  background: var(--bg-primary);
   border-bottom: 1px solid var(--border-color);
-  min-height: 32px;
+  min-height: 28px;
   gap: var(--spacing-md);
 }
 
 .presence-viewers {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .presence-viewer {
-  width: 22px;
-  height: 22px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  border: 2px solid var(--border-color);
+  border: 1px solid var(--border-color);
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
-  animation: presenceJoin 0.3s ease-out;
 }
 
 .presence-viewer:hover {
-  border-color: var(--accent-primary);
-  transform: scale(1.15);
+  border-color: var(--text-muted);
+  transform: scale(1.1);
   z-index: 10;
 }
 
 .presence-viewer.pulsing {
-  animation: presencePulse 2s ease-in-out infinite;
+  animation: presencePulse 3s ease-in-out infinite;
 }
 
 .presence-viewer-tooltip {
   position: absolute;
-  bottom: 100%;
+  bottom: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
-  background: var(--bg-tertiary);
+  background: var(--bg-panel);
   border: 1px solid var(--border-color);
-  padding: 4px 8px;
+  padding: 3px 6px;
   font-family: var(--font-mono);
   font-size: 0.5rem;
   letter-spacing: 0.05em;
@@ -993,7 +991,7 @@ ul {
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.15s;
   z-index: 100;
 }
 
@@ -1003,19 +1001,17 @@ ul {
 
 .presence-count {
   font-family: var(--font-mono);
-  font-size: 0.55rem;
-  letter-spacing: 0.12em;
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
   color: var(--text-muted);
-  padding: 3px 8px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-color);
+  text-transform: uppercase;
 }
 
 .presence-typing {
   font-family: var(--font-mono);
   font-size: 0.5rem;
   letter-spacing: 0.05em;
-  color: var(--accent-primary);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1170,74 +1166,65 @@ ul {
 /* Mood Indicators on Posts */
 .mood-indicator {
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: 0.5rem;
   font-weight: bold;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-left: 6px;
+  margin-left: 4px;
   border: 1px solid var(--border-color);
+  background: transparent;
   cursor: help;
 }
 
 .mood-indicator.mood-angry {
-  background: rgba(180, 80, 80, 0.15);
-  border-color: rgba(180, 80, 80, 0.4);
-  color: #b45050;
+  border-color: #a06060;
+  color: #a06060;
 }
 
 .mood-indicator.mood-anxious {
-  background: rgba(180, 150, 80, 0.15);
-  border-color: rgba(180, 150, 80, 0.4);
-  color: #b49650;
+  border-color: #a09060;
+  color: #a09060;
 }
 
 .mood-indicator.mood-neutral {
-  background: rgba(120, 120, 120, 0.15);
-  border-color: rgba(120, 120, 120, 0.4);
-  color: #888;
+  border-color: var(--text-muted);
+  color: var(--text-muted);
 }
 
 .mood-indicator.mood-good {
-  background: rgba(80, 150, 80, 0.15);
-  border-color: rgba(80, 150, 80, 0.4);
-  color: #509650;
+  border-color: #60a060;
+  color: #60a060;
 }
 
 /* Vault Posts */
 .vault-indicator {
   font-family: var(--font-mono);
-  font-size: 0.5rem;
-  margin-left: 6px;
-  padding: 2px 6px;
-  background: rgba(100, 80, 140, 0.15);
-  border: 1px solid rgba(100, 80, 140, 0.4);
-  color: #8070a0;
+  font-size: 0.45rem;
+  margin-left: 4px;
+  padding: 1px 4px;
+  background: transparent;
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
   cursor: help;
 }
 
 .entry.vault-post {
-  border-left: 2px solid rgba(100, 80, 140, 0.4);
+  border-left: 2px solid var(--text-muted);
 }
 
 .entry.vault-locked {
-  opacity: 0.7;
-}
-
-.entry.vault-locked .entry-content {
-  filter: blur(0);
+  opacity: 0.6;
 }
 
 .vault-locked-message {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   letter-spacing: 0.05em;
   color: var(--text-muted);
-  padding: var(--spacing-md);
-  background: var(--bg-secondary);
-  border: 1px dashed var(--border-color);
+  padding: var(--spacing-sm);
   text-align: center;
 }
 
@@ -1987,7 +1974,7 @@ ul {
   cursor: not-allowed;
 }
 
-/* Reply actions row (ghost toggle + submit) */
+/* Reply actions row */
 .reply-actions {
   display: flex;
   justify-content: space-between;
@@ -1996,15 +1983,70 @@ ul {
   margin-top: var(--spacing-sm);
 }
 
+/* Reply Options Container */
+.reply-options {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+/* Unified Post Option Style */
+.post-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.post-option:hover {
+  border-color: var(--text-muted);
+}
+
+.post-option.active {
+  border-color: var(--text-secondary);
+  background: var(--bg-secondary);
+}
+
+.post-option-icon {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+.post-option-label {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+.post-option:hover .post-option-icon,
+.post-option:hover .post-option-label {
+  color: var(--text-secondary);
+}
+
+.post-option.active .post-option-icon,
+.post-option.active .post-option-label {
+  color: var(--text-primary);
+}
+
 /* Anonymous Mode Toggle */
 .ghost-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  padding: 4px 10px;
+  gap: 4px;
+  padding: 4px 8px;
+  background: transparent;
   border: 1px solid var(--border-color);
-  background: var(--bg-panel);
+  cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
 }
@@ -2015,22 +2057,21 @@ ul {
 
 .ghost-toggle-icon {
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   color: var(--text-muted);
-  transition: all 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .ghost-toggle-label {
   font-family: var(--font-mono);
-  font-size: 0.55rem;
+  font-size: 0.5rem;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-  transition: all 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .ghost-toggle:hover {
-  border-color: var(--border-hover);
-  background: var(--bg-secondary);
+  border-color: var(--text-muted);
 }
 
 .ghost-toggle:hover .ghost-toggle-icon,
@@ -2060,19 +2101,20 @@ ul {
 .mood-selector {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .mood-label {
   font-family: var(--font-mono);
-  font-size: 0.5rem;
+  font-size: 0.45rem;
   letter-spacing: 0.1em;
   color: var(--text-muted);
+  margin-right: 2px;
 }
 
 .mood-options {
   display: flex;
-  gap: 2px;
+  gap: 1px;
 }
 
 .mood-option {
@@ -2087,78 +2129,64 @@ ul {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   font-weight: bold;
   border: 1px solid var(--border-color);
-  background: var(--bg-panel);
+  background: transparent;
   color: var(--text-muted);
   transition: all 0.15s ease;
 }
 
 .mood-option:hover .mood-icon {
-  border-color: var(--border-hover);
+  border-color: var(--text-muted);
   color: var(--text-secondary);
 }
 
 .mood-option input:checked + .mood-icon {
   border-color: var(--text-secondary);
   color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 
-.mood-icon.mood-angry {
-  color: var(--text-muted);
-}
+/* Mood colors - subtle tints */
 .mood-option input:checked + .mood-icon.mood-angry {
-  background: rgba(180, 80, 80, 0.15);
-  border-color: rgba(180, 80, 80, 0.5);
-  color: #b45050;
+  color: #a06060;
+  border-color: #a06060;
 }
 
-.mood-icon.mood-anxious {
-  color: var(--text-muted);
-}
 .mood-option input:checked + .mood-icon.mood-anxious {
-  background: rgba(180, 150, 80, 0.15);
-  border-color: rgba(180, 150, 80, 0.5);
-  color: #b49650;
+  color: #a09060;
+  border-color: #a09060;
 }
 
-.mood-icon.mood-neutral {
-  color: var(--text-muted);
-}
 .mood-option input:checked + .mood-icon.mood-neutral {
-  background: rgba(120, 120, 120, 0.15);
-  border-color: rgba(120, 120, 120, 0.5);
-  color: #888;
+  color: var(--text-secondary);
+  border-color: var(--text-secondary);
 }
 
-.mood-icon.mood-good {
-  color: var(--text-muted);
-}
 .mood-option input:checked + .mood-icon.mood-good {
-  background: rgba(80, 150, 80, 0.15);
-  border-color: rgba(80, 150, 80, 0.5);
-  color: #509650;
+  color: #60a060;
+  border-color: #60a060;
 }
 
 /* Vault Selector */
 .vault-selector {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .vault-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   cursor: pointer;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border: 1px solid var(--border-color);
-  background: var(--bg-panel);
+  background: transparent;
   transition: all 0.15s ease;
   user-select: none;
 }
@@ -2169,21 +2197,21 @@ ul {
 
 .vault-toggle-icon {
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   color: var(--text-muted);
-  transition: all 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .vault-toggle-label {
   font-family: var(--font-mono);
-  font-size: 0.55rem;
+  font-size: 0.5rem;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-  transition: all 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .vault-toggle:hover {
-  border-color: var(--border-hover);
+  border-color: var(--text-muted);
 }
 
 .vault-toggle:hover .vault-toggle-icon,
@@ -2203,10 +2231,10 @@ ul {
 
 .vault-level-select {
   font-family: var(--font-mono);
-  font-size: 0.55rem;
+  font-size: 0.45rem;
   letter-spacing: 0.05em;
-  padding: 4px 8px;
-  background: var(--bg-panel);
+  padding: 3px 6px;
+  background: transparent;
   color: var(--text-muted);
   border: 1px solid var(--border-color);
   cursor: pointer;
@@ -2214,12 +2242,12 @@ ul {
 }
 
 .vault-level-select:disabled {
-  opacity: 0.4;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
 .vault-level-select:not(:disabled):hover {
-  border-color: var(--border-hover);
+  border-color: var(--text-muted);
   color: var(--text-secondary);
 }
 
