@@ -346,30 +346,76 @@ async function sendNotificationEmail(userId, type, title, preview, link) {
     const siteUrl = process.env.SITE_URL || 'https://www.aspdforum.com';
     const fullLink = link.startsWith('http') ? link : `${siteUrl}/${link}`;
     
+    // Type-specific styling
+    const typeStyles = {
+      'thread_reply': { icon: '↩', label: 'NEW REPLY' },
+      'mention': { icon: '@', label: 'MENTIONED' },
+      'private_message': { icon: '✉', label: 'NEW MESSAGE' }
+    };
+    const style = typeStyles[type] || { icon: '●', label: 'NOTIFICATION' };
+    
     const emailHtml = `
-      <div style="background: #0a0a0a; padding: 40px 20px; font-family: 'Courier New', monospace;">
-        <div style="max-width: 500px; margin: 0 auto; background: #0a0a0a; border: 1px solid #1a1a1a; padding: 30px;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <svg width="40" height="40" viewBox="0 0 100 100" style="opacity: 0.4;">
-              <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="none" stroke="#4a4a4a" stroke-width="2"/>
-            </svg>
-          </div>
-          <h2 style="color: #9a9a9a; font-size: 14px; text-align: center; letter-spacing: 0.1em; margin: 0 0 20px;">
-            ${title}
-          </h2>
-          <p style="color: #7a7a7a; font-size: 12px; line-height: 1.6; margin: 0 0 20px;">
-            ${preview.substring(0, 200)}${preview.length > 200 ? '...' : ''}
-          </p>
-          <div style="text-align: center;">
-            <a href="${fullLink}" style="display: inline-block; padding: 12px 24px; background: #151515; border: 1px solid #2a2a2a; color: #9a9a9a; text-decoration: none; font-size: 11px; letter-spacing: 0.15em;">
-              VIEW ON FORUM
-            </a>
-          </div>
-          <p style="color: #5a5a5a; font-size: 10px; text-align: center; margin-top: 30px;">
-            You can manage your notification settings in your <a href="${siteUrl}/profile.html" style="color: #7a7a7a;">profile</a>.
-          </p>
-        </div>
-      </div>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+</head>
+<body style="margin: 0; padding: 0; background-color: #0a0a0a;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0a0a0a;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="500" cellspacing="0" cellpadding="0" style="max-width: 500px; background-color: #0f0f0f; border: 1px solid #1a1a1a;">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 30px 30px 20px; text-align: center; border-bottom: 1px solid #1a1a1a;">
+              <div style="font-family: 'Courier New', Courier, monospace; font-size: 24px; color: #3a3a3a; margin-bottom: 10px;">${style.icon}</div>
+              <div style="font-family: 'Courier New', Courier, monospace; font-size: 10px; letter-spacing: 0.2em; color: #4a4a4a;">${style.label}</div>
+            </td>
+          </tr>
+          <!-- Title -->
+          <tr>
+            <td style="padding: 25px 30px 15px;">
+              <h1 style="margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 14px; font-weight: normal; color: #9a9a9a; letter-spacing: 0.05em;">
+                ${title}
+              </h1>
+            </td>
+          </tr>
+          <!-- Preview -->
+          <tr>
+            <td style="padding: 0 30px 25px;">
+              <p style="margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.7; color: #6a6a6a;">
+                ${preview.substring(0, 200).replace(/</g, '&lt;').replace(/>/g, '&gt;')}${preview.length > 200 ? '...' : ''}
+              </p>
+            </td>
+          </tr>
+          <!-- Button -->
+          <tr>
+            <td style="padding: 10px 30px 30px; text-align: center;">
+              <a href="${fullLink}" style="display: inline-block; padding: 14px 28px; background-color: #151515; border: 1px solid #2a2a2a; color: #9a9a9a; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-size: 11px; letter-spacing: 0.15em;">
+                VIEW ON FORUM →
+              </a>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 30px; border-top: 1px solid #1a1a1a; text-align: center;">
+              <p style="margin: 0 0 10px; font-family: 'Courier New', Courier, monospace; font-size: 10px; color: #3a3a3a; letter-spacing: 0.1em;">
+                ASPD FORUM
+              </p>
+              <p style="margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 10px; color: #4a4a4a;">
+                <a href="${siteUrl}/settings.html" style="color: #5a5a5a; text-decoration: none;">Manage notifications</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
     `;
     
     await sendEmail(user.email, `[ASPD Forum] ${title}`, emailHtml);
