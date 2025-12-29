@@ -1028,8 +1028,9 @@
               
               document.getElementById('detail-alias').innerHTML = data.user.alias + ' (#' + data.user.id + ')' + roleBadge;
               
-              // Show/hide ban buttons (mods can't ban)
-              var canBan = AuthState.getRole() === 'admin' || AuthState.getRole() === 'owner';
+              // Show/hide ban buttons (mods can't ban) - fallback to isAdmin() for backwards compat
+              var myRole = AuthState.getRole();
+              var canBan = myRole === 'admin' || myRole === 'owner' || AuthState.isAdmin();
               document.getElementById('btn-unban').style.display = (canBan && data.user.is_banned) ? 'inline-block' : 'none';
               document.getElementById('btn-ban').style.display = (canBan && !data.user.is_banned) ? 'inline-block' : 'none';
               document.getElementById('btn-temp-ban').style.display = (canBan && !data.user.is_banned) ? 'inline-block' : 'none';
@@ -1039,11 +1040,11 @@
               if (roleControls) {
                 if (canBan && userRole !== 'owner') {
                   roleControls.style.display = 'block';
-                  roleControls.innerHTML = '<div style="margin-top: var(--spacing-sm); font-size: 0.4375rem; color: var(--text-muted);">ROLE: ' +
+                  roleControls.innerHTML = '<div style="margin-top: var(--spacing-sm); font-size: 0.4375rem; color: var(--text-muted);">SET ROLE: ' +
                     '<select id="role-select" style="background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-color); padding: 2px 4px; font-size: 0.4375rem;">' +
                     '<option value="user"' + (userRole === 'user' ? ' selected' : '') + '>User</option>' +
                     '<option value="moderator"' + (userRole === 'moderator' ? ' selected' : '') + '>Moderator</option>' +
-                    (AuthState.getRole() === 'owner' ? '<option value="admin"' + (userRole === 'admin' ? ' selected' : '') + '>Admin</option>' : '') +
+                    (myRole === 'owner' ? '<option value="admin"' + (userRole === 'admin' ? ' selected' : '') + '>Admin</option>' : '') +
                     '</select> ' +
                     '<button id="btn-set-role" class="admin-btn" style="font-size: 0.4375rem; padding: 2px 6px;">SET</button></div>';
                   
