@@ -936,6 +936,104 @@ app.post('/api/settings/change-password', authMiddleware, async (req, res) => {
   }
 });
 
+// API: Send verification email
+app.post('/api/settings/verify-email', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    // Get user's email
+    const result = await db.query('SELECT email, email_verified FROM users WHERE id = $1', [userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    const { email, email_verified } = result.rows[0];
+    
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'no_email', message: 'Please save an email address first' });
+    }
+    
+    if (email_verified) {
+      return res.status(400).json({ success: false, error: 'already_verified', message: 'Email is already verified' });
+    }
+    
+    // Generate verification token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    
+    // Store token (reuse password_reset_tokens table with a type)
+    await db.query(
+      `INSERT INTO password_reset_tokens (user_id, token, expires_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) DO UPDATE SET token = $2, expires_at = $3`,
+      [userId, 'verify_' + token, expires]
+    );
+    
+    // Send verification email
+    const verifyUrl = `https://www.aspdforum.com/verify-email.html?token=${token}`;
+    const emailSent = await sendEmail(
+      email,
+      'Verify Your Email - ASPD Forum',
+      `<div style="font-family: monospace; background: #0a0a0a; color: #e0e0e0; padding: 30px; max-width: 500px; margin: 0 auto;">
+        <h2 style="color: #ff3333; text-transform: uppercase; letter-spacing: 2px;">Email Verification</h2>
+        <p>Click the link below to verify your email address:</p>
+        <a href="${verifyUrl}" style="display: inline-block; background: #ff3333; color: #fff; padding: 12px 24px; text-decoration: none; margin: 20px 0;">VERIFY EMAIL</a>
+        <p style="color: #666; font-size: 12px;">This link expires in 24 hours.</p>
+        <p style="color: #666; font-size: 12px;">If you didn't request this, ignore this email.</p>
+      </div>`
+    );
+    
+    if (!emailSent) {
+      return res.status(500).json({ success: false, error: 'email_failed', message: 'Failed to send verification email' });
+    }
+    
+    res.json({ success: true, message: 'Verification email sent' });
+  } catch (err) {
+    console.error('[VERIFY EMAIL ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Confirm email verification
+app.post('/api/auth/confirm-email', async (req, res) => {
+  const { token } = req.body;
+  
+  if (!token) {
+    return res.status(400).json({ success: false, error: 'missing_token' });
+  }
+  
+  try {
+    // Find token
+    const result = await db.query(
+      `SELECT user_id, expires_at FROM password_reset_tokens 
+       WHERE token = $1`,
+      ['verify_' + token]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'invalid_token' });
+    }
+    
+    const { user_id, expires_at } = result.rows[0];
+    
+    if (new Date() > new Date(expires_at)) {
+      await db.query('DELETE FROM password_reset_tokens WHERE token = $1', ['verify_' + token]);
+      return res.status(400).json({ success: false, error: 'expired_token' });
+    }
+    
+    // Mark email as verified
+    await db.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [user_id]);
+    
+    // Delete token
+    await db.query('DELETE FROM password_reset_tokens WHERE token = $1', ['verify_' + token]);
+    
+    res.json({ success: true, message: 'Email verified successfully' });
+  } catch (err) {
+    console.error('[CONFIRM EMAIL ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // API: Delete account
 app.delete('/api/settings/account', authMiddleware, async (req, res) => {
   const { password } = req.body;

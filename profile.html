@@ -80,6 +80,23 @@
       <div class="profile-section account-settings-section" id="account-settings" style="display: none;">
         <h2 class="section-title">ACCOUNT SETTINGS</h2>
         
+        <!-- Email Settings -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <span class="settings-icon">✉️</span>
+            <span class="settings-label">EMAIL ADDRESS</span>
+          </div>
+          <p style="font-size: 0.75rem; color: #404040; margin-bottom: 1rem;">Add an email for password recovery and notifications.</p>
+          <div class="form-row" style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="email" id="account-email" placeholder="your@email.com" style="flex: 1;">
+            <span id="email-verify-status" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;"></span>
+          </div>
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+            <button type="button" class="settings-btn" id="save-email-btn">SAVE EMAIL</button>
+            <button type="button" class="settings-btn" id="verify-email-btn" style="display: none;">SEND VERIFICATION</button>
+          </div>
+        </div>
+        
         <!-- Change Password -->
         <div class="settings-card">
           <div class="settings-card-header">
@@ -488,6 +505,7 @@
           document.getElementById('account-settings').style.display = 'block';
           document.getElementById('social-actions').style.display = 'none';
           loadSubscriptions();
+          loadEmailSettings();
         } else {
           // Show follow/mute buttons for other users
           profileActions.style.display = 'none';
@@ -944,6 +962,99 @@
       var deleteAccountForm = document.getElementById('delete-account-form');
       var deleteCancel = document.getElementById('delete-cancel');
       var subscriptionsList = document.getElementById('subscriptions-list');
+      
+      // Email settings elements
+      var accountEmailInput = document.getElementById('account-email');
+      var emailVerifyStatus = document.getElementById('email-verify-status');
+      var saveEmailBtn = document.getElementById('save-email-btn');
+      var verifyEmailBtn = document.getElementById('verify-email-btn');
+      
+      // Load email settings
+      function loadEmailSettings() {
+        AuthState.apiRequest('/api/settings')
+          .then(function(data) {
+            if (data.success) {
+              accountEmailInput.value = data.settings.email || '';
+              updateEmailStatus(data.settings.email, data.settings.email_verified);
+            }
+          });
+      }
+      
+      function updateEmailStatus(email, verified) {
+        if (!email) {
+          emailVerifyStatus.textContent = '';
+          emailVerifyStatus.style.display = 'none';
+          verifyEmailBtn.style.display = 'none';
+        } else if (verified) {
+          emailVerifyStatus.textContent = '✓ VERIFIED';
+          emailVerifyStatus.style.color = '#406040';
+          emailVerifyStatus.style.display = 'inline';
+          verifyEmailBtn.style.display = 'none';
+        } else {
+          emailVerifyStatus.textContent = 'NOT VERIFIED';
+          emailVerifyStatus.style.color = '#806040';
+          emailVerifyStatus.style.display = 'inline';
+          verifyEmailBtn.style.display = 'inline-block';
+        }
+      }
+      
+      // Save email
+      saveEmailBtn.addEventListener('click', function() {
+        var email = accountEmailInput.value.trim();
+        var btn = this;
+        
+        btn.disabled = true;
+        btn.textContent = 'SAVING...';
+        
+        AuthState.apiRequest('/api/settings', {
+          method: 'PUT',
+          body: JSON.stringify({ email: email || null })
+        })
+        .then(function(data) {
+          btn.disabled = false;
+          btn.textContent = 'SAVE EMAIL';
+          
+          if (data.success) {
+            Notify.show('EMAIL UPDATED', 'success');
+            updateEmailStatus(data.settings.email, data.settings.email_verified);
+          } else if (data.error === 'email_in_use') {
+            Notify.show('EMAIL ALREADY IN USE', 'error');
+          } else {
+            Notify.show(data.error || 'FAILED', 'error');
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'SAVE EMAIL';
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      });
+      
+      // Send verification email
+      verifyEmailBtn.addEventListener('click', function() {
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'SENDING...';
+        
+        AuthState.apiRequest('/api/settings/verify-email', {
+          method: 'POST'
+        })
+        .then(function(data) {
+          btn.disabled = false;
+          btn.textContent = 'SEND VERIFICATION';
+          
+          if (data.success) {
+            Notify.show('VERIFICATION EMAIL SENT', 'success');
+          } else {
+            Notify.show(data.error || 'FAILED', 'error');
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'SEND VERIFICATION';
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      });
 
       // Load subscriptions
       function loadSubscriptions() {
