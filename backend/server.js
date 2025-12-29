@@ -6068,11 +6068,12 @@ app.post('/api/users/:alias/follow', authMiddleware, async (req, res) => {
   const { alias } = req.params;
 
   try {
-    const target = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+    const target = await db.query('SELECT id, alias FROM users WHERE alias = $1', [alias]);
     if (target.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'user_not_found' });
     }
     const targetId = target.rows[0].id;
+    const targetAlias = target.rows[0].alias;
     
     if (targetId === userId) {
       return res.status(400).json({ success: false, error: 'cannot_follow_self' });
@@ -6084,17 +6085,68 @@ app.post('/api/users/:alias/follow', authMiddleware, async (req, res) => {
       [userId, targetId]
     );
 
+    let isFollowing = false;
     if (existing.rows.length > 0) {
       await db.query('DELETE FROM user_follows WHERE id = $1', [existing.rows[0].id]);
-      res.json({ success: true, following: false, action: 'unfollowed' });
+      isFollowing = false;
     } else {
       await db.query(
         'INSERT INTO user_follows (follower_id, following_id) VALUES ($1, $2)',
         [userId, targetId]
       );
-      res.json({ success: true, following: true, action: 'followed' });
+      isFollowing = true;
+      
+      // Notify the target user that someone followed them
+      notifyUserRealtime(targetId, {
+        type: 'new_follower',
+        message: `${req.user.alias} started following you`,
+        fromAlias: req.user.alias
+      });
     }
+    
+    // Get updated counts for target user
+    const targetFollowersCount = await db.query(
+      'SELECT COUNT(*) FROM user_follows WHERE following_id = $1', [targetId]
+    );
+    const targetFollowingCount = await db.query(
+      'SELECT COUNT(*) FROM user_follows WHERE follower_id = $1', [targetId]
+    );
+    
+    // Get updated counts for current user
+    const userFollowersCount = await db.query(
+      'SELECT COUNT(*) FROM user_follows WHERE following_id = $1', [userId]
+    );
+    const userFollowingCount = await db.query(
+      'SELECT COUNT(*) FROM user_follows WHERE follower_id = $1', [userId]
+    );
+    
+    // Send real-time update to target user's profile viewers
+    sendToUser(targetId, {
+      type: 'followUpdate',
+      alias: targetAlias,
+      followersCount: parseInt(targetFollowersCount.rows[0].count),
+      followingCount: parseInt(targetFollowingCount.rows[0].count)
+    });
+    
+    // Also broadcast to anyone viewing this profile
+    broadcast({
+      type: 'profileFollowUpdate',
+      alias: targetAlias,
+      followersCount: parseInt(targetFollowersCount.rows[0].count),
+      followingCount: parseInt(targetFollowingCount.rows[0].count)
+    });
+
+    res.json({ 
+      success: true, 
+      following: isFollowing, 
+      action: isFollowing ? 'followed' : 'unfollowed',
+      targetFollowersCount: parseInt(targetFollowersCount.rows[0].count),
+      targetFollowingCount: parseInt(targetFollowingCount.rows[0].count),
+      userFollowersCount: parseInt(userFollowersCount.rows[0].count),
+      userFollowingCount: parseInt(userFollowingCount.rows[0].count)
+    });
   } catch (err) {
+    console.error('Follow error:', err);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });

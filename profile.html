@@ -678,6 +678,14 @@
               isFollowing = data.following;
               updateFollowBtn();
               Notify.show(isFollowing ? 'NOW FOLLOWING' : 'UNFOLLOWED', 'info');
+              
+              // Update counts immediately from response
+              if (data.targetFollowersCount !== undefined) {
+                document.getElementById('stat-followers').textContent = data.targetFollowersCount;
+              }
+              if (data.targetFollowingCount !== undefined) {
+                document.getElementById('stat-following').textContent = data.targetFollowingCount;
+              }
             } else {
               Notify.show(data.error || 'ERROR', 'error');
             }
@@ -1295,6 +1303,37 @@
         showFollowersSection('following');
         followersSection.scrollIntoView({ behavior: 'smooth' });
       });
+
+      // WebSocket listener for live follower/following updates
+      if (typeof ForumWS !== 'undefined') {
+        ForumWS.on('profileFollowUpdate', function(data) {
+          var viewingAlias = getAliasFromUrl() || profileAlias.textContent;
+          if (data.alias && data.alias.toLowerCase() === viewingAlias.toLowerCase()) {
+            // Update the counts
+            document.getElementById('stat-followers').textContent = data.followersCount;
+            document.getElementById('stat-following').textContent = data.followingCount;
+            
+            // Refresh the followers/following list if currently visible
+            if (followersSection && !followersSection.classList.contains('hidden')) {
+              var activeTab = followersSection.querySelector('.followers-tab.active');
+              if (activeTab) {
+                var type = activeTab.getAttribute('data-type');
+                if (type) {
+                  showFollowersSection(type);
+                }
+              }
+            }
+          }
+        });
+        
+        ForumWS.on('followUpdate', function(data) {
+          var viewingAlias = getAliasFromUrl() || profileAlias.textContent;
+          if (data.alias && data.alias.toLowerCase() === viewingAlias.toLowerCase()) {
+            document.getElementById('stat-followers').textContent = data.followersCount;
+            document.getElementById('stat-following').textContent = data.followingCount;
+          }
+        });
+      }
 
       init();
     })();
