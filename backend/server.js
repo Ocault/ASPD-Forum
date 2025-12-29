@@ -3673,7 +3673,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     let entriesQuery = `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
               COALESCE(u.avatar_config, e.avatar_config) AS avatar_config,
               u.signature, u.reputation, u.custom_title, u.epithet, u.is_admin, u.role,
-              e.created_at, e.edited_at, e.is_ghost, e.ghost_alias,
+              e.created_at, e.edited_at, e.is_ghost, e.ghost_alias, e.mood, e.vault_level,
               (SELECT COUNT(*) FROM entries WHERE user_id = e.user_id AND is_deleted = FALSE) AS post_count,
               LENGTH(e.content) > $2 AS "exceedsCharLimit"
        FROM entries e
@@ -3745,10 +3745,14 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     
     // Check if the requesting user is a mod/admin (can see real identity behind ghost posts)
     let isMod = false;
+    let userReputation = 0;
+    let userRole = null;
     if (userId) {
-      const modCheck = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+      const modCheck = await db.query('SELECT role, reputation FROM users WHERE id = $1', [userId]);
       if (modCheck.rows.length > 0) {
         const role = modCheck.rows[0].role;
+        userRole = role;
+        userReputation = modCheck.rows[0].reputation || 0;
         isMod = role === 'owner' || role === 'admin' || role === 'moderator';
       }
     }
@@ -3787,10 +3791,38 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
         displayEntry.ghost_mode_visible = true; // Flag for mods to see it's a ghost post
       }
       
+      // Check vault level access
+      const vaultLevel = entry.vault_level;
+      let canAccessVault = true;
+      let isVaultLocked = false;
+      
+      if (vaultLevel !== null && vaultLevel > 0) {
+        // Mods/admins can always see vault posts
+        if (isMod) {
+          canAccessVault = true;
+        } else if (!userId) {
+          // Not logged in - can't access vault
+          canAccessVault = false;
+        } else {
+          // Check reputation requirement
+          canAccessVault = userReputation >= vaultLevel;
+        }
+        isVaultLocked = !canAccessVault;
+      }
+      
+      // If vault locked, hide content but show that it exists
+      if (isVaultLocked) {
+        displayEntry.content = null;
+        displayEntry.vault_locked = true;
+        displayEntry.vault_required = vaultLevel;
+      }
+      
       return {
         ...displayEntry,
         rank: rank,
         is_ghost: isGhost,
+        mood: entry.mood,
+        vault_level: vaultLevel,
         reactions: reactionsMap[entry.id] || {},
         score: votesMap[entry.id] || 0,
         userVote: userVotesMap[entry.id] || 0
@@ -3884,7 +3916,7 @@ const entriesLimiter = rateLimit({
 
 // API: Create entry (authenticated posting)
 app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, entriesLimiter, async (req, res) => {
-  const { threadId, thread_id, content, alias, avatar_config, isGhost } = req.body;
+  const { threadId, thread_id, content, alias, avatar_config, isGhost, mood, vaultLevel } = req.body;
   const userId = req.user.userId;
   const userAlias = req.user.alias;
   
@@ -3893,6 +3925,18 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
 
   if (!threadIdentifier || !content) {
     return res.status(400).json({ success: false, error: 'missing_fields' });
+  }
+  
+  // Validate mood (required)
+  const validMoods = ['angry', 'anxious', 'neutral', 'good'];
+  if (!mood || !validMoods.includes(mood)) {
+    return res.status(400).json({ success: false, error: 'invalid_mood', message: 'Please select your current mood before posting' });
+  }
+  
+  // Validate vault level (optional: null = public, number = minimum reputation required)
+  const parsedVaultLevel = vaultLevel ? parseInt(vaultLevel) : null;
+  if (parsedVaultLevel !== null && (isNaN(parsedVaultLevel) || parsedVaultLevel < 0)) {
+    return res.status(400).json({ success: false, error: 'invalid_vault_level' });
   }
 
   const clientIp = getClientIp(req);
@@ -3967,10 +4011,10 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
     const ghostAlias = useGhostMode ? `GHOST-${crypto.randomBytes(2).toString('hex').toUpperCase()}` : null;
 
     const insertResult = await db.query(
-      `INSERT INTO entries (thread_id, content, alias, avatar_config, user_id, ip_hash, shadow_banned, is_ghost, ghost_alias)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id, thread_id AS "threadId", content, alias, avatar_config AS "avatarConfig", created_at AS "createdAt", user_id, is_ghost, ghost_alias`,
-      [threadDbId, filteredContent, entryAlias, avatar_config || null, userId, ipHash, isShadowBanned, useGhostMode, ghostAlias]
+      `INSERT INTO entries (thread_id, content, alias, avatar_config, user_id, ip_hash, shadow_banned, is_ghost, ghost_alias, mood, vault_level)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, thread_id AS "threadId", content, alias, avatar_config AS "avatarConfig", created_at AS "createdAt", user_id, is_ghost, ghost_alias, mood, vault_level`,
+      [threadDbId, filteredContent, entryAlias, avatar_config || null, userId, ipHash, isShadowBanned, useGhostMode, ghostAlias, mood, parsedVaultLevel]
     );
     
     // For the response, use ghost alias if in ghost mode
@@ -8378,6 +8422,8 @@ async function migrate() {
       ALTER TABLE entries ADD COLUMN IF NOT EXISTS deleted_by INTEGER REFERENCES users(id);
       ALTER TABLE entries ADD COLUMN IF NOT EXISTS is_ghost BOOLEAN DEFAULT FALSE;
       ALTER TABLE entries ADD COLUMN IF NOT EXISTS ghost_alias VARCHAR(20);
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS mood VARCHAR(20) DEFAULT 'neutral';
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS vault_level INTEGER DEFAULT NULL;
       
       CREATE TABLE IF NOT EXISTS audit_log (
         id SERIAL PRIMARY KEY,

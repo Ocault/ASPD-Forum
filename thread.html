@@ -113,11 +113,48 @@
           </div>
         </div>
         <div class="reply-actions">
-          <label class="ghost-toggle" id="ghost-toggle-container" title="Post without revealing your identity">
-            <input type="checkbox" id="ghost-mode-toggle">
-            <span class="ghost-toggle-icon">[?]</span>
-            <span class="ghost-toggle-label">ANONYMOUS</span>
-          </label>
+          <div class="reply-options">
+            <div class="mood-selector" id="mood-selector">
+              <span class="mood-label">MOOD</span>
+              <div class="mood-options">
+                <label class="mood-option" title="Angry">
+                  <input type="radio" name="post-mood" value="angry">
+                  <span class="mood-icon mood-angry">!</span>
+                </label>
+                <label class="mood-option" title="Anxious">
+                  <input type="radio" name="post-mood" value="anxious">
+                  <span class="mood-icon mood-anxious">~</span>
+                </label>
+                <label class="mood-option" title="Neutral">
+                  <input type="radio" name="post-mood" value="neutral" checked>
+                  <span class="mood-icon mood-neutral">-</span>
+                </label>
+                <label class="mood-option" title="Good">
+                  <input type="radio" name="post-mood" value="good">
+                  <span class="mood-icon mood-good">+</span>
+                </label>
+              </div>
+            </div>
+            <label class="ghost-toggle" id="ghost-toggle-container" title="Post without revealing your identity">
+              <input type="checkbox" id="ghost-mode-toggle">
+              <span class="ghost-toggle-icon">[?]</span>
+              <span class="ghost-toggle-label">ANONYMOUS</span>
+            </label>
+            <div class="vault-selector" id="vault-selector">
+              <label class="vault-toggle" title="Restrict post visibility by reputation">
+                <input type="checkbox" id="vault-mode-toggle">
+                <span class="vault-toggle-icon">[V]</span>
+                <span class="vault-toggle-label">VAULT</span>
+              </label>
+              <select id="vault-level" class="vault-level-select" disabled>
+                <option value="">PUBLIC</option>
+                <option value="10">10+ REP</option>
+                <option value="25">25+ REP</option>
+                <option value="50">50+ REP</option>
+                <option value="100">100+ REP</option>
+              </select>
+            </div>
+          </div>
           <button type="submit" class="reply-submit" aria-label="Submit reply">TRANSMIT</button>
         </div>
       </form>
@@ -1590,10 +1627,34 @@
         }
       });
       
+      // Vault mode toggle
+      var vaultModeToggle = document.getElementById('vault-mode-toggle');
+      var vaultToggleContainer = vaultModeToggle.parentElement;
+      var vaultLevelSelect = document.getElementById('vault-level');
+      
+      vaultModeToggle.addEventListener('change', function() {
+        if (this.checked) {
+          vaultToggleContainer.classList.add('active');
+          vaultLevelSelect.disabled = false;
+          vaultLevelSelect.value = '10'; // Default to 10+ rep
+        } else {
+          vaultToggleContainer.classList.remove('active');
+          vaultLevelSelect.disabled = true;
+          vaultLevelSelect.value = '';
+        }
+      });
+      
       replyForm.addEventListener('submit', function(e) {
         e.preventDefault();
         var content = replyContent.value.trim();
         if (!content) return;
+        
+        // Get selected mood
+        var selectedMood = document.querySelector('input[name="post-mood"]:checked');
+        var mood = selectedMood ? selectedMood.value : 'neutral';
+        
+        // Get vault level
+        var vaultLevel = vaultModeToggle.checked ? vaultLevelSelect.value : null;
         
         // Stop typing indicator on submit
         if (isTyping && currentSignalId && ForumWS.isConnected()) {
@@ -1612,7 +1673,9 @@
           body: JSON.stringify({
             threadId: parseInt(currentSignalId),
             content: content,
-            isGhost: isGhostMode
+            isGhost: isGhostMode,
+            mood: mood,
+            vaultLevel: vaultLevel
           })
         })
         .then(function(data) {
@@ -1622,6 +1685,12 @@
             draftIndicator.style.display = 'none';
             ghostModeToggle.checked = false;
             ghostToggleContainer.classList.remove('active');
+            vaultModeToggle.checked = false;
+            vaultToggleContainer.classList.remove('active');
+            vaultLevelSelect.disabled = true;
+            vaultLevelSelect.value = '';
+            // Reset mood to neutral
+            document.querySelector('input[name="post-mood"][value="neutral"]').checked = true;
             replyContent.placeholder = 'ENTER YOUR RESPONSE... (Markdown supported: **bold**, *italic*, `code`, > quote)';
             Notify.show(isGhostMode ? 'ANONYMOUS ENTRY RECORDED' : 'ENTRY RECORDED', 'info');
             // Reload entries

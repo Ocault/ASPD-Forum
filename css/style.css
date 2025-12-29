@@ -1167,6 +1167,80 @@ ul {
   font-style: normal;
 }
 
+/* Mood Indicators on Posts */
+.mood-indicator {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: bold;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  border: 1px solid var(--border-color);
+  cursor: help;
+}
+
+.mood-indicator.mood-angry {
+  background: rgba(180, 80, 80, 0.15);
+  border-color: rgba(180, 80, 80, 0.4);
+  color: #b45050;
+}
+
+.mood-indicator.mood-anxious {
+  background: rgba(180, 150, 80, 0.15);
+  border-color: rgba(180, 150, 80, 0.4);
+  color: #b49650;
+}
+
+.mood-indicator.mood-neutral {
+  background: rgba(120, 120, 120, 0.15);
+  border-color: rgba(120, 120, 120, 0.4);
+  color: #888;
+}
+
+.mood-indicator.mood-good {
+  background: rgba(80, 150, 80, 0.15);
+  border-color: rgba(80, 150, 80, 0.4);
+  color: #509650;
+}
+
+/* Vault Posts */
+.vault-indicator {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  margin-left: 6px;
+  padding: 2px 6px;
+  background: rgba(100, 80, 140, 0.15);
+  border: 1px solid rgba(100, 80, 140, 0.4);
+  color: #8070a0;
+  cursor: help;
+}
+
+.entry.vault-post {
+  border-left: 2px solid rgba(100, 80, 140, 0.4);
+}
+
+.entry.vault-locked {
+  opacity: 0.7;
+}
+
+.entry.vault-locked .entry-content {
+  filter: blur(0);
+}
+
+.vault-locked-message {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: var(--spacing-md);
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  text-align: center;
+}
+
 /* Avatar - Hidden by default, shows on hover */
 .entry-avatar {
   position: relative;
@@ -1972,6 +2046,181 @@ ul {
 .ghost-toggle.active .ghost-toggle-icon,
 .ghost-toggle.active .ghost-toggle-label {
   color: var(--text-primary);
+}
+
+/* Reply Options Row */
+.reply-options {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+/* Mood Selector */
+.mood-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mood-label {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.mood-options {
+  display: flex;
+  gap: 2px;
+}
+
+.mood-option {
+  cursor: pointer;
+}
+
+.mood-option input[type="radio"] {
+  display: none;
+}
+
+.mood-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: bold;
+  border: 1px solid var(--border-color);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  transition: all 0.15s ease;
+}
+
+.mood-option:hover .mood-icon {
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
+}
+
+.mood-option input:checked + .mood-icon {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.mood-icon.mood-angry {
+  color: var(--text-muted);
+}
+.mood-option input:checked + .mood-icon.mood-angry {
+  background: rgba(180, 80, 80, 0.15);
+  border-color: rgba(180, 80, 80, 0.5);
+  color: #b45050;
+}
+
+.mood-icon.mood-anxious {
+  color: var(--text-muted);
+}
+.mood-option input:checked + .mood-icon.mood-anxious {
+  background: rgba(180, 150, 80, 0.15);
+  border-color: rgba(180, 150, 80, 0.5);
+  color: #b49650;
+}
+
+.mood-icon.mood-neutral {
+  color: var(--text-muted);
+}
+.mood-option input:checked + .mood-icon.mood-neutral {
+  background: rgba(120, 120, 120, 0.15);
+  border-color: rgba(120, 120, 120, 0.5);
+  color: #888;
+}
+
+.mood-icon.mood-good {
+  color: var(--text-muted);
+}
+.mood-option input:checked + .mood-icon.mood-good {
+  background: rgba(80, 150, 80, 0.15);
+  border-color: rgba(80, 150, 80, 0.5);
+  color: #509650;
+}
+
+/* Vault Selector */
+.vault-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vault-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-panel);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.vault-toggle input[type="checkbox"] {
+  display: none;
+}
+
+.vault-toggle-icon {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  transition: all 0.15s ease;
+}
+
+.vault-toggle-label {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  transition: all 0.15s ease;
+}
+
+.vault-toggle:hover {
+  border-color: var(--border-hover);
+}
+
+.vault-toggle:hover .vault-toggle-icon,
+.vault-toggle:hover .vault-toggle-label {
+  color: var(--text-secondary);
+}
+
+.vault-toggle.active {
+  border-color: var(--text-secondary);
+  background: var(--bg-secondary);
+}
+
+.vault-toggle.active .vault-toggle-icon,
+.vault-toggle.active .vault-toggle-label {
+  color: var(--text-primary);
+}
+
+.vault-level-select {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vault-level-select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vault-level-select:not(:disabled):hover {
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
 }
 
 /* Reply editor with preview */
