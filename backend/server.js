@@ -230,30 +230,30 @@ async function sendNotificationEmail(userId, type, title, preview, link) {
     if (type === 'mention' && !user.notification_mentions) return;
     if (type === 'private_message' && !user.notification_messages) return;
     
-    const siteUrl = 'https://www.aspdforum.com';
+    const siteUrl = process.env.SITE_URL || 'https://www.aspdforum.com';
     const fullLink = link.startsWith('http') ? link : `${siteUrl}/${link}`;
     
     const emailHtml = `
       <div style="background: #0a0a0a; padding: 40px 20px; font-family: 'Courier New', monospace;">
-        <div style="max-width: 500px; margin: 0 auto; background: #0f0f0f; border: 1px solid #1a1a1a; padding: 30px;">
+        <div style="max-width: 500px; margin: 0 auto; background: #0a0a0a; border: 1px solid #1a1a1a; padding: 30px;">
           <div style="text-align: center; margin-bottom: 20px;">
-            <svg width="40" height="40" viewBox="0 0 100 100" style="opacity: 0.15;">
-              <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="none" stroke="#404040" stroke-width="2"/>
+            <svg width="40" height="40" viewBox="0 0 100 100" style="opacity: 0.4;">
+              <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="none" stroke="#4a4a4a" stroke-width="2"/>
             </svg>
           </div>
-          <h2 style="color: #606060; font-size: 14px; text-align: center; letter-spacing: 0.1em; margin: 0 0 20px;">
+          <h2 style="color: #9a9a9a; font-size: 14px; text-align: center; letter-spacing: 0.1em; margin: 0 0 20px;">
             ${title}
           </h2>
-          <p style="color: #404040; font-size: 12px; line-height: 1.6; margin: 0 0 20px;">
+          <p style="color: #7a7a7a; font-size: 12px; line-height: 1.6; margin: 0 0 20px;">
             ${preview.substring(0, 200)}${preview.length > 200 ? '...' : ''}
           </p>
           <div style="text-align: center;">
-            <a href="${fullLink}" style="display: inline-block; padding: 10px 20px; background: #1a1a1a; border: 1px solid #303030; color: #606060; text-decoration: none; font-size: 11px; letter-spacing: 0.1em;">
+            <a href="${fullLink}" style="display: inline-block; padding: 12px 24px; background: #151515; border: 1px solid #2a2a2a; color: #9a9a9a; text-decoration: none; font-size: 11px; letter-spacing: 0.15em;">
               VIEW ON FORUM
             </a>
           </div>
-          <p style="color: #303030; font-size: 10px; text-align: center; margin-top: 30px;">
-            You can manage your notification settings in your <a href="${siteUrl}/profile.html" style="color: #404040;">profile</a>.
+          <p style="color: #5a5a5a; font-size: 10px; text-align: center; margin-top: 30px;">
+            You can manage your notification settings in your <a href="${siteUrl}/profile.html" style="color: #7a7a7a;">profile</a>.
           </p>
         </div>
       </div>
@@ -930,41 +930,41 @@ app.post('/api/auth/forgot-password', authRateLimiter, async (req, res) => {
       email,
       'Password Reset — ASPD Forum',
       `
-        <div style="font-family: 'Courier New', monospace; background: #050505; max-width: 480px; margin: 0 auto;">
-          <div style="border: 1px solid #111111; padding: 40px;">
+        <div style="font-family: 'Courier New', monospace; background: #0a0a0a; max-width: 480px; margin: 0 auto;">
+          <div style="border: 1px solid #1a1a1a; padding: 40px; background: #0a0a0a;">
             <!-- Sigil Header -->
-            <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #0d0d0d;">
+            <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #1a1a1a;">
               <div style="display: inline-block; width: 48px; height: 48px; margin-bottom: 16px; position: relative;">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" style="width: 48px; height: 48px; opacity: 0.15;">
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="#ffffff" stroke-width="1"/>
-                  <circle cx="50" cy="50" r="6" fill="#ffffff"/>
-                  <circle cx="50" cy="50" r="18" fill="none" stroke="#ffffff" stroke-width="0.5"/>
-                  <circle cx="50" cy="50" r="30" fill="none" stroke="#ffffff" stroke-width="0.5"/>
-                  <line x1="50" y1="5" x2="50" y2="20" stroke="#ffffff" stroke-width="1"/>
-                  <line x1="50" y1="80" x2="50" y2="95" stroke="#ffffff" stroke-width="1"/>
-                  <line x1="5" y1="50" x2="20" y2="50" stroke="#ffffff" stroke-width="1"/>
-                  <line x1="80" y1="50" x2="95" y2="50" stroke="#ffffff" stroke-width="1"/>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" style="width: 48px; height: 48px; opacity: 0.4;">
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="#4a4a4a" stroke-width="1"/>
+                  <circle cx="50" cy="50" r="6" fill="#4a4a4a"/>
+                  <circle cx="50" cy="50" r="18" fill="none" stroke="#4a4a4a" stroke-width="0.5"/>
+                  <circle cx="50" cy="50" r="30" fill="none" stroke="#4a4a4a" stroke-width="0.5"/>
+                  <line x1="50" y1="5" x2="50" y2="20" stroke="#4a4a4a" stroke-width="1"/>
+                  <line x1="50" y1="80" x2="50" y2="95" stroke="#4a4a4a" stroke-width="1"/>
+                  <line x1="5" y1="50" x2="20" y2="50" stroke="#4a4a4a" stroke-width="1"/>
+                  <line x1="80" y1="50" x2="95" y2="50" stroke="#4a4a4a" stroke-width="1"/>
                 </svg>
               </div>
-              <div style="font-size: 10px; letter-spacing: 0.4em; color: #1a1a1a; text-transform: uppercase;">ASPD FORUM</div>
+              <div style="font-size: 10px; letter-spacing: 0.4em; color: #5a5a5a; text-transform: uppercase;">ASPD FORUM</div>
             </div>
             
             <!-- Content -->
-            <div style="color: #2a2a2a; font-size: 12px; line-height: 1.8;">
-              <p style="margin: 0 0 16px 0;">Hello <span style="color: #3a3a3a;">${user.alias}</span>,</p>
+            <div style="color: #8a8a8a; font-size: 13px; line-height: 1.8;">
+              <p style="margin: 0 0 16px 0;">Hello <span style="color: #a0a0a0;">${user.alias}</span>,</p>
               <p style="margin: 0 0 24px 0;">A password reset was requested for your account.</p>
               
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${resetUrl}" style="display: inline-block; padding: 12px 28px; background: #0a0a0a; color: #3a3a3a; text-decoration: none; border: 1px solid #1a1a1a; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;">RESET PASSWORD</a>
+                <a href="${resetUrl}" style="display: inline-block; padding: 14px 32px; background: #151515; color: #9a9a9a; text-decoration: none; border: 1px solid #2a2a2a; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;">RESET PASSWORD</a>
               </div>
               
-              <p style="margin: 24px 0 0 0; font-size: 10px; color: #1a1a1a;">This link expires in 1 hour.</p>
-              <p style="margin: 6px 0 0 0; font-size: 10px; color: #1a1a1a;">If you didn't request this, ignore this email.</p>
+              <p style="margin: 24px 0 0 0; font-size: 11px; color: #5a5a5a;">This link expires in 1 hour.</p>
+              <p style="margin: 6px 0 0 0; font-size: 11px; color: #5a5a5a;">If you didn't request this, ignore this email.</p>
             </div>
             
             <!-- Footer -->
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #0d0d0d; text-align: center;">
-              <div style="font-size: 9px; letter-spacing: 0.3em; color: #151515;">ASPDFORUM.COM</div>
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #1a1a1a; text-align: center;">
+              <div style="font-size: 9px; letter-spacing: 0.3em; color: #4a4a4a;">ASPDFORUM.COM</div>
             </div>
           </div>
         </div>
@@ -1787,7 +1787,7 @@ app.get('/api/settings/2fa', authMiddleware, async (req, res) => {
 // Generate 2FA secret (setup)
 app.post('/api/settings/2fa/setup', authMiddleware, async (req, res) => {
   // Check if 2FA modules are available
-  if (!speakeasy || !QRCode) {
+  if (!speakeasy || !qrcode) {
     return res.status(503).json({ success: false, error: '2fa_not_available', message: '2FA is not available on this server' });
   }
   
@@ -1814,7 +1814,7 @@ app.post('/api/settings/2fa/setup', authMiddleware, async (req, res) => {
     );
     
     // Generate QR code
-    const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
+    const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
     
     res.json({ 
       success: true, 
@@ -2060,45 +2060,46 @@ app.post('/api/settings/verify-email', authMiddleware, async (req, res) => {
     );
     
     // Send verification email
-    const verifyUrl = `https://www.aspdforum.com/verify-email.html?token=${token}`;
+    const siteUrl = process.env.SITE_URL || 'https://www.aspdforum.com';
+    const verifyUrl = `${siteUrl}/verify-email.html?token=${token}`;
     const emailSent = await sendEmail(
       email,
       'Verify Email — ASPD Forum',
       `
-        <div style="font-family: 'Courier New', monospace; background: #050505; max-width: 480px; margin: 0 auto;">
-          <div style="border: 1px solid #111111; padding: 40px;">
+        <div style="font-family: 'Courier New', monospace; background: #0a0a0a; max-width: 480px; margin: 0 auto;">
+          <div style="border: 1px solid #1a1a1a; padding: 40px; background: #0a0a0a;">
             <!-- Sigil Header -->
-            <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #0d0d0d;">
+            <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #1a1a1a;">
               <div style="display: inline-block; width: 48px; height: 48px; margin-bottom: 16px; position: relative;">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" style="width: 48px; height: 48px; opacity: 0.15;">
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="#ffffff" stroke-width="1"/>
-                  <circle cx="50" cy="50" r="6" fill="#ffffff"/>
-                  <circle cx="50" cy="50" r="18" fill="none" stroke="#ffffff" stroke-width="0.5"/>
-                  <circle cx="50" cy="50" r="30" fill="none" stroke="#ffffff" stroke-width="0.5"/>
-                  <line x1="50" y1="5" x2="50" y2="20" stroke="#ffffff" stroke-width="1"/>
-                  <line x1="50" y1="80" x2="50" y2="95" stroke="#ffffff" stroke-width="1"/>
-                  <line x1="5" y1="50" x2="20" y2="50" stroke="#ffffff" stroke-width="1"/>
-                  <line x1="80" y1="50" x2="95" y2="50" stroke="#ffffff" stroke-width="1"/>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" style="width: 48px; height: 48px; opacity: 0.4;">
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="#4a4a4a" stroke-width="1"/>
+                  <circle cx="50" cy="50" r="6" fill="#4a4a4a"/>
+                  <circle cx="50" cy="50" r="18" fill="none" stroke="#4a4a4a" stroke-width="0.5"/>
+                  <circle cx="50" cy="50" r="30" fill="none" stroke="#4a4a4a" stroke-width="0.5"/>
+                  <line x1="50" y1="5" x2="50" y2="20" stroke="#4a4a4a" stroke-width="1"/>
+                  <line x1="50" y1="80" x2="50" y2="95" stroke="#4a4a4a" stroke-width="1"/>
+                  <line x1="5" y1="50" x2="20" y2="50" stroke="#4a4a4a" stroke-width="1"/>
+                  <line x1="80" y1="50" x2="95" y2="50" stroke="#4a4a4a" stroke-width="1"/>
                 </svg>
               </div>
-              <div style="font-size: 10px; letter-spacing: 0.4em; color: #1a1a1a; text-transform: uppercase;">ASPD FORUM</div>
+              <div style="font-size: 10px; letter-spacing: 0.4em; color: #5a5a5a; text-transform: uppercase;">ASPD FORUM</div>
             </div>
             
             <!-- Content -->
-            <div style="color: #2a2a2a; font-size: 12px; line-height: 1.8;">
+            <div style="color: #8a8a8a; font-size: 13px; line-height: 1.8;">
               <p style="margin: 0 0 24px 0;">Verify your email address to enable password recovery and notifications.</p>
               
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${verifyUrl}" style="display: inline-block; padding: 12px 28px; background: #0a0a0a; color: #3a3a3a; text-decoration: none; border: 1px solid #1a1a1a; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;">VERIFY EMAIL</a>
+                <a href="${verifyUrl}" style="display: inline-block; padding: 14px 32px; background: #151515; color: #9a9a9a; text-decoration: none; border: 1px solid #2a2a2a; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;">VERIFY EMAIL</a>
               </div>
               
-              <p style="margin: 24px 0 0 0; font-size: 10px; color: #1a1a1a;">This link expires in 24 hours.</p>
-              <p style="margin: 6px 0 0 0; font-size: 10px; color: #1a1a1a;">If you didn't request this, ignore this email.</p>
+              <p style="margin: 24px 0 0 0; font-size: 11px; color: #5a5a5a;">This link expires in 24 hours.</p>
+              <p style="margin: 6px 0 0 0; font-size: 11px; color: #5a5a5a;">If you didn't request this, ignore this email.</p>
             </div>
             
             <!-- Footer -->
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #0d0d0d; text-align: center;">
-              <div style="font-size: 9px; letter-spacing: 0.3em; color: #151515;">ASPDFORUM.COM</div>
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #1a1a1a; text-align: center;">
+              <div style="font-size: 9px; letter-spacing: 0.3em; color: #4a4a4a;">ASPDFORUM.COM</div>
             </div>
           </div>
         </div>

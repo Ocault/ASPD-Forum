@@ -7088,22 +7088,7 @@ img.loaded {
   --border-hover: #353560;
 }
 
-/* Light mode adjustments for new themes */
-[data-theme="light"] {
-  --bg-primary: #f5f5f5;
-  --bg-secondary: #ebebeb;
-  --bg-panel: #ffffff;
-  --text-primary: #1a1a1a;
-  --text-secondary: #555555;
-  --text-muted: #888888;
-  --border-color: #d0d0d0;
-  --border-hover: #b0b0b0;
-}
-
-[data-theme="light"] .noise {
-  opacity: 0.015;
-}
-
+/* Light mode op-badge adjustment */
 [data-theme="light"] .op-badge {
   color: var(--bg-panel);
   background: var(--text-secondary);
