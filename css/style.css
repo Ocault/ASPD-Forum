@@ -1002,7 +1002,7 @@ ul {
 
 .presence-count {
   font-family: var(--font-mono);
-  font-size: 0.5rem;
+  font-size: 0.45rem;
   letter-spacing: 0.08em;
   color: var(--text-muted);
   margin-left: 4px;
@@ -1938,7 +1938,7 @@ ul {
 
 .ghost-toggle-icon {
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: 0.55rem;
   color: var(--text-muted);
   opacity: 0.6;
   transition: all 0.2s ease;
@@ -1946,7 +1946,7 @@ ul {
 
 .ghost-toggle-label {
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: 0.5rem;
   letter-spacing: 0.1em;
   color: var(--text-muted);
   transition: all 0.2s ease;
