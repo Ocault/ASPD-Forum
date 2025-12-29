@@ -383,6 +383,28 @@
       </div>
     </section>
     
+    <!-- Active Sessions Section -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">Active Sessions</h2>
+      <p class="settings-toggle-desc" style="margin-bottom: 1rem;">Manage devices where you're logged in. Revoke access if you notice suspicious activity.</p>
+      <div id="sessions-list" style="margin-bottom: 1rem;">
+        <div class="empty-state" style="color: #404040; font-size: 0.8rem;">Loading...</div>
+      </div>
+      <div style="display: flex; gap: 0.5rem;">
+        <button id="refresh-sessions-btn" class="settings-btn">Refresh</button>
+        <button id="logout-all-btn" class="settings-btn danger">Logout All Devices</button>
+      </div>
+    </section>
+    
+    <!-- Thread Subscriptions Section -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">Thread Subscriptions</h2>
+      <p class="settings-toggle-desc" style="margin-bottom: 1rem;">Threads you're subscribed to for notifications.</p>
+      <div id="subscriptions-list">
+        <div class="empty-state" style="color: #404040; font-size: 0.8rem;">Loading...</div>
+      </div>
+    </section>
+    
     <!-- Danger Zone -->
     <section class="settings-section delete-section">
       <h2 class="settings-section-title" style="color: #604040;">Danger Zone</h2>
@@ -929,6 +951,167 @@
             }
           });
       }
+      
+      // ========================================
+      // SESSION MANAGEMENT
+      // ========================================
+      
+      var sessionsList = document.getElementById('sessions-list');
+      var refreshSessionsBtn = document.getElementById('refresh-sessions-btn');
+      var logoutAllBtn = document.getElementById('logout-all-btn');
+      
+      function loadSessions() {
+        sessionsList.innerHTML = '<div style="color: #404040; font-size: 0.8rem;">Loading...</div>';
+        
+        fetch(AuthState.API_BASE + '/api/settings/sessions', { headers: headers })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data.success && data.sessions && data.sessions.length > 0) {
+              sessionsList.innerHTML = data.sessions.map(function(session) {
+                var created = new Date(session.createdAt);
+                var expires = new Date(session.expiresAt);
+                var timeAgo = getTimeAgo(created);
+                var currentTag = session.isCurrent ? ' <span style="color: #406040; font-weight: bold;">(CURRENT)</span>' : '';
+                
+                return '<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid #1a1a1a; margin-bottom: 0.5rem; background: #0d0d0d;">' +
+                  '<div>' +
+                    '<div style="font-size: 0.8rem; color: #606060;">Session started ' + timeAgo + currentTag + '</div>' +
+                    '<div style="font-size: 0.7rem; color: #404040;">Expires: ' + expires.toLocaleDateString() + '</div>' +
+                  '</div>' +
+                  (session.isCurrent ? '' : '<button class="settings-btn danger revoke-session-btn" data-id="' + session.id + '" style="padding: 0.25rem 0.5rem; font-size: 0.65rem;">REVOKE</button>') +
+                '</div>';
+              }).join('');
+              
+              // Add revoke handlers
+              sessionsList.querySelectorAll('.revoke-session-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                  var sessionId = this.getAttribute('data-id');
+                  revokeSession(sessionId);
+                });
+              });
+            } else {
+              sessionsList.innerHTML = '<div style="color: #404040; font-size: 0.8rem;">No active sessions</div>';
+            }
+          })
+          .catch(function() {
+            sessionsList.innerHTML = '<div style="color: #604040; font-size: 0.8rem;">Failed to load sessions</div>';
+          });
+      }
+      
+      function getTimeAgo(date) {
+        var seconds = Math.floor((new Date() - date) / 1000);
+        if (seconds < 60) return 'just now';
+        var minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return minutes + ' min ago';
+        var hours = Math.floor(minutes / 60);
+        if (hours < 24) return hours + ' hour' + (hours > 1 ? 's' : '') + ' ago';
+        var days = Math.floor(hours / 24);
+        return days + ' day' + (days > 1 ? 's' : '') + ' ago';
+      }
+      
+      function revokeSession(sessionId) {
+        fetch(AuthState.API_BASE + '/api/settings/sessions/' + sessionId, {
+          method: 'DELETE',
+          headers: headers
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success) {
+            Notify.show('SESSION REVOKED', 'success');
+            loadSessions();
+          } else {
+            Notify.show(data.error || 'FAILED', 'error');
+          }
+        })
+        .catch(function() {
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      }
+      
+      refreshSessionsBtn.addEventListener('click', loadSessions);
+      
+      logoutAllBtn.addEventListener('click', function() {
+        if (!confirm('This will log you out of all other devices. Continue?')) return;
+        
+        fetch(AuthState.API_BASE + '/api/settings/sessions/logout-all', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({})
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success) {
+            Notify.show('ALL OTHER SESSIONS LOGGED OUT', 'success');
+            loadSessions();
+          } else {
+            Notify.show(data.error || 'FAILED', 'error');
+          }
+        })
+        .catch(function() {
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      });
+      
+      // Load sessions on page load
+      loadSessions();
+      
+      // ========================================
+      // THREAD SUBSCRIPTIONS
+      // ========================================
+      
+      var subscriptionsList = document.getElementById('subscriptions-list');
+      
+      function loadSubscriptions() {
+        subscriptionsList.innerHTML = '<div style="color: #404040; font-size: 0.8rem;">Loading...</div>';
+        
+        fetch(AuthState.API_BASE + '/api/my/subscriptions', { headers: headers })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data.success && data.subscriptions && data.subscriptions.length > 0) {
+              subscriptionsList.innerHTML = data.subscriptions.map(function(sub) {
+                return '<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid #1a1a1a; margin-bottom: 0.5rem; background: #0d0d0d;">' +
+                  '<div>' +
+                    '<a href="thread.html?id=' + sub.thread_id + '" style="font-size: 0.8rem; color: #606060; text-decoration: none;">' + escapeHtml(sub.title) + '</a>' +
+                    '<div style="font-size: 0.7rem; color: #404040;">in ' + escapeHtml(sub.room_slug) + '</div>' +
+                  '</div>' +
+                  '<button class="settings-btn unsub-btn" data-thread="' + sub.thread_id + '" style="padding: 0.25rem 0.5rem; font-size: 0.65rem;">UNSUBSCRIBE</button>' +
+                '</div>';
+              }).join('');
+
+              // Add unsubscribe handlers
+              subscriptionsList.querySelectorAll('.unsub-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                  var threadId = this.getAttribute('data-thread');
+                  fetch(AuthState.API_BASE + '/api/threads/' + threadId + '/subscribe', {
+                    method: 'DELETE',
+                    headers: headers
+                  })
+                  .then(function(res) { return res.json(); })
+                  .then(function(data) {
+                    if (data.success) {
+                      loadSubscriptions();
+                      Notify.show('UNSUBSCRIBED', 'info');
+                    }
+                  });
+                });
+              });
+            } else {
+              subscriptionsList.innerHTML = '<div style="color: #404040; font-size: 0.8rem;">No subscriptions</div>';
+            }
+          })
+          .catch(function() {
+            subscriptionsList.innerHTML = '<div style="color: #604040; font-size: 0.8rem;">Failed to load subscriptions</div>';
+          });
+      }
+      
+      function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+      
+      // Load subscriptions on page load
+      loadSubscriptions();
     })();
   </script>
 
