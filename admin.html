@@ -507,14 +507,13 @@
               <span class="user-detail-alias" id="detail-alias"></span>
               <button class="admin-btn" id="close-detail">CLOSE</button>
             </div>
-            <div id="role-controls"></div>
+            <div id="role-controls" style="margin: var(--spacing-sm) 0; padding: var(--spacing-sm); background: var(--bg-tertiary); border: 1px solid var(--border-color);"></div>
             <div class="admin-form-row">
               <button class="admin-btn" id="btn-warn">WARN</button>
               <button class="admin-btn" id="btn-ban">BAN</button>
               <button class="admin-btn" id="btn-temp-ban">TEMP BAN</button>
               <button class="admin-btn" id="btn-unban">UNBAN</button>
               <button class="admin-btn" id="btn-add-note">ADD NOTE</button>
-              <button class="admin-btn" id="btn-set-title">SET TITLE</button>
             </div>
             <div class="user-detail-tabs">
               <button class="user-detail-tab active" data-tab="entries">ENTRIES</button>
@@ -1226,25 +1225,6 @@
               Notify.show('Note added', 'info');
               loadUserTab('notes');
             }
-          });
-        }
-      });
-
-      document.getElementById('btn-set-title').addEventListener('click', function() {
-        if (!currentUserAlias) return;
-        var title = prompt('Set custom title (leave empty to remove):');
-        if (title !== null) {
-          AuthState.apiRequest('/api/admin/users/' + encodeURIComponent(currentUserAlias) + '/title', {
-            method: 'PUT',
-            body: JSON.stringify({ title: title || null })
-          }).then(function(data) {
-            if (data.success) {
-              Notify.show(title ? 'Title set: ' + title : 'Title removed', 'info');
-            } else {
-              Notify.show(data.error || 'Failed to set title', 'error');
-            }
-          }).catch(function(err) {
-            Notify.show(err.message || 'Error', 'error');
           });
         }
       });
