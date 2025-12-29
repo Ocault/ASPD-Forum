@@ -47,11 +47,21 @@
           <input type="password" id="pass" name="pass" class="auth-input" required autocomplete="current-password" placeholder="Your password">
         </div>
         
+        <!-- Remember Me -->
+        <div class="auth-field" style="flex-direction: row; align-items: center; gap: 0.5rem;">
+          <input type="checkbox" id="remember-me" name="remember-me" style="width: auto; accent-color: var(--accent-primary);">
+          <label for="remember-me" style="font-size: 0.6rem; color: #606060; cursor: pointer;">REMEMBER ME (30 DAYS)</label>
+        </div>
+        
         <!-- 2FA Code Field (hidden until required) -->
         <div class="auth-field" id="totp-field" style="display: none;">
           <label class="auth-label" for="totp-code">2FA CODE</label>
           <input type="text" id="totp-code" name="totp-code" class="auth-input" autocomplete="one-time-code" placeholder="6-digit code or recovery code" maxlength="20" inputmode="numeric">
           <p class="auth-hint" style="font-size: 0.6rem; color: #505050; margin-top: 0.25rem;">Enter code from your authenticator app</p>
+          <div style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 0.5rem; display: flex;">
+            <input type="checkbox" id="trust-device" name="trust-device" style="width: auto; accent-color: var(--accent-primary);">
+            <label for="trust-device" style="font-size: 0.6rem; color: #606060; cursor: pointer;">TRUST THIS DEVICE (30 DAYS)</label>
+          </div>
         </div>
         
         <button type="submit" class="auth-btn" aria-label="Sign in to your account">LOGIN</button>
@@ -82,18 +92,30 @@
       var form = document.getElementById('login-form');
       var totpField = document.getElementById('totp-field');
       var totpInput = document.getElementById('totp-code');
+      var rememberMeInput = document.getElementById('remember-me');
+      var trustDeviceInput = document.getElementById('trust-device');
       var requires2FA = false;
+
+      // Check for existing device trust token
+      var deviceToken = localStorage.getItem('aspd_device_token');
 
       form.addEventListener('submit', function(e) {
         e.preventDefault();
         var alias = document.getElementById('alias').value;
         var password = document.getElementById('pass').value;
         var totpCode = totpInput ? totpInput.value.trim() : '';
+        var rememberMe = rememberMeInput ? rememberMeInput.checked : false;
+        var trustDevice = trustDeviceInput ? trustDeviceInput.checked : false;
 
         // Build login payload - include totpCode if 2FA is required
-        var payload = { alias: alias, password: password };
+        var payload = { alias: alias, password: password, rememberMe: rememberMe };
         if (requires2FA && totpCode) {
           payload.totpCode = totpCode;
+          payload.trustDevice = trustDevice;
+        }
+        // Include device token if we have one
+        if (deviceToken) {
+          payload.deviceToken = deviceToken;
         }
 
         fetch(AuthState.API_BASE + '/login', {
@@ -124,6 +146,10 @@
             AuthState.setToken(data.token);
             if (data.refreshToken) {
               AuthState.setRefreshToken(data.refreshToken);
+            }
+            // Store device token if provided (trusted device for 2FA skip)
+            if (data.deviceToken) {
+              localStorage.setItem('aspd_device_token', data.deviceToken);
             }
             AuthState.login(alias, data.isAdmin, data.role);
             window.location.href = 'forum.html?notify=' + encodeURIComponent('AUTH.OK') + '&notify_type=info';

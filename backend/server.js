@@ -89,7 +89,10 @@ const PORT = process.env.PORT || 3001;
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = '1h';
+const JWT_EXPIRES_REMEMBER = '30d'; // Extended expiry for "remember me"
 const JWT_REFRESH_EXPIRES = '7d'; // Refresh tokens last 7 days
+const JWT_REFRESH_EXPIRES_REMEMBER = '30d'; // Extended refresh for "remember me"
+const DEVICE_TOKEN_EXPIRES_DAYS = 30; // Device trust token validity
 
 // ========================================
 // STRUCTURED LOGGING
@@ -971,7 +974,7 @@ app.post('/register', authRateLimiter, async (req, res) => {
 
 // Login (with rate limiting and lockout protection)
 app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
-  const { alias, password, totpCode } = req.body;
+  const { alias, password, totpCode, rememberMe, deviceToken, trustDevice } = req.body;
   const ipHash = hashIp(getClientIp(req));
 
   // Check for IP-based lockout
@@ -1023,34 +1026,51 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
     }
     
     if (totp_enabled && speakeasy) {
-      if (!totpCode) {
-        // Return special status to indicate 2FA is required
-        return res.status(200).json({ success: false, requires2fa: true, message: 'Two-factor authentication required' });
+      // Check if user has a valid trusted device token
+      let deviceTrusted = false;
+      if (deviceToken) {
+        try {
+          const deviceTokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
+          const deviceCheck = await db.query(
+            'SELECT id FROM trusted_devices WHERE user_id = $1 AND token_hash = $2 AND expires_at > NOW()',
+            [user.id, deviceTokenHash]
+          );
+          deviceTrusted = deviceCheck.rows.length > 0;
+        } catch (e) {
+          // Table might not exist yet, ignore
+        }
       }
-      
-      // Verify TOTP code
-      const verified = speakeasy.totp.verify({
-        secret: totp_secret,
-        encoding: 'base32',
-        token: totpCode,
-        window: 1
-      });
-      
-      if (!verified) {
-        // Check if it's a backup code
-        const codeHash = crypto.createHash('sha256').update(totpCode.toUpperCase()).digest('hex');
-        const backupCheck = await db.query(
-          'SELECT id FROM recovery_codes WHERE user_id = $1 AND code_hash = $2 AND used = FALSE',
-          [user.id, codeHash]
-        );
-        
-        if (backupCheck.rows.length === 0) {
-          recordFailedLogin(ipHash);
-          return res.status(401).json({ success: false, error: 'invalid_2fa_code' });
+
+      if (!deviceTrusted) {
+        if (!totpCode) {
+          // Return special status to indicate 2FA is required
+          return res.status(200).json({ success: false, requires2fa: true, message: 'Two-factor authentication required' });
         }
         
-        // Mark backup code as used
-        await db.query('UPDATE recovery_codes SET used = TRUE WHERE id = $1', [backupCheck.rows[0].id]);
+        // Verify TOTP code
+        const verified = speakeasy.totp.verify({
+          secret: totp_secret,
+          encoding: 'base32',
+          token: totpCode,
+          window: 1
+        });
+        
+        if (!verified) {
+          // Check if it's a backup code
+          const codeHash = crypto.createHash('sha256').update(totpCode.toUpperCase()).digest('hex');
+          const backupCheck = await db.query(
+            'SELECT id FROM recovery_codes WHERE user_id = $1 AND code_hash = $2 AND used = FALSE',
+            [user.id, codeHash]
+          );
+          
+          if (backupCheck.rows.length === 0) {
+            recordFailedLogin(ipHash);
+            return res.status(401).json({ success: false, error: 'invalid_2fa_code' });
+          }
+          
+          // Mark backup code as used
+          await db.query('UPDATE recovery_codes SET used = TRUE WHERE id = $1', [backupCheck.rows[0].id]);
+        }
       }
     }
 
@@ -1062,28 +1082,54 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
     const isAdminOrHigher = userRole === 'admin' || userRole === 'owner';
     const isModOrHigher = isAdminOrHigher || userRole === 'moderator';
 
+    // Use extended expiry if "remember me" is checked
+    const tokenExpiry = rememberMe ? JWT_EXPIRES_REMEMBER : JWT_EXPIRES;
+    const refreshExpiry = rememberMe ? JWT_REFRESH_EXPIRES_REMEMBER : JWT_REFRESH_EXPIRES;
+    const refreshExpiryMs = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+
     const token = jwt.sign(
       { userId: user.id, alias: user.alias, isAdmin: isAdminOrHigher, role: userRole },
       JWT_SECRET,
-      { expiresIn: JWT_EXPIRES }
+      { expiresIn: tokenExpiry }
     );
 
     // Issue refresh token (longer lived)
     const refreshToken = jwt.sign(
       { userId: user.id, alias: user.alias, isAdmin: isAdminOrHigher, role: userRole, type: 'refresh' },
       JWT_SECRET,
-      { expiresIn: JWT_REFRESH_EXPIRES }
+      { expiresIn: refreshExpiry }
     );
     
     // Store refresh token hash in database for revocation support
     const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-    const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const refreshExpiryDate = new Date(Date.now() + refreshExpiryMs);
     await db.query(
       'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
-      [user.id, refreshTokenHash, refreshExpiry]
+      [user.id, refreshTokenHash, refreshExpiryDate]
     );
 
-    res.json({ success: true, token, refreshToken, isAdmin: isAdminOrHigher, role: userRole, isMod: isModOrHigher });
+    // Generate device token if user wants to trust this device (for 2FA skip)
+    let newDeviceToken = null;
+    if (trustDevice && totp_enabled) {
+      newDeviceToken = crypto.randomBytes(32).toString('hex');
+      const deviceTokenHash = crypto.createHash('sha256').update(newDeviceToken).digest('hex');
+      const deviceExpiryDate = new Date(Date.now() + DEVICE_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+      try {
+        await db.query(
+          'INSERT INTO trusted_devices (user_id, token_hash, expires_at, ip_hash, user_agent) VALUES ($1, $2, $3, $4, $5)',
+          [user.id, deviceTokenHash, deviceExpiryDate, ipHash, req.get('User-Agent') || 'unknown']
+        );
+      } catch (e) {
+        // Table might not exist, ignore
+        logger.warn('AUTH', 'Could not store trusted device', { error: e.message });
+      }
+    }
+
+    const response = { success: true, token, refreshToken, isAdmin: isAdminOrHigher, role: userRole, isMod: isModOrHigher };
+    if (newDeviceToken) {
+      response.deviceToken = newDeviceToken;
+    }
+    res.json(response);
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
   }
@@ -7587,6 +7633,19 @@ async function migrate() {
       -- 2FA secrets
       ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE;
+      
+      -- Trusted devices for 2FA bypass
+      CREATE TABLE IF NOT EXISTS trusted_devices (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(255) NOT NULL,
+        ip_hash VARCHAR(255),
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        expires_at TIMESTAMP NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_trusted_devices_user ON trusted_devices(user_id);
+      CREATE INDEX IF NOT EXISTS idx_trusted_devices_token ON trusted_devices(token_hash);
       
       -- Push notification subscriptions
       CREATE TABLE IF NOT EXISTS push_subscriptions (
