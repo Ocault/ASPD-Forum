@@ -5031,6 +5031,9 @@ app.get('/api/users/:alias/last-seen', async (req, res) => {
 // Get users who were active in the last 5 minutes
 app.get('/api/users/online', authMiddleware, async (req, res) => {
   try {
+    // Also update the requesting user's last_seen_at (acts as implicit heartbeat)
+    await db.query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [req.user.userId]);
+    
     const result = await db.query(
       `SELECT alias, avatar_config, custom_title, 
               (SELECT COUNT(*) FROM entries WHERE user_id = users.id AND is_deleted = FALSE) as post_count
@@ -5486,13 +5489,13 @@ app.post('/api/users/:alias/follow', authMiddleware, async (req, res) => {
 
     if (existing.rows.length > 0) {
       await db.query('DELETE FROM user_follows WHERE id = $1', [existing.rows[0].id]);
-      res.json({ success: true, action: 'unfollowed' });
+      res.json({ success: true, following: false, action: 'unfollowed' });
     } else {
       await db.query(
         'INSERT INTO user_follows (follower_id, following_id) VALUES ($1, $2)',
         [userId, targetId]
       );
-      res.json({ success: true, action: 'followed' });
+      res.json({ success: true, following: true, action: 'followed' });
     }
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
@@ -5611,13 +5614,13 @@ app.post('/api/users/:alias/mute', authMiddleware, async (req, res) => {
 
     if (existing.rows.length > 0) {
       await db.query('DELETE FROM muted_users WHERE id = $1', [existing.rows[0].id]);
-      res.json({ success: true, action: 'unmuted' });
+      res.json({ success: true, muted: false, action: 'unmuted' });
     } else {
       await db.query(
         'INSERT INTO muted_users (user_id, muted_user_id) VALUES ($1, $2)',
         [userId, targetId]
       );
-      res.json({ success: true, action: 'muted' });
+      res.json({ success: true, muted: true, action: 'muted' });
     }
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
