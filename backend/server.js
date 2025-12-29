@@ -57,7 +57,10 @@ const emailTransporter = nodemailer.createTransport({
   auth: {
     user: process.env.SMTP_USER || 'resend',
     pass: process.env.SMTP_PASS
-  }
+  },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
+  socketTimeout: 10000
 });
 
 // XSS Sanitization helper
@@ -85,21 +88,24 @@ function sanitizeContent(content) {
 
 // Send email helper
 async function sendEmail(to, subject, html) {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.error('[EMAIL] SMTP not configured');
+  if (!process.env.SMTP_PASS) {
+    console.error('[EMAIL] SMTP_PASS not configured');
     return false;
   }
   
+  console.log('[EMAIL] Attempting to send email to:', to);
+  
   try {
-    await emailTransporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    const result = await emailTransporter.sendMail({
+      from: process.env.SMTP_FROM || 'ASPD Forum <onboarding@resend.dev>',
       to,
       subject,
       html
     });
+    console.log('[EMAIL] Sent successfully:', result.messageId);
     return true;
   } catch (err) {
-    console.error('[EMAIL ERROR]', err.message);
+    console.error('[EMAIL ERROR]', err.message, err.code);
     return false;
   }
 }
