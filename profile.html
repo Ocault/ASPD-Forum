@@ -318,6 +318,18 @@
               <span class="border-name">VETERAN</span>
               <span class="border-req">500+ posts</span>
             </div>
+            <div class="border-option border-option-mod" data-border="moderator" data-required="moderator" title="Moderator exclusive" style="display: none;">
+              <div class="border-preview border-preview-moderator">
+                <div class="border-preview-avatar"></div>
+              </div>
+              <span class="border-name">MODERATOR</span>
+            </div>
+            <div class="border-option border-option-admin" data-border="admin" data-required="admin" title="Admin exclusive" style="display: none;">
+              <div class="border-preview border-preview-admin">
+                <div class="border-preview-avatar"></div>
+              </div>
+              <span class="border-name">ADMIN</span>
+            </div>
             <div class="border-option border-option-owner" data-border="owner" data-required="owner" title="Owner exclusive" style="display: none;">
               <div class="border-preview border-preview-owner">
                 <div class="border-preview-avatar"></div>
@@ -870,21 +882,31 @@
         // Load current selected border
         selectedBorder = (currentProfile && currentProfile.avatarConfig && currentProfile.avatarConfig.selectedBorder) || 'none';
         
+        // Get user's role
+        var userRole = AuthState.getRole();
+        var isOwner = userRole === 'owner';
+        var isAdminRole = userRole === 'admin' || userRole === 'owner';
+        var isMod = AuthState.isMod();
+        
         // Update all border options
         document.querySelectorAll('.border-option').forEach(function(option) {
           var border = option.dataset.border;
           var required = option.dataset.required;
           
-          // Show owner option only for admin
+          // Show role-based borders only for matching role
           if (border === 'owner') {
-            option.style.display = isAdmin ? 'flex' : 'none';
+            option.style.display = isOwner ? 'flex' : 'none';
+          } else if (border === 'admin') {
+            option.style.display = isAdminRole ? 'flex' : 'none';
+          } else if (border === 'moderator') {
+            option.style.display = isMod ? 'flex' : 'none';
           }
           
-          // Check if locked
+          // Check if locked (for post-count based borders)
           var isLocked = false;
-          if (required && required !== 'owner') {
+          if (required && required !== 'owner' && required !== 'admin' && required !== 'moderator') {
             var requiredPosts = parseInt(required);
-            isLocked = !isAdmin && userPosts < requiredPosts;
+            isLocked = !isAdminRole && userPosts < requiredPosts;
           }
           
           // Apply locked state

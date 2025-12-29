@@ -2146,36 +2146,6 @@ ul {
 }
 
 /* Profile avatar animated border support - override for larger avatar */
-/* OWNER - Bright flashing border */
-.profile-avatar-section.avatar-rank-owner::before {
-  content: '';
-  position: absolute;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: auto !important;
-  height: auto !important;
-  border: 3px solid #fff;
-  box-shadow: 
-    0 0 15px rgba(255, 255, 255, 0.6),
-    inset 0 0 15px rgba(255, 255, 255, 0.2);
-  animation: owner-profile-flash 1.5s ease-in-out infinite;
-  z-index: 3;
-  pointer-events: none;
-}
-
-@keyframes owner-profile-flash {
-  0%, 100% { 
-    border-color: rgba(255, 255, 255, 0.7);
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4), inset 0 0 15px rgba(255, 255, 255, 0.1);
-  }
-  50% { 
-    border-color: rgba(255, 255, 255, 1);
-    box-shadow: 0 0 25px rgba(255, 255, 255, 0.9), inset 0 0 20px rgba(255, 255, 255, 0.4);
-  }
-}
-
 /* ACTIVE - Simple gray border */
 .profile-avatar-section.avatar-rank-active::before {
   content: '';
@@ -2283,6 +2253,129 @@ ul {
     border-color: rgba(255, 255, 255, 1);
     box-shadow: 0 0 20px rgba(255, 255, 255, 0.7), inset 0 0 15px rgba(255, 255, 255, 0.3);
   }
+}
+
+/* MODERATOR - Scanning line border */
+.profile-avatar-section.avatar-rank-moderator::before {
+  content: '';
+  position: absolute;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  border: 2px solid rgba(100, 180, 140, 0.6);
+  box-shadow: 0 0 8px rgba(100, 180, 140, 0.3);
+  animation: mod-profile-glow 2.5s ease-in-out infinite;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.profile-avatar-section.avatar-rank-moderator::after {
+  content: '';
+  position: absolute;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  background: linear-gradient(180deg, transparent 0%, rgba(100, 180, 140, 0.3) 50%, transparent 100%);
+  background-size: 100% 200%;
+  animation: mod-profile-scan 2s linear infinite;
+  z-index: 3;
+  pointer-events: none;
+}
+
+@keyframes mod-profile-glow {
+  0%, 100% { border-color: rgba(100, 180, 140, 0.5); box-shadow: 0 0 8px rgba(100, 180, 140, 0.2); }
+  50% { border-color: rgba(130, 200, 160, 0.8); box-shadow: 0 0 12px rgba(130, 200, 160, 0.4); }
+}
+
+@keyframes mod-profile-scan {
+  0% { background-position: 0 0%; }
+  100% { background-position: 0 200%; }
+}
+
+/* ADMIN - Electric pulse border */
+.profile-avatar-section.avatar-rank-admin::before {
+  content: '';
+  position: absolute;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  border: 3px solid rgba(100, 150, 255, 0.7);
+  box-shadow: 0 0 10px rgba(100, 150, 255, 0.4), inset 0 0 10px rgba(100, 150, 255, 0.1);
+  animation: admin-profile-pulse 2s ease-in-out infinite;
+  z-index: 3;
+  pointer-events: none;
+}
+
+@keyframes admin-profile-pulse {
+  0%, 100% { 
+    border-color: rgba(100, 150, 255, 0.5);
+    box-shadow: 0 0 10px rgba(100, 150, 255, 0.3), inset 0 0 6px rgba(100, 150, 255, 0.1);
+  }
+  25% { 
+    border-color: rgba(150, 180, 255, 0.9);
+    box-shadow: 0 0 18px rgba(150, 180, 255, 0.6), inset 0 0 10px rgba(150, 180, 255, 0.2);
+  }
+  50% { 
+    border-color: rgba(100, 150, 255, 0.6);
+    box-shadow: 0 0 12px rgba(100, 150, 255, 0.4), inset 0 0 8px rgba(100, 150, 255, 0.15);
+  }
+  75% { 
+    border-color: rgba(180, 200, 255, 0.8);
+    box-shadow: 0 0 15px rgba(180, 200, 255, 0.5), inset 0 0 8px rgba(180, 200, 255, 0.15);
+  }
+}
+
+/* OWNER - Prismatic shifting border */
+.profile-avatar-section.avatar-rank-owner::before {
+  content: '';
+  position: absolute;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  border: 3px solid transparent;
+  background: linear-gradient(var(--bg-panel), var(--bg-panel)) padding-box,
+              linear-gradient(90deg, #fff, #888, #fff, #888) border-box;
+  background-size: 100% 100%, 400% 100%;
+  animation: owner-profile-shift 3s linear infinite;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.profile-avatar-section.avatar-rank-owner::after {
+  content: '';
+  position: absolute;
+  top: -5px !important;
+  left: -5px !important;
+  right: -5px !important;
+  bottom: -5px !important;
+  width: auto !important;
+  height: auto !important;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3), 0 0 40px rgba(255, 255, 255, 0.1);
+  animation: owner-profile-glow 3s ease-in-out infinite;
+  z-index: 2;
+  pointer-events: none;
+}
+
+@keyframes owner-profile-shift {
+  0% { background-position: 0 0, 0% 50%; }
+  100% { background-position: 0 0, 400% 50%; }
+}
+
+@keyframes owner-profile-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 255, 255, 0.2), 0 0 40px rgba(255, 255, 255, 0.05); }
+  50% { box-shadow: 0 0 30px rgba(255, 255, 255, 0.4), 0 0 60px rgba(255, 255, 255, 0.15); }
 }
 
 .profile-avatar-section .avatar-large,
@@ -2981,7 +3074,7 @@ ul {
   }
 }
 
-/* OWNER preview - Bright flashing border */
+/* OWNER preview - Prismatic shifting border */
 .border-preview-owner::before {
   content: '';
   position: absolute;
@@ -2989,20 +3082,102 @@ ul {
   left: 0;
   right: 0;
   bottom: 0;
-  border: 3px solid #fff;
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
-  animation: preview-owner-flash 1.5s ease-in-out infinite;
+  border: 3px solid transparent;
+  background: linear-gradient(var(--bg-secondary), var(--bg-secondary)) padding-box,
+              linear-gradient(90deg, #fff, #888, #fff, #888) border-box;
+  background-size: 100% 100%, 400% 100%;
+  animation: preview-owner-shift 3s linear infinite;
 }
 
-@keyframes preview-owner-flash {
+@keyframes preview-owner-shift {
+  0% { background-position: 0 0, 0% 50%; }
+  100% { background-position: 0 0, 400% 50%; }
+}
+
+/* ADMIN preview - Electric pulse border */
+.border-preview-admin::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 3px solid rgba(100, 150, 255, 0.7);
+  box-shadow: 0 0 8px rgba(100, 150, 255, 0.4), inset 0 0 8px rgba(100, 150, 255, 0.1);
+  animation: preview-admin-pulse 2s ease-in-out infinite;
+}
+
+@keyframes preview-admin-pulse {
   0%, 100% { 
-    border-color: rgba(255, 255, 255, 0.7);
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+    border-color: rgba(100, 150, 255, 0.5);
+    box-shadow: 0 0 8px rgba(100, 150, 255, 0.3), inset 0 0 4px rgba(100, 150, 255, 0.1);
+  }
+  25% { 
+    border-color: rgba(150, 180, 255, 0.9);
+    box-shadow: 0 0 15px rgba(150, 180, 255, 0.6), inset 0 0 8px rgba(150, 180, 255, 0.2);
   }
   50% { 
-    border-color: rgba(255, 255, 255, 1);
-    box-shadow: 0 0 25px rgba(255, 255, 255, 0.9);
+    border-color: rgba(100, 150, 255, 0.6);
+    box-shadow: 0 0 10px rgba(100, 150, 255, 0.4), inset 0 0 6px rgba(100, 150, 255, 0.15);
   }
+  75% { 
+    border-color: rgba(180, 200, 255, 0.8);
+    box-shadow: 0 0 12px rgba(180, 200, 255, 0.5), inset 0 0 6px rgba(180, 200, 255, 0.15);
+  }
+}
+
+/* MODERATOR preview - Scanning line border */
+.border-preview-moderator::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid rgba(100, 180, 140, 0.6);
+  box-shadow: 0 0 6px rgba(100, 180, 140, 0.3);
+  animation: preview-mod-glow 2.5s ease-in-out infinite;
+}
+
+.border-preview-moderator::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(180deg, transparent 0%, rgba(100, 180, 140, 0.4) 50%, transparent 100%);
+  background-size: 100% 200%;
+  animation: preview-mod-scan 2s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes preview-mod-glow {
+  0%, 100% { border-color: rgba(100, 180, 140, 0.5); box-shadow: 0 0 6px rgba(100, 180, 140, 0.2); }
+  50% { border-color: rgba(130, 200, 160, 0.8); box-shadow: 0 0 10px rgba(130, 200, 160, 0.4); }
+}
+
+@keyframes preview-mod-scan {
+  0% { background-position: 0 0%; }
+  100% { background-position: 0 200%; }
+}
+
+.border-option-admin {
+  border-color: rgba(100, 150, 255, 0.3);
+  overflow: visible;
+}
+
+.border-option-admin .border-name {
+  color: rgba(150, 180, 255, 0.9);
+}
+
+.border-option-mod {
+  border-color: rgba(100, 180, 140, 0.3);
+  overflow: visible;
+}
+
+.border-option-mod .border-name {
+  color: rgba(130, 200, 160, 0.9);
 }
 
 .border-option-owner {
@@ -6968,20 +7143,119 @@ img.loaded {
 .avatar-rank-regular .avatar-mini,
 .avatar-rank-expert .avatar-mini,
 .avatar-rank-veteran .avatar-mini,
+.avatar-rank-moderator .avatar-mini,
+.avatar-rank-admin .avatar-mini,
 .avatar-rank-owner .avatar-mini,
 .avatar-rank-active .avatar-large,
 .avatar-rank-member .avatar-large,
 .avatar-rank-regular .avatar-large,
 .avatar-rank-expert .avatar-large,
 .avatar-rank-veteran .avatar-large,
+.avatar-rank-moderator .avatar-large,
+.avatar-rank-admin .avatar-large,
 .avatar-rank-owner .avatar-large {
   position: relative;
   z-index: 2;
 }
 
 /* ========================================
-   OWNER/ADMIN RANK - Bright flashing border
+   MODERATOR RANK - Scanning line border
 ======================================== */
+.avatar-rank-moderator {
+  position: relative;
+  overflow: visible;
+}
+
+.avatar-rank-moderator::before {
+  content: '';
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  top: -3px;
+  left: -3px;
+  border: 2px solid rgba(100, 180, 140, 0.6);
+  box-shadow: 0 0 6px rgba(100, 180, 140, 0.3);
+  animation: mod-glow 2.5s ease-in-out infinite;
+  z-index: 1;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.avatar-rank-moderator::after {
+  content: '';
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  top: -3px;
+  left: -3px;
+  background: linear-gradient(180deg, transparent 0%, rgba(100, 180, 140, 0.3) 50%, transparent 100%);
+  background-size: 100% 200%;
+  animation: mod-scan 2s linear infinite;
+  z-index: 1;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+@keyframes mod-glow {
+  0%, 100% { border-color: rgba(100, 180, 140, 0.5); box-shadow: 0 0 6px rgba(100, 180, 140, 0.2); }
+  50% { border-color: rgba(130, 200, 160, 0.8); box-shadow: 0 0 10px rgba(130, 200, 160, 0.4); }
+}
+
+@keyframes mod-scan {
+  0% { background-position: 0 0%; }
+  100% { background-position: 0 200%; }
+}
+
+/* ========================================
+   ADMIN RANK - Electric pulse border
+======================================== */
+.avatar-rank-admin {
+  position: relative;
+  overflow: visible;
+}
+
+.avatar-rank-admin::before {
+  content: '';
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  top: -3px;
+  left: -3px;
+  border: 3px solid rgba(100, 150, 255, 0.7);
+  box-shadow: 0 0 8px rgba(100, 150, 255, 0.4), inset 0 0 8px rgba(100, 150, 255, 0.1);
+  animation: admin-pulse 2s ease-in-out infinite;
+  z-index: 1;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+@keyframes admin-pulse {
+  0%, 100% { 
+    border-color: rgba(100, 150, 255, 0.5);
+    box-shadow: 0 0 8px rgba(100, 150, 255, 0.3), inset 0 0 4px rgba(100, 150, 255, 0.1);
+  }
+  25% { 
+    border-color: rgba(150, 180, 255, 0.9);
+    box-shadow: 0 0 15px rgba(150, 180, 255, 0.6), inset 0 0 8px rgba(150, 180, 255, 0.2);
+  }
+  50% { 
+    border-color: rgba(100, 150, 255, 0.6);
+    box-shadow: 0 0 10px rgba(100, 150, 255, 0.4), inset 0 0 6px rgba(100, 150, 255, 0.15);
+  }
+  75% { 
+    border-color: rgba(180, 200, 255, 0.8);
+    box-shadow: 0 0 12px rgba(180, 200, 255, 0.5), inset 0 0 6px rgba(180, 200, 255, 0.15);
+  }
+}
+
+/* ========================================
+   OWNER RANK - Prismatic shifting border
+======================================== */
+.avatar-rank-owner {
+  position: relative;
+  overflow: visible;
+}
+
 .avatar-rank-owner::before {
   content: '';
   position: absolute;
@@ -6989,25 +7263,38 @@ img.loaded {
   height: 34px;
   top: -3px;
   left: -3px;
-  border: 3px solid #fff;
-  box-shadow: 
-    0 0 15px rgba(255, 255, 255, 0.6),
-    inset 0 0 12px rgba(255, 255, 255, 0.2);
-  animation: owner-flash 1.5s ease-in-out infinite;
+  border: 3px solid transparent;
+  background: linear-gradient(var(--bg-primary), var(--bg-primary)) padding-box,
+              linear-gradient(90deg, #fff, #888, #fff, #888) border-box;
+  background-size: 100% 100%, 400% 100%;
+  animation: owner-shift 3s linear infinite;
   z-index: 1;
   pointer-events: none;
   box-sizing: border-box;
 }
 
-@keyframes owner-flash {
-  0%, 100% { 
-    border-color: rgba(255, 255, 255, 0.7);
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4), inset 0 0 12px rgba(255, 255, 255, 0.1);
-  }
-  50% { 
-    border-color: rgba(255, 255, 255, 1);
-    box-shadow: 0 0 25px rgba(255, 255, 255, 0.9), inset 0 0 18px rgba(255, 255, 255, 0.4);
-  }
+.avatar-rank-owner::after {
+  content: '';
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  top: -6px;
+  left: -6px;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.3), 0 0 30px rgba(255, 255, 255, 0.1);
+  animation: owner-glow 3s ease-in-out infinite;
+  z-index: 0;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+@keyframes owner-shift {
+  0% { background-position: 0 0, 0% 50%; }
+  100% { background-position: 0 0, 400% 50%; }
+}
+
+@keyframes owner-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(255, 255, 255, 0.2), 0 0 30px rgba(255, 255, 255, 0.05); }
+  50% { box-shadow: 0 0 20px rgba(255, 255, 255, 0.4), 0 0 40px rgba(255, 255, 255, 0.15); }
 }
 
 /* ========================================
