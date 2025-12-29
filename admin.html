@@ -1143,6 +1143,13 @@
         return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
       }
 
+      function escapeHtml(text) {
+        if (!text) return '';
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(text));
+        return div.innerHTML;
+      }
+
       // Dashboard
       function loadDashboard() {
         AuthState.apiRequest('/api/admin/mod-stats')
