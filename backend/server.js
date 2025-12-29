@@ -7391,6 +7391,10 @@ async function migrate() {
       UPDATE users SET role = 'owner' 
       WHERE id = (SELECT id FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1)
       AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'owner');
+      
+      -- Sync role field for legacy admin accounts (is_admin = true but role is null/user)
+      UPDATE users SET role = 'admin' 
+      WHERE is_admin = TRUE AND (role IS NULL OR role = 'user') AND role != 'owner';
     `);
     console.log('[MIGRATE] Database tables ready');
   } catch (err) {
