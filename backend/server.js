@@ -434,6 +434,54 @@ let wordFiltersCache = [];
 let wordFiltersCacheTime = 0;
 const WORD_FILTER_CACHE_TTL = 60000; // 1 minute
 
+// Rooms cache (refreshed every 5 minutes)
+let roomsCache = null;
+let roomsCacheTime = 0;
+const ROOMS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function getCachedRooms() {
+  const now = Date.now();
+  if (roomsCache && now - roomsCacheTime < ROOMS_CACHE_TTL) {
+    return roomsCache;
+  }
+  try {
+    const result = await db.query(
+      `SELECT slug AS id, title, description,
+              (SELECT COUNT(*) FROM threads WHERE room_id = rooms.id) as thread_count
+       FROM rooms ORDER BY display_order, id`
+    );
+    roomsCache = result.rows;
+    roomsCacheTime = now;
+    return roomsCache;
+  } catch (err) {
+    return roomsCache || []; // Return stale cache on error
+  }
+}
+
+// Tags cache (refreshed every 10 minutes)
+let tagsCache = null;
+let tagsCacheTime = 0;
+const TAGS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+async function getCachedTags() {
+  const now = Date.now();
+  if (tagsCache && now - tagsCacheTime < TAGS_CACHE_TTL) {
+    return tagsCache;
+  }
+  try {
+    const result = await db.query('SELECT id, name, color FROM tags ORDER BY name');
+    tagsCache = result.rows;
+    tagsCacheTime = now;
+    return tagsCache;
+  } catch (err) {
+    return tagsCache || []; // Return stale cache on error
+  }
+}
+
+// Invalidate caches when data changes
+function invalidateRoomsCache() { roomsCache = null; roomsCacheTime = 0; }
+function invalidateTagsCache() { tagsCache = null; tagsCacheTime = 0; }
+
 async function getWordFilters() {
   const now = Date.now();
   if (now - wordFiltersCacheTime < WORD_FILTER_CACHE_TTL && wordFiltersCache.length > 0) {
@@ -596,6 +644,16 @@ const passwordChangeLimiter = rateLimit({
   keyGenerator: (req) => req.user?.userId?.toString() || hashIp(getClientIp(req)) || 'unknown'
 });
 
+// Rate limiter for votes/reactions (prevent spam)
+const voteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 votes per minute (reasonable for browsing)
+  message: { success: false, error: 'rate_limit_exceeded', message: 'Too many votes, slow down' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.userId?.toString() || hashIp(getClientIp(req)) || 'unknown'
+});
+
 // Password strength validation
 function validatePassword(password) {
   const errors = [];
@@ -634,6 +692,16 @@ function recordFailedLogin(ipHash) {
 function clearFailedLogin(ipHash) {
   failedLoginAttempts.delete(ipHash);
 }
+
+// Periodic cleanup of expired failed login attempts (prevent memory leak)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ipHash, record] of failedLoginAttempts.entries()) {
+    if (now - record.lastAttempt > LOCKOUT_DURATION * 2) {
+      failedLoginAttempts.delete(ipHash);
+    }
+  }
+}, 5 * 60 * 1000); // Cleanup every 5 minutes
 
 // Verify hCaptcha token
 async function verifyCaptcha(token) {
@@ -2115,15 +2183,11 @@ app.delete('/api/settings/account', authMiddleware, async (req, res) => {
   }
 });
 
-// API: Get all rooms
+// API: Get all rooms (cached)
 app.get('/api/rooms', authMiddleware, async (req, res) => {
   try {
-    const result = await db.query(
-      `SELECT slug AS id, title, description,
-              (SELECT COUNT(*) FROM threads WHERE room_id = rooms.id) as thread_count
-       FROM rooms ORDER BY display_order, id`
-    );
-    res.json({ success: true, rooms: result.rows });
+    const rooms = await getCachedRooms();
+    res.json({ success: true, rooms });
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
   }
@@ -4227,8 +4291,9 @@ app.put('/api/my/password', authMiddleware, async (req, res) => {
     return res.status(400).json({ success: false, error: 'both passwords required' });
   }
 
-  if (new_password.length < 6) {
-    return res.status(400).json({ success: false, error: 'password too short' });
+  const pwErrors = validatePassword(new_password);
+  if (pwErrors.length > 0) {
+    return res.status(400).json({ success: false, error: pwErrors[0] });
   }
 
   try {
@@ -4551,7 +4616,7 @@ app.get('/api/threads/:id/first-unread', authMiddleware, async (req, res) => {
 const VALID_REACTIONS = ['like', 'dislike'];
 
 // Toggle reaction on an entry
-app.post('/api/entries/:id/react', authMiddleware, async (req, res) => {
+app.post('/api/entries/:id/react', authMiddleware, voteLimiter, async (req, res) => {
   const entryId = parseInt(req.params.id);
   const { reaction_type } = req.body;
   const userId = req.user.userId;
@@ -4821,11 +4886,11 @@ app.get('/api/bookmarks/:threadId/check', authMiddleware, async (req, res) => {
 // THREAD TAGS
 // ========================================
 
-// Get all available tags
+// Get all available tags (cached)
 app.get('/api/tags', authMiddleware, async (req, res) => {
   try {
-    const result = await db.query('SELECT id, name, color FROM tags ORDER BY name');
-    res.json({ success: true, tags: result.rows });
+    const tags = await getCachedTags();
+    res.json({ success: true, tags });
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
   }
@@ -5923,7 +5988,7 @@ async function sendPushNotification(userId, title, body, url) {
 // ========================================
 
 // Upvote/downvote an entry
-app.post('/api/entries/:entryId/vote', authMiddleware, async (req, res) => {
+app.post('/api/entries/:entryId/vote', authMiddleware, voteLimiter, async (req, res) => {
   const { entryId } = req.params;
   const { vote } = req.body; // 1 for upvote, -1 for downvote, 0 to remove
   const userId = req.user.userId;
@@ -5932,14 +5997,19 @@ app.post('/api/entries/:entryId/vote', authMiddleware, async (req, res) => {
     return res.status(400).json({ success: false, error: 'invalid_vote' });
   }
   
+  const client = await db.getClient();
+  
   try {
-    // Get entry info
-    const entryResult = await db.query(
-      'SELECT user_id FROM entries WHERE id = $1 AND is_deleted = FALSE',
+    await client.query('BEGIN');
+    
+    // Get entry info with row lock to prevent race conditions
+    const entryResult = await client.query(
+      'SELECT user_id FROM entries WHERE id = $1 AND is_deleted = FALSE FOR UPDATE',
       [entryId]
     );
     
     if (entryResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ success: false, error: 'entry_not_found' });
     }
     
@@ -5947,12 +6017,13 @@ app.post('/api/entries/:entryId/vote', authMiddleware, async (req, res) => {
     
     // Can't vote on your own posts
     if (entryUserId === userId) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ success: false, error: 'cannot_vote_own_post' });
     }
     
     // Get current vote if exists
-    const existingVote = await db.query(
-      'SELECT vote_value FROM entry_votes WHERE entry_id = $1 AND user_id = $2',
+    const existingVote = await client.query(
+      'SELECT vote_value FROM entry_votes WHERE entry_id = $1 AND user_id = $2 FOR UPDATE',
       [entryId, userId]
     );
     
@@ -5960,10 +6031,10 @@ app.post('/api/entries/:entryId/vote', authMiddleware, async (req, res) => {
     
     if (vote === 0) {
       // Remove vote
-      await db.query('DELETE FROM entry_votes WHERE entry_id = $1 AND user_id = $2', [entryId, userId]);
+      await client.query('DELETE FROM entry_votes WHERE entry_id = $1 AND user_id = $2', [entryId, userId]);
     } else {
       // Upsert vote
-      await db.query(
+      await client.query(
         `INSERT INTO entry_votes (entry_id, user_id, vote_value)
          VALUES ($1, $2, $3)
          ON CONFLICT (entry_id, user_id) DO UPDATE SET vote_value = $3`,
@@ -5974,22 +6045,27 @@ app.post('/api/entries/:entryId/vote', authMiddleware, async (req, res) => {
     // Update entry author's reputation
     const reputationChange = vote - oldVote;
     if (reputationChange !== 0 && entryUserId) {
-      await db.query(
+      await client.query(
         'UPDATE users SET reputation = GREATEST(0, reputation + $1) WHERE id = $2',
         [reputationChange, entryUserId]
       );
     }
     
     // Get new score for entry
-    const scoreResult = await db.query(
+    const scoreResult = await client.query(
       'SELECT COALESCE(SUM(vote_value), 0) AS score FROM entry_votes WHERE entry_id = $1',
       [entryId]
     );
     
+    await client.query('COMMIT');
+    
     res.json({ success: true, score: parseInt(scoreResult.rows[0].score), userVote: vote });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('[VOTE ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
+  } finally {
+    client.release();
   }
 });
 
@@ -6415,6 +6491,19 @@ async function migrate() {
       );
       CREATE INDEX IF NOT EXISTS idx_entry_votes_entry ON entry_votes(entry_id);
       CREATE INDEX IF NOT EXISTS idx_entry_votes_user ON entry_votes(user_id);
+      
+      -- Performance indexes for common queries
+      CREATE INDEX IF NOT EXISTS idx_threads_room_created ON threads(room_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_entries_thread_created ON entries(thread_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_entries_user ON entries(user_id);
+      CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_pm_recipient ON private_messages(recipient_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_pm_sender ON private_messages(sender_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_thread_subs_user ON thread_subscriptions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_thread_subs_thread ON thread_subscriptions(thread_id);
+      CREATE INDEX IF NOT EXISTS idx_thread_reads_user ON thread_reads(user_id);
+      CREATE INDEX IF NOT EXISTS idx_reactions_entry ON reactions(entry_id);
+      CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks(user_id);
       
       -- Insert default tags
       INSERT INTO tags (name, color) VALUES 

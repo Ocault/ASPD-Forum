@@ -581,6 +581,93 @@ var Utils = (function() {
     }
   };
 
+  /**
+   * Modal focus trap - traps focus within a modal for accessibility
+   * @param {HTMLElement} modal - The modal element
+   * @returns {Object} Object with activate/deactivate methods
+   */
+  function createFocusTrap(modal) {
+    var focusableSelectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    var previousActiveElement = null;
+    var isActive = false;
+
+    function getFocusableElements() {
+      return Array.from(modal.querySelectorAll(focusableSelectors))
+        .filter(function(el) { return !el.disabled && el.offsetParent !== null; });
+    }
+
+    function handleKeydown(e) {
+      if (e.key !== 'Tab') return;
+
+      var focusable = getFocusableElements();
+      if (focusable.length === 0) return;
+
+      var first = focusable[0];
+      var last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    function handleEscape(e) {
+      if (e.key === 'Escape' && isActive) {
+        var closeBtn = modal.querySelector('[data-action="close"], .cancel-btn, .modal-close');
+        if (closeBtn) closeBtn.click();
+      }
+    }
+
+    return {
+      activate: function() {
+        if (isActive) return;
+        isActive = true;
+        previousActiveElement = document.activeElement;
+        modal.addEventListener('keydown', handleKeydown);
+        document.addEventListener('keydown', handleEscape);
+        
+        // Focus first focusable element
+        requestAnimationFrame(function() {
+          var focusable = getFocusableElements();
+          if (focusable.length > 0) focusable[0].focus();
+        });
+      },
+      deactivate: function() {
+        if (!isActive) return;
+        isActive = false;
+        modal.removeEventListener('keydown', handleKeydown);
+        document.removeEventListener('keydown', handleEscape);
+        
+        // Restore focus
+        if (previousActiveElement && previousActiveElement.focus) {
+          previousActiveElement.focus();
+        }
+      }
+    };
+  }
+
+  // Expose public API
+  return {
+    debounce: debounce,
+    throttle: throttle,
+    requestIdleCallback: requestIdleCallback,
+    cancelIdleCallback: cancelIdleCallback,
+    escapeHtml: escapeHtml,
+    relativeTime: relativeTime,
+    formatNumber: formatNumber,
+    storage: storage,
+    isInViewport: isInViewport,
+    initTheme: initTheme,
+    createFocusTrap: createFocusTrap
+  };
+
 })();
 
 // Export for module systems if available
