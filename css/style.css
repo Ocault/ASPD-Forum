@@ -945,19 +945,20 @@ ul {
   padding: var(--spacing-xs) var(--spacing-lg);
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
-  min-height: 28px;
+  min-height: 32px;
   gap: var(--spacing-md);
 }
 
 .presence-viewers {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .presence-viewer {
-  width: 24px;
+  width: 22px;
+  height: 22px;
   height: 24px;
   border-radius: 50%;
   border: 2px solid var(--border-color);
@@ -1002,10 +1003,12 @@ ul {
 
 .presence-count {
   font-family: var(--font-mono);
-  font-size: 0.45rem;
-  letter-spacing: 0.08em;
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
   color: var(--text-muted);
-  margin-left: 4px;
+  padding: 3px 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
 }
 
 .presence-typing {
@@ -1919,16 +1922,16 @@ ul {
   margin-top: var(--spacing-sm);
 }
 
-/* Ghost Mode Toggle */
+/* Anonymous Mode Toggle */
 .ghost-toggle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
-  padding: 6px 12px;
+  padding: 4px 10px;
   border: 1px solid var(--border-color);
-  background: transparent;
-  transition: all 0.2s ease;
+  background: var(--bg-panel);
+  transition: all 0.15s ease;
   user-select: none;
 }
 
@@ -1938,18 +1941,17 @@ ul {
 
 .ghost-toggle-icon {
   font-family: var(--font-mono);
-  font-size: 0.55rem;
+  font-size: 0.6rem;
   color: var(--text-muted);
-  opacity: 0.6;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .ghost-toggle-label {
   font-family: var(--font-mono);
-  font-size: 0.5rem;
-  letter-spacing: 0.1em;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .ghost-toggle:hover {
@@ -1957,23 +1959,19 @@ ul {
   background: var(--bg-secondary);
 }
 
-.ghost-toggle:hover .ghost-toggle-icon {
-  opacity: 0.9;
+.ghost-toggle:hover .ghost-toggle-icon,
+.ghost-toggle:hover .ghost-toggle-label {
   color: var(--text-secondary);
 }
 
 .ghost-toggle.active {
-  border-color: var(--text-muted);
-  background: var(--bg-panel);
+  border-color: var(--text-secondary);
+  background: var(--bg-secondary);
 }
 
-.ghost-toggle.active .ghost-toggle-icon {
-  opacity: 1;
-  color: var(--text-primary);
-}
-
+.ghost-toggle.active .ghost-toggle-icon,
 .ghost-toggle.active .ghost-toggle-label {
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 /* Reply editor with preview */
