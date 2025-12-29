@@ -586,7 +586,7 @@
         AuthState.apiRequest('/api/users/' + encodeURIComponent(alias) + '/following')
           .then(function(data) {
             if (data.success) {
-              isFollowing = data.following;
+              isFollowing = data.isFollowing;
               updateFollowBtn();
             }
           });
@@ -595,7 +595,7 @@
         AuthState.apiRequest('/api/users/' + encodeURIComponent(alias) + '/muted')
           .then(function(data) {
             if (data.success) {
-              isMuted = data.muted;
+              isMuted = data.isMuted;
               updateMuteBtn();
             }
           });
