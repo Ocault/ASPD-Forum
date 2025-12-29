@@ -96,6 +96,10 @@ try {
 }
 
 const app = express();
+
+// Trust proxy - essential for getting real client IPs behind Railway/Cloudflare
+app.set('trust proxy', true);
+
 const PORT = process.env.PORT || 3001;
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -803,9 +807,29 @@ function hashIp(ip) {
   return crypto.createHash('sha256').update(normalized + (process.env.IP_SALT || 'aspd')).digest('hex').slice(0, 16);
 }
 
-// Get client IP from request
+// Get client IP from request (handles Cloudflare, Railway, and other proxies)
 function getClientIp(req) {
-  return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
+  // Cloudflare's real IP header (most reliable when using Cloudflare)
+  const cfIp = req.headers['cf-connecting-ip'];
+  if (cfIp) return cfIp;
+  
+  // X-Real-IP (common proxy header)
+  const realIp = req.headers['x-real-ip'];
+  if (realIp) return realIp;
+  
+  // X-Forwarded-For (standard proxy header, may contain multiple IPs)
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (forwardedFor) {
+    // Get the first IP in the chain (original client)
+    const firstIp = forwardedFor.split(',')[0]?.trim();
+    if (firstIp) return firstIp;
+  }
+  
+  // Express's req.ip (uses trust proxy setting)
+  if (req.ip) return req.ip;
+  
+  // Fallback to socket remote address
+  return req.socket?.remoteAddress || req.connection?.remoteAddress || null;
 }
 
 // Role hierarchy: owner > admin > moderator > user
