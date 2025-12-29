@@ -1025,115 +1025,177 @@ ul {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px var(--spacing-lg);
-  background: var(--bg-secondary);
+  padding: 8px var(--spacing-lg);
+  background: linear-gradient(180deg, rgba(var(--bg-secondary-rgb, 20, 20, 22), 0.95) 0%, rgba(var(--bg-primary-rgb, 12, 12, 14), 0.98) 100%);
   border-bottom: 1px solid var(--border-color);
   gap: var(--spacing-md);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle animated background glow when playing */
+.soundscape-player::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at 20% 50%, rgba(var(--accent-rgb, 100, 100, 120), 0.03) 0%, transparent 50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.soundscape-player.playing::before {
+  opacity: 1;
+  animation: soundscapeGlow 4s ease-in-out infinite;
+}
+
+@keyframes soundscapeGlow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .soundscape-info {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .soundscape-icon {
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   color: var(--accent-color);
-  opacity: 0.8;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.soundscape-player.playing .soundscape-icon {
+  opacity: 1;
+  animation: soundscapePulse 2s ease-in-out infinite;
+}
+
+@keyframes soundscapePulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
 }
 
 .soundscape-name {
   font-family: var(--font-mono);
   font-size: 0.55rem;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.2em;
   color: var(--text-muted);
   text-transform: uppercase;
+  transition: color 0.3s ease;
+}
+
+.soundscape-player.playing .soundscape-name {
+  color: var(--text-secondary);
 }
 
 .soundscape-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .soundscape-toggle {
   background: transparent;
   border: 1px solid var(--border-color);
   color: var(--text-muted);
-  padding: 4px 8px;
+  padding: 5px 10px;
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  border-radius: 2px;
 }
 
 .soundscape-toggle:hover {
-  border-color: var(--text-secondary);
-  color: var(--text-secondary);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: rgba(var(--accent-rgb, 100, 100, 120), 0.05);
 }
 
 .soundscape-toggle.playing {
   border-color: var(--accent-color);
   color: var(--accent-color);
+  background: rgba(var(--accent-rgb, 100, 100, 120), 0.1);
 }
 
 .soundscape-volume {
-  width: 60px;
-  height: 3px;
+  width: 70px;
+  height: 4px;
   -webkit-appearance: none;
   appearance: none;
   background: var(--border-color);
   border-radius: 2px;
   cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.soundscape-volume:hover {
+  background: var(--text-muted);
 }
 
 .soundscape-volume::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--text-muted);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
 }
 
 .soundscape-volume::-webkit-slider-thumb:hover {
   background: var(--text-secondary);
-  transform: scale(1.2);
+  transform: scale(1.15);
 }
 
 .soundscape-volume::-moz-range-thumb {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--text-muted);
   cursor: pointer;
   border: none;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
 }
 
 .soundscape-mute {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.5rem;
+  font-size: 0.55rem;
   cursor: pointer;
-  padding: 2px 4px;
-  transition: color 0.15s ease;
+  padding: 4px 6px;
+  transition: all 0.2s ease;
+  border-radius: 2px;
 }
 
 .soundscape-mute:hover {
   color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+.soundscape-mute.muted {
+  color: var(--error-color, #ff6b6b);
 }
 
 /* Soundscape selector in thread creation form */
 .soundscape-selector {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 8px 0;
+  gap: 10px;
+  margin: 10px 0;
+  padding: 8px 12px;
+  background: rgba(var(--bg-secondary-rgb, 20, 20, 22), 0.5);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
 }
 
 .soundscape-label {
@@ -1142,29 +1204,36 @@ ul {
   letter-spacing: 0.1em;
   color: var(--text-muted);
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .soundscape-select {
+  flex: 1;
+  max-width: 150px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
-  padding: 4px 8px;
+  padding: 6px 10px;
   font-family: var(--font-mono);
   font-size: 0.6rem;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  border-radius: 2px;
 }
 
 .soundscape-select:hover,
 .soundscape-select:focus {
-  border-color: var(--text-muted);
+  border-color: var(--accent-color);
   outline: none;
+  background: var(--bg-secondary);
 }
 
 .soundscape-select option {
   background: var(--bg-panel);
   color: var(--text-secondary);
+  padding: 8px;
 }
 
 .typing-dots {

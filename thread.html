@@ -669,6 +669,8 @@
             isSoundscapePlaying = true;
             playIcon.style.display = 'none';
             pauseIcon.style.display = 'inline';
+            soundscapePlayer.classList.add('playing');
+            soundscapeToggle.classList.add('playing');
           }).catch(function() {
             isSoundscapePlaying = false;
           });
@@ -684,6 +686,8 @@
           isSoundscapePlaying = false;
           playIcon.style.display = 'inline';
           pauseIcon.style.display = 'none';
+          soundscapePlayer.classList.remove('playing');
+          soundscapeToggle.classList.remove('playing');
           localStorage.setItem('soundscape-autoplay', 'false');
         } else {
           activeAudio.volume = isSoundscapeMuted ? 0 : targetVolume;
@@ -691,6 +695,8 @@
             isSoundscapePlaying = true;
             playIcon.style.display = 'none';
             pauseIcon.style.display = 'inline';
+            soundscapePlayer.classList.add('playing');
+            soundscapeToggle.classList.add('playing');
             localStorage.setItem('soundscape-autoplay', 'true');
           }).catch(function(err) {
             console.error('[SOUNDSCAPE] Playback failed:', err);
@@ -709,9 +715,11 @@
         if (targetVolume === 0) {
           isSoundscapeMuted = true;
           soundscapeMute.textContent = '[X]';
+          soundscapeMute.classList.add('muted');
         } else {
           isSoundscapeMuted = false;
           soundscapeMute.textContent = '[M]';
+          soundscapeMute.classList.remove('muted');
         }
       });
 
@@ -724,12 +732,14 @@
           soundscapeVolume.value = savedVol;
           isSoundscapeMuted = false;
           soundscapeMute.textContent = '[M]';
+          soundscapeMute.classList.remove('muted');
         } else {
           activeAudio.volume = 0;
           inactiveAudio.volume = 0;
           soundscapeVolume.value = 0;
           isSoundscapeMuted = true;
           soundscapeMute.textContent = '[X]';
+          soundscapeMute.classList.add('muted');
         }
       });
 
