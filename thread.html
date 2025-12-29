@@ -72,7 +72,9 @@
         <input type="range" class="soundscape-volume" id="soundscape-volume" min="0" max="100" value="30" title="Volume" aria-label="Ambient sound volume">
         <button class="soundscape-mute" id="soundscape-mute" title="Mute" aria-label="Mute ambient sound">[M]</button>
       </div>
-      <audio id="soundscape-audio" loop preload="none"></audio>
+      <!-- Dual audio elements for crossfade looping -->
+      <audio id="soundscape-audio-a" preload="none"></audio>
+      <audio id="soundscape-audio-b" preload="none"></audio>
     </div>
 
     <!-- Filter Bar -->
@@ -532,21 +534,27 @@
       }
 
       // ============================================
-      // SOUNDSCAPE PLAYER
+      // SOUNDSCAPE PLAYER - Crossfade Looping
       // ============================================
       var soundscapePlayer = document.getElementById('soundscape-player');
       var soundscapeName = document.getElementById('soundscape-name');
       var soundscapeToggle = document.getElementById('soundscape-toggle');
       var soundscapeVolume = document.getElementById('soundscape-volume');
       var soundscapeMute = document.getElementById('soundscape-mute');
-      var soundscapeAudio = document.getElementById('soundscape-audio');
+      var audioA = document.getElementById('soundscape-audio-a');
+      var audioB = document.getElementById('soundscape-audio-b');
       var playIcon = soundscapeToggle.querySelector('.play-icon');
       var pauseIcon = soundscapeToggle.querySelector('.pause-icon');
       var isSoundscapePlaying = false;
       var isSoundscapeMuted = false;
       var currentSoundscape = null;
+      var activeAudio = audioA;
+      var inactiveAudio = audioB;
+      var crossfadeInterval = null;
+      var crossfadeDuration = 3000; // 3 second crossfade
+      var targetVolume = 0.3;
 
-      // Soundscape audio sources (using free ambient sound URLs as fallbacks)
+      // Soundscape audio sources - host your own MP3s in /audio/ folder
       var soundscapeSources = {
         rain: '/audio/rain.mp3',
         cafe: '/audio/cafe.mp3',
@@ -573,6 +581,54 @@
         void: 'VOID'
       };
 
+      // Crossfade function for seamless looping
+      function startCrossfade() {
+        if (!isSoundscapePlaying || isSoundscapeMuted) return;
+        
+        // Prepare inactive audio
+        inactiveAudio.currentTime = 0;
+        inactiveAudio.volume = 0;
+        inactiveAudio.play().catch(function() {});
+
+        var steps = 30;
+        var stepTime = crossfadeDuration / steps;
+        var volumeStep = targetVolume / steps;
+        var currentStep = 0;
+
+        clearInterval(crossfadeInterval);
+        crossfadeInterval = setInterval(function() {
+          currentStep++;
+          
+          // Fade out active, fade in inactive
+          var fadeOutVol = Math.max(0, targetVolume - (volumeStep * currentStep));
+          var fadeInVol = Math.min(targetVolume, volumeStep * currentStep);
+          
+          activeAudio.volume = isSoundscapeMuted ? 0 : fadeOutVol;
+          inactiveAudio.volume = isSoundscapeMuted ? 0 : fadeInVol;
+
+          if (currentStep >= steps) {
+            clearInterval(crossfadeInterval);
+            activeAudio.pause();
+            activeAudio.currentTime = 0;
+            
+            // Swap active/inactive
+            var temp = activeAudio;
+            activeAudio = inactiveAudio;
+            inactiveAudio = temp;
+          }
+        }, stepTime);
+      }
+
+      // Monitor for when to start crossfade (3 seconds before end)
+      function checkForCrossfade() {
+        if (!isSoundscapePlaying) return;
+        
+        var timeRemaining = activeAudio.duration - activeAudio.currentTime;
+        if (timeRemaining <= (crossfadeDuration / 1000) + 0.5 && timeRemaining > (crossfadeDuration / 1000) - 0.5) {
+          startCrossfade();
+        }
+      }
+
       function initSoundscape(soundscapeType) {
         if (!soundscapeType || !soundscapeSources[soundscapeType]) {
           soundscapePlayer.style.display = 'none';
@@ -582,28 +638,38 @@
 
         currentSoundscape = soundscapeType;
         soundscapeName.textContent = soundscapeLabels[soundscapeType] || soundscapeType.toUpperCase();
-        soundscapeAudio.src = soundscapeSources[soundscapeType];
+        
+        // Set source for both audio elements
+        var src = soundscapeSources[soundscapeType];
+        audioA.src = src;
+        audioB.src = src;
+        activeAudio = audioA;
+        inactiveAudio = audioB;
+        
         soundscapePlayer.style.display = 'flex';
 
         // Load saved volume preference
         var savedVolume = localStorage.getItem('soundscape-volume');
         if (savedVolume !== null) {
           soundscapeVolume.value = savedVolume;
-          soundscapeAudio.volume = savedVolume / 100;
+          targetVolume = savedVolume / 100;
         } else {
-          soundscapeAudio.volume = 0.3; // Default 30%
+          targetVolume = 0.3;
         }
 
-        // Check if user prefers autoplay (remember their choice)
+        // Set up timeupdate listener for crossfade detection
+        audioA.addEventListener('timeupdate', checkForCrossfade);
+        audioB.addEventListener('timeupdate', checkForCrossfade);
+
+        // Check if user prefers autoplay
         var autoplayPref = localStorage.getItem('soundscape-autoplay');
         if (autoplayPref === 'true') {
-          // Try to autoplay (may be blocked by browser)
-          soundscapeAudio.play().then(function() {
+          activeAudio.volume = targetVolume;
+          activeAudio.play().then(function() {
             isSoundscapePlaying = true;
             playIcon.style.display = 'none';
             pauseIcon.style.display = 'inline';
           }).catch(function() {
-            // Autoplay blocked, user needs to click
             isSoundscapePlaying = false;
           });
         }
@@ -612,13 +678,16 @@
       // Toggle play/pause
       soundscapeToggle.addEventListener('click', function() {
         if (isSoundscapePlaying) {
-          soundscapeAudio.pause();
+          activeAudio.pause();
+          inactiveAudio.pause();
+          clearInterval(crossfadeInterval);
           isSoundscapePlaying = false;
           playIcon.style.display = 'inline';
           pauseIcon.style.display = 'none';
           localStorage.setItem('soundscape-autoplay', 'false');
         } else {
-          soundscapeAudio.play().then(function() {
+          activeAudio.volume = isSoundscapeMuted ? 0 : targetVolume;
+          activeAudio.play().then(function() {
             isSoundscapePlaying = true;
             playIcon.style.display = 'none';
             pauseIcon.style.display = 'inline';
@@ -632,10 +701,12 @@
 
       // Volume control
       soundscapeVolume.addEventListener('input', function() {
-        var volume = this.value / 100;
-        soundscapeAudio.volume = volume;
+        targetVolume = this.value / 100;
+        if (!isSoundscapeMuted) {
+          activeAudio.volume = targetVolume;
+        }
         localStorage.setItem('soundscape-volume', this.value);
-        if (volume === 0) {
+        if (targetVolume === 0) {
           isSoundscapeMuted = true;
           soundscapeMute.textContent = '[X]';
         } else {
@@ -648,12 +719,14 @@
       soundscapeMute.addEventListener('click', function() {
         if (isSoundscapeMuted) {
           var savedVol = localStorage.getItem('soundscape-volume') || 30;
-          soundscapeAudio.volume = savedVol / 100;
+          targetVolume = savedVol / 100;
+          activeAudio.volume = targetVolume;
           soundscapeVolume.value = savedVol;
           isSoundscapeMuted = false;
           soundscapeMute.textContent = '[M]';
         } else {
-          soundscapeAudio.volume = 0;
+          activeAudio.volume = 0;
+          inactiveAudio.volume = 0;
           soundscapeVolume.value = 0;
           isSoundscapeMuted = true;
           soundscapeMute.textContent = '[X]';
@@ -661,17 +734,18 @@
       });
 
       // Audio error handling
-      soundscapeAudio.addEventListener('error', function() {
+      audioA.addEventListener('error', function() {
         console.error('[SOUNDSCAPE] Failed to load audio');
         soundscapePlayer.style.display = 'none';
       });
 
       // Cleanup on page unload
       window.addEventListener('beforeunload', function() {
-        if (soundscapeAudio) {
-          soundscapeAudio.pause();
-          soundscapeAudio.src = '';
-        }
+        clearInterval(crossfadeInterval);
+        audioA.pause();
+        audioB.pause();
+        audioA.src = '';
+        audioB.src = '';
       });
 
       function updateThreadBadges(threadData) {

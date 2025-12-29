@@ -1,36 +1,54 @@
-# Thread Soundscapes
+# Thread Soundscapes - Audio Files
 
-This folder contains ambient audio files for thread soundscapes.
+You need to download MP3 files for the soundscapes feature to work.
 
-## Available Soundscapes
+## Quick Download Links (Pixabay - Free, No Attribution Required)
 
-| ID | Name | File |
-|---|---|---|
-| rain | Rain | rain.mp3 |
-| cafe | Café Ambience | cafe.mp3 |
-| forest | Forest | forest.mp3 |
-| ocean | Ocean Waves | ocean.mp3 |
-| fire | Fireplace | fire.mp3 |
-| wind | Wind | wind.mp3 |
-| thunder | Thunderstorm | thunder.mp3 |
-| night | Night Ambience | night.mp3 |
-| static | Static Noise | static.mp3 |
-| void | Deep Void | void.mp3 |
+### 1. RAIN (rain.mp3) - ~9 minutes
+https://pixabay.com/sound-effects/soft-rain-ambient-111154/
 
-## Audio Requirements
+### 2. CAFE (cafe.mp3) - ~10 minutes  
+https://pixabay.com/sound-effects/coffee-shop-ambience-254802/
 
-- Format: MP3 (for broad compatibility)
-- Length: Loop-friendly (seamless looping)
-- Size: Keep under 2MB per file for fast loading
-- License: Must be royalty-free / Creative Commons
+### 3. FOREST (forest.mp3) - ~3 minutes
+https://pixabay.com/sound-effects/forest-ambience-296528/
 
-## Sources for Free Ambient Audio
+### 4. OCEAN (ocean.mp3) - ~5 minutes
+https://pixabay.com/sound-effects/ocean-waves-crashing-on-beach-315107/
 
-- [Freesound.org](https://freesound.org)
-- [BBC Sound Effects](https://sound-effects.bbcrewind.co.uk)
-- [Pixabay Music](https://pixabay.com/music)
-- [Zapsplat](https://www.zapsplat.com)
+### 5. FIRE (fire.mp3) - ~10 minutes
+https://pixabay.com/sound-effects/fireplace-89901/
 
-## Fallback
+### 6. WIND (wind.mp3) - ~5 minutes
+https://pixabay.com/sound-effects/wind-blowing-sfx-108413/
 
-If audio files aren't present, the system uses embedded fallback URLs from public CDN sources.
+### 7. THUNDER (thunder.mp3) - ~6 minutes
+https://pixabay.com/sound-effects/heavy-rain-and-thunder-121256/
+
+### 8. NIGHT (night.mp3) - ~10 minutes
+https://pixabay.com/sound-effects/crickets-and-insects-in-the-wild-ambient-sounds-146911/
+
+### 9. STATIC (static.mp3) - ~10 minutes
+https://pixabay.com/sound-effects/white-noise-84586/
+
+### 10. VOID (void.mp3) - ~4 minutes
+https://pixabay.com/sound-effects/dark-ambient-atmosphere-195766/
+
+## Instructions
+
+1. Click each link above
+2. Click the green "Download" button on Pixabay
+3. Rename the downloaded file to match the name in parentheses (e.g., rain.mp3)
+4. Place all files in this `/audio/` folder
+
+## File Requirements
+
+- Format: MP3
+- Length: 3-10+ minutes (longer = better looping)
+- These tracks are designed to loop seamlessly
+
+## Alternative Sources
+
+- **Freesound.org** - Free with attribution
+- **Archive.org** - Public domain
+- **Zapsplat.com** - Free with attribution
