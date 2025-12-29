@@ -435,7 +435,7 @@
       'use strict';
       
       // Check authentication
-      if (!AuthState.isLoggedIn()) {
+      if (!AuthState.isAuthenticated()) {
         window.location.href = 'login.html';
         return;
       }
