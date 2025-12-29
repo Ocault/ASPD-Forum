@@ -4253,6 +4253,147 @@ app.post('/api/admin/users/:id/role', authMiddleware, adminMiddleware, async (re
   }
 });
 
+// Owner: Export any user's data (GDPR compliance tool)
+app.get('/admin/users/:alias/export', authMiddleware, ownerMiddleware, async (req, res) => {
+  const { alias } = req.params;
+
+  try {
+    // Find user by alias
+    const userLookup = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+    if (userLookup.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    const userId = userLookup.rows[0].id;
+
+    // Fetch all user data
+    const userResult = await db.query(
+      `SELECT alias, bio, email, email_verified, notification_replies, notification_mentions, 
+              notification_messages, reputation, created_at, last_seen_at, signature, role, is_banned, ban_reason
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+    
+    const userData = userResult.rows[0];
+    
+    // Fetch all posts by user
+    const postsResult = await db.query(
+      `SELECT e.content, e.created_at, e.edited_at, e.ip_hash, t.title AS thread_title, r.title AS room_title
+       FROM entries e
+       JOIN threads t ON t.id = e.thread_id
+       JOIN rooms r ON r.id = t.room_id
+       WHERE e.user_id = $1
+       ORDER BY e.created_at DESC`,
+      [userId]
+    );
+    
+    // Fetch threads created by user
+    const threadsResult = await db.query(
+      `SELECT t.title, t.created_at, r.title AS room_title
+       FROM threads t
+       JOIN rooms r ON r.id = t.room_id
+       WHERE t.user_id = $1
+       ORDER BY t.created_at DESC`,
+      [userId]
+    );
+    
+    // Fetch private messages (sent)
+    const sentMessagesResult = await db.query(
+      `SELECT pm.subject, pm.content, pm.created_at, u.alias AS recipient
+       FROM private_messages pm
+       JOIN users u ON u.id = pm.recipient_id
+       WHERE pm.sender_id = $1
+       ORDER BY pm.created_at DESC`,
+      [userId]
+    );
+    
+    // Fetch private messages (received)
+    const receivedMessagesResult = await db.query(
+      `SELECT pm.subject, pm.content, pm.created_at, u.alias AS sender
+       FROM private_messages pm
+       JOIN users u ON u.id = pm.sender_id
+       WHERE pm.recipient_id = $1
+       ORDER BY pm.created_at DESC`,
+      [userId]
+    );
+    
+    // Fetch warnings
+    const warningsResult = await db.query(
+      `SELECT reason, created_at FROM user_warnings WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    );
+    
+    // Fetch mod notes
+    const notesResult = await db.query(
+      `SELECT note, created_at FROM mod_notes WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    );
+    
+    // Compile export data
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      exported_by: 'owner',
+      profile: {
+        alias: userData.alias,
+        bio: userData.bio,
+        email: userData.email,
+        email_verified: userData.email_verified,
+        signature: userData.signature,
+        reputation: userData.reputation,
+        role: userData.role,
+        is_banned: userData.is_banned,
+        ban_reason: userData.ban_reason,
+        created_at: userData.created_at,
+        last_seen_at: userData.last_seen_at
+      },
+      settings: {
+        notification_replies: userData.notification_replies,
+        notification_mentions: userData.notification_mentions,
+        notification_messages: userData.notification_messages
+      },
+      posts: postsResult.rows.map(p => ({
+        content: p.content,
+        thread: p.thread_title,
+        room: p.room_title,
+        ip_hash: p.ip_hash,
+        created_at: p.created_at,
+        edited_at: p.edited_at
+      })),
+      threads_created: threadsResult.rows.map(t => ({
+        title: t.title,
+        room: t.room_title,
+        created_at: t.created_at
+      })),
+      messages: {
+        sent: sentMessagesResult.rows.map(m => ({
+          to: m.recipient,
+          subject: m.subject,
+          content: m.content,
+          sent_at: m.created_at
+        })),
+        received: receivedMessagesResult.rows.map(m => ({
+          from: m.sender,
+          subject: m.subject,
+          content: m.content,
+          received_at: m.created_at
+        }))
+      },
+      moderation: {
+        warnings: warningsResult.rows,
+        mod_notes: notesResult.rows
+      }
+    };
+    
+    await logAudit('export_user_data', 'user', userId, req.user.userId, { alias });
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${alias}_data_export.json"`);
+    res.send(JSON.stringify(exportData, null, 2));
+  } catch (err) {
+    console.error('[OWNER EXPORT ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // Admin: Get user details for moderation (mods can view, but limited info)
 app.get('/api/admin/users/:id', authMiddleware, modMiddleware, async (req, res) => {
   const userId = parseInt(req.params.id);

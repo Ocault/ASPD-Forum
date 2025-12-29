@@ -52,6 +52,87 @@
       padding: 0 4px;
       font-size: 0.4375rem;
     }
+    .admin-role-badge {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      padding: var(--spacing-sm);
+      text-align: center;
+      letter-spacing: 0.1em;
+      margin-bottom: var(--spacing-sm);
+    }
+    .admin-role-badge.role-owner {
+      background: linear-gradient(135deg, #2a1a2e, #1a2a1e);
+      border: 1px solid #6a4a7a;
+      color: #a080b0;
+    }
+    .admin-role-badge.role-admin {
+      background: linear-gradient(135deg, #1a1a2e, #1e1a2a);
+      border: 1px solid #4a4a8a;
+      color: #8080c0;
+    }
+    .admin-role-badge.role-moderator {
+      background: linear-gradient(135deg, #1a2a2a, #1a2a1e);
+      border: 1px solid #4a7a6a;
+      color: #70a090;
+    }
+    .admin-nav-divider {
+      height: 1px;
+      background: var(--border-color);
+      margin: var(--spacing-sm) 0;
+    }
+    .permission-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--spacing-md);
+    }
+    .permission-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      padding: var(--spacing-md);
+    }
+    .permission-card-title {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      color: var(--text-primary);
+      letter-spacing: 0.1em;
+      margin-bottom: var(--spacing-sm);
+      padding-bottom: var(--spacing-xs);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .permission-item {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      font-family: var(--font-mono);
+      font-size: 0.4375rem;
+      color: var(--text-muted);
+      padding: var(--spacing-xs) 0;
+    }
+    .permission-item.allowed { color: #6a9a7a; }
+    .permission-item.denied { color: #9a6a6a; }
+    .permission-icon { font-size: 0.5rem; }
+    .owner-tool-btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      padding: var(--spacing-md);
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      margin-bottom: var(--spacing-sm);
+      transition: all 0.15s;
+    }
+    .owner-tool-btn:hover {
+      border-color: var(--accent-primary);
+      color: var(--text-primary);
+    }
+    .owner-tool-desc {
+      font-size: 0.4375rem;
+      color: var(--text-muted);
+      margin-top: var(--spacing-xs);
+    }
     .admin-content {
       flex: 1;
       background: var(--bg-primary);
@@ -358,18 +439,22 @@
 
     <div class="admin-panel">
       <div class="admin-sidebar">
-        <button class="admin-nav-btn active" data-section="dashboard">DASHBOARD</button>
-        <button class="admin-nav-btn" data-section="stats">STATS</button>
-        <button class="admin-nav-btn" data-section="reports">
+        <div class="admin-role-badge" id="admin-role-badge">LOADING...</div>
+        <div class="admin-nav-divider"></div>
+        <button class="admin-nav-btn active" data-section="dashboard" data-role="mod">DASHBOARD</button>
+        <button class="admin-nav-btn" data-section="permissions" data-role="mod">MY PERMISSIONS</button>
+        <button class="admin-nav-btn" data-section="stats" data-role="admin">STATS</button>
+        <button class="admin-nav-btn" data-section="reports" data-role="mod">
           REPORTS <span class="admin-nav-badge" id="report-count">0</span>
         </button>
-        <button class="admin-nav-btn" data-section="users">USERS</button>
-        <button class="admin-nav-btn" data-section="rooms">ROOMS</button>
-        <button class="admin-nav-btn" data-section="announcements">ANNOUNCEMENTS</button>
-        <button class="admin-nav-btn" data-section="bans">IP BANS</button>
-        <button class="admin-nav-btn" data-section="filters">WORD FILTERS</button>
-        <button class="admin-nav-btn" data-section="audit">AUDIT LOG</button>
-        <button class="admin-nav-btn" data-section="badges">BADGES</button>
+        <button class="admin-nav-btn" data-section="users" data-role="mod">USERS</button>
+        <button class="admin-nav-btn" data-section="rooms" data-role="admin">ROOMS</button>
+        <button class="admin-nav-btn" data-section="announcements" data-role="admin">ANNOUNCEMENTS</button>
+        <button class="admin-nav-btn" data-section="bans" data-role="admin">IP BANS</button>
+        <button class="admin-nav-btn" data-section="filters" data-role="admin">WORD FILTERS</button>
+        <button class="admin-nav-btn" data-section="audit" data-role="admin">AUDIT LOG</button>
+        <button class="admin-nav-btn" data-section="badges" data-role="admin">BADGES</button>
+        <button class="admin-nav-btn" data-section="owner" data-role="owner">OWNER TOOLS</button>
       </div>
 
       <div class="admin-content" id="admin-content">
@@ -393,6 +478,81 @@
               <div class="stat-value" id="stat-warnings">0</div>
               <div class="stat-label">WARNINGS (7D)</div>
             </div>
+
+        <!-- My Permissions -->
+        <div class="admin-section" id="section-permissions">
+          <div class="admin-section-title">MY ROLE & PERMISSIONS</div>
+          <div class="permission-grid">
+            <div class="permission-card">
+              <div class="permission-card-title">CONTENT MODERATION</div>
+              <div class="permission-item allowed" data-role="mod"><span class="permission-icon">✓</span> Handle reports</div>
+              <div class="permission-item allowed" data-role="mod"><span class="permission-icon">✓</span> Shadow ban posts</div>
+              <div class="permission-item allowed" data-role="mod"><span class="permission-icon">✓</span> Delete posts</div>
+              <div class="permission-item allowed" data-role="mod"><span class="permission-icon">✓</span> Warn users</div>
+              <div class="permission-item denied" data-role="mod" data-needs="admin"><span class="permission-icon">✗</span> Ban/unban users</div>
+              <div class="permission-item denied" data-role="mod" data-needs="admin"><span class="permission-icon">✗</span> IP bans</div>
+            </div>
+            <div class="permission-card">
+              <div class="permission-card-title">USER MANAGEMENT</div>
+              <div class="permission-item allowed" data-role="mod"><span class="permission-icon">✓</span> View user details</div>
+              <div class="permission-item allowed" data-role="mod"><span class="permission-icon">✓</span> Add mod notes</div>
+              <div class="permission-item denied" data-role="mod" data-needs="admin"><span class="permission-icon">✗</span> Ban users</div>
+              <div class="permission-item denied" data-role="mod" data-needs="admin"><span class="permission-icon">✗</span> Set user roles</div>
+              <div class="permission-item denied" data-role="mod" data-needs="owner"><span class="permission-icon">✗</span> Promote to admin</div>
+              <div class="permission-item denied" data-role="mod" data-needs="owner"><span class="permission-icon">✗</span> Download user data</div>
+            </div>
+            <div class="permission-card">
+              <div class="permission-card-title">SITE MANAGEMENT</div>
+              <div class="permission-item denied" data-role="mod" data-needs="admin"><span class="permission-icon">✗</span> Create/edit rooms</div>
+              <div class="permission-item denied" data-role="mod" data-needs="admin"><span class="permission-icon">✗</span> Manage announcements</div>
+              <div class="permission-item denied" data-role="mod" data-needs="admin"><span class="permission-icon">✗</span> Word filters</div>
+              <div class="permission-item denied" data-role="mod" data-needs="admin"><span class="permission-icon">✗</span> View audit log</div>
+              <div class="permission-item denied" data-role="mod" data-needs="admin"><span class="permission-icon">✗</span> Manage badges</div>
+            </div>
+            <div class="permission-card">
+              <div class="permission-card-title">OWNER TOOLS</div>
+              <div class="permission-item denied" data-role="mod" data-needs="owner"><span class="permission-icon">✗</span> Promote admins</div>
+              <div class="permission-item denied" data-role="mod" data-needs="owner"><span class="permission-icon">✗</span> Download any user data</div>
+              <div class="permission-item denied" data-role="mod" data-needs="owner"><span class="permission-icon">✗</span> Site settings</div>
+              <div class="permission-item denied" data-role="mod" data-needs="owner"><span class="permission-icon">✗</span> Database tools</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Owner Tools -->
+        <div class="admin-section" id="section-owner">
+          <div class="admin-section-title">OWNER TOOLS</div>
+          <p style="font-size: 0.5rem; color: var(--text-muted); margin-bottom: var(--spacing-md);">
+            These tools are only available to the site owner. Use with caution.
+          </p>
+          
+          <div class="permission-card" style="margin-bottom: var(--spacing-md);">
+            <div class="permission-card-title">DOWNLOAD USER DATA (GDPR)</div>
+            <div class="admin-form-row" style="margin-bottom: var(--spacing-sm);">
+              <input type="text" class="admin-input" id="owner-user-search" placeholder="Enter username to download data...">
+              <button class="admin-btn" id="owner-download-data">DOWNLOAD</button>
+            </div>
+            <div style="font-size: 0.4375rem; color: var(--text-muted);">
+              Downloads all data for a specific user including posts, messages, settings, and activity.
+            </div>
+          </div>
+          
+          <div class="permission-card" style="margin-bottom: var(--spacing-md);">
+            <div class="permission-card-title">ROLE MANAGEMENT</div>
+            <div id="owner-admins-list" style="margin-bottom: var(--spacing-sm);"></div>
+            <div style="font-size: 0.4375rem; color: var(--text-muted);">
+              Only owners can promote users to admin or demote admins.
+            </div>
+          </div>
+          
+          <div class="permission-card">
+            <div class="permission-card-title">DANGER ZONE</div>
+            <button class="owner-tool-btn" id="owner-clear-cache" style="border-color: #6a4a4a;">
+              CLEAR SERVER CACHE
+              <div class="owner-tool-desc">Clears all cached data. May temporarily slow down the site.</div>
+            </button>
+          </div>
+        </div>
           </div>
         </div>
 
@@ -757,16 +917,47 @@
       var isAdmin = userRole === 'admin' || userRole === 'owner';
       var isOwner = userRole === 'owner';
 
-      // Hide admin-only sections for moderators
-      if (!isAdmin) {
-        // Mods can only see: Reports, limited user viewing
-        document.querySelectorAll('.admin-nav-btn').forEach(function(btn) {
-          var section = btn.dataset.section;
-          if (['rooms', 'announcements', 'filters', 'audit', 'settings', 'ip-bans'].includes(section)) {
-            btn.style.display = 'none';
+      // Set role badge in sidebar
+      var roleBadge = document.getElementById('admin-role-badge');
+      if (isOwner) {
+        roleBadge.textContent = '👑 OWNER';
+        roleBadge.className = 'admin-role-badge role-owner';
+      } else if (isAdmin) {
+        roleBadge.textContent = '⚡ ADMIN';
+        roleBadge.className = 'admin-role-badge role-admin';
+      } else {
+        roleBadge.textContent = '🛡 MODERATOR';
+        roleBadge.className = 'admin-role-badge role-moderator';
+      }
+
+      // Hide nav items based on role
+      document.querySelectorAll('.admin-nav-btn').forEach(function(btn) {
+        var requiredRole = btn.dataset.role;
+        if (requiredRole === 'owner' && !isOwner) {
+          btn.style.display = 'none';
+        } else if (requiredRole === 'admin' && !isAdmin) {
+          btn.style.display = 'none';
+        }
+      });
+
+      // Update permissions display based on role
+      function updatePermissionsDisplay() {
+        document.querySelectorAll('.permission-item').forEach(function(item) {
+          var needsRole = item.dataset.needs;
+          if (!needsRole) return; // Always allowed for base role
+          
+          if (needsRole === 'admin' && isAdmin) {
+            item.classList.remove('denied');
+            item.classList.add('allowed');
+            item.querySelector('.permission-icon').textContent = '✓';
+          } else if (needsRole === 'owner' && isOwner) {
+            item.classList.remove('denied');
+            item.classList.add('allowed');
+            item.querySelector('.permission-icon').textContent = '✓';
           }
         });
       }
+      updatePermissionsDisplay();
 
       var currentSection = 'dashboard';
       var currentUserId = null;
@@ -796,7 +987,81 @@
         else if (section === 'filters') loadFilters();
         else if (section === 'audit') loadAuditLog();
         else if (section === 'badges') loadBadges();
+        else if (section === 'permissions') { /* Static content */ }
+        else if (section === 'owner') loadOwnerTools();
       }
+
+      // Owner Tools
+      function loadOwnerTools() {
+        if (!isOwner) return;
+        
+        // Load list of current admins
+        AuthState.fetchWithAuth('/admin/users?filter=all')
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data.success) {
+              var admins = data.users.filter(function(u) { return u.role === 'admin' || u.role === 'owner'; });
+              var list = document.getElementById('owner-admins-list');
+              if (admins.length === 0) {
+                list.innerHTML = '<div style="color: var(--text-muted); font-size: 0.4375rem;">No admins found</div>';
+              } else {
+                list.innerHTML = admins.map(function(u) {
+                  return '<div style="display: flex; justify-content: space-between; padding: var(--spacing-xs) 0; border-bottom: 1px solid var(--border-color);">' +
+                    '<span style="font-size: 0.4375rem;">' + u.alias + ' <span style="color: var(--text-muted);">(' + (u.role || 'admin') + ')</span></span>' +
+                    (u.role !== 'owner' ? '<button class="admin-btn" style="font-size: 0.375rem; padding: 2px 6px;" onclick="demoteAdmin(' + u.id + ')">DEMOTE</button>' : '<span style="color: #a080b0; font-size: 0.375rem;">OWNER</span>') +
+                    '</div>';
+                }).join('');
+              }
+            }
+          });
+      }
+
+      // Owner: Download user data
+      document.getElementById('owner-download-data').addEventListener('click', function() {
+        if (!isOwner) return;
+        var username = document.getElementById('owner-user-search').value.trim();
+        if (!username) {
+          Notify.show('Enter a username', 'error');
+          return;
+        }
+        
+        Notify.show('Preparing download...', 'info');
+        AuthState.fetchWithAuth('/admin/users/' + encodeURIComponent(username) + '/export')
+          .then(function(res) {
+            if (!res.ok) throw new Error('User not found');
+            return res.blob();
+          })
+          .then(function(blob) {
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = username + '_data_export.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            Notify.show('Download started', 'success');
+          })
+          .catch(function(err) {
+            Notify.show(err.message || 'Download failed', 'error');
+          });
+      });
+
+      // Owner: Demote admin
+      window.demoteAdmin = function(userId) {
+        if (!isOwner) return;
+        if (!confirm('Demote this admin to moderator?')) return;
+        
+        AuthState.apiRequest('/api/admin/users/' + userId + '/role', {
+          method: 'POST',
+          body: JSON.stringify({ role: 'moderator' })
+        }).then(function(data) {
+          if (data.success) {
+            Notify.show('Admin demoted', 'success');
+            loadOwnerTools();
+          } else {
+            Notify.show(data.error || 'Failed', 'error');
+          }
+        });
+      };
 
       // Audit Log
       var auditPage = 1;
