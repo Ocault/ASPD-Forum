@@ -12,14 +12,13 @@
   var heartbeatInterval = null;
   var subscribers = {};
 
-  // Determine WebSocket URL
+  // Determine WebSocket URL - connect to Railway backend
   function getWsUrl() {
-    var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    var host = window.location.hostname === 'localhost' 
-      ? 'localhost:3001' 
-      : window.location.host;
+    var wsBase = window.location.hostname === 'localhost'
+      ? 'ws://localhost:3001'
+      : 'wss://aspd-forum-production.up.railway.app';
     var token = localStorage.getItem('authToken');
-    return protocol + '//' + host + '/ws' + (token ? '?token=' + encodeURIComponent(token) : '');
+    return wsBase + '/ws' + (token ? '?token=' + encodeURIComponent(token) : '');
   }
 
   // Connect to WebSocket server
