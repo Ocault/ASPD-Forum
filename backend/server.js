@@ -97,6 +97,14 @@ try {
 
 const app = express();
 
+// IMMEDIATE health check - responds before any other middleware
+// This helps Railway know the server is alive
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: Date.now() });
+});
+
+console.log('[STARTUP] Express app created');
+
 // Trust proxy - essential for getting real client IPs behind Railway/Cloudflare
 app.set('trust proxy', true);
 
@@ -139,6 +147,11 @@ const logger = {
   }
 };
 
+console.log('[STARTUP] Logger initialized');
+console.log('[STARTUP] PORT=' + PORT);
+console.log('[STARTUP] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+console.log('[STARTUP] JWT_SECRET exists:', !!JWT_SECRET);
+
 // Request ID middleware
 app.use((req, res, next) => {
   req.reqId = crypto.randomBytes(8).toString('hex');
@@ -148,9 +161,12 @@ app.use((req, res, next) => {
 
 // CRITICAL: Validate JWT_SECRET on startup
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
-  logger.error('STARTUP', 'JWT_SECRET must be set and at least 32 characters');
+  console.error('[STARTUP] FATAL: JWT_SECRET must be set and at least 32 characters');
+  console.error('[STARTUP] JWT_SECRET length:', JWT_SECRET ? JWT_SECRET.length : 0);
   process.exit(1);
 }
+
+console.log('[STARTUP] JWT_SECRET validated');
 
 // Security headers with helmet
 app.use(helmet({
