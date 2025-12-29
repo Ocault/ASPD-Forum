@@ -93,11 +93,14 @@ async function sendEmail(to, subject, html) {
     return false;
   }
   
-  console.log('[EMAIL] Attempting to send email to:', to);
+  const fromAddress = process.env.SMTP_FROM || 'ASPD Forum <onboarding@resend.dev>';
+  console.log('[EMAIL] Attempting to send from:', fromAddress, 'to:', to);
+  console.log('[EMAIL] SMTP Host:', process.env.SMTP_HOST || 'smtp.resend.com');
+  console.log('[EMAIL] SMTP Port:', process.env.SMTP_PORT || 465);
   
   try {
     const result = await emailTransporter.sendMail({
-      from: process.env.SMTP_FROM || 'ASPD Forum <onboarding@resend.dev>',
+      from: fromAddress,
       to,
       subject,
       html
@@ -105,7 +108,7 @@ async function sendEmail(to, subject, html) {
     console.log('[EMAIL] Sent successfully:', result.messageId);
     return true;
   } catch (err) {
-    console.error('[EMAIL ERROR]', err.message, err.code);
+    console.error('[EMAIL ERROR] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
     return false;
   }
 }
