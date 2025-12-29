@@ -290,7 +290,7 @@ const UIComponents = (function() {
     
     // Format timestamp
     const timeStr = createdAt ? createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
-    const editedStr = editedAt ? ' (edited)' : '';
+    const editedStr = editedAt ? ` <a href="#" class="entry-history-link" data-entry-id="${id}" title="View edit history">(edited)</a>` : '';
     
     // Edit/Delete buttons (only show if owner), Quote/Report for all
     const ownerActionsHtml = isOwner ? `

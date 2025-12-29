@@ -1259,6 +1259,10 @@ app.post('/api/auth/enable-2fa', authMiddleware, async (req, res) => {
     }
     
     logAudit(userId, 'enable_2fa', { method: 'totp' });
+    
+    // Award security badge for enabling 2FA
+    checkAndAwardBadges(userId).catch(() => {});
+    
     res.json({ success: true, recoveryCodes: recoveryCodes });
   } catch (err) {
     logger.error('ENABLE_2FA', err.message, { reqId: req.reqId, userId });
@@ -2141,6 +2145,9 @@ app.post('/api/auth/confirm-email', async (req, res) => {
     
     // Mark email as verified
     await db.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [user_id]);
+    
+    // Award verified email badge
+    checkAndAwardBadges(user_id).catch(() => {});
     
     // Delete token
     await db.query('DELETE FROM password_reset_tokens WHERE token = $1', ['verify_' + token]);
@@ -3047,6 +3054,9 @@ app.post('/api/threads', authMiddleware, ipBanMiddleware, userBanMiddleware, thr
     // Log activity
     await logActivity(userId, 'created_thread', 'thread', threadId, filteredTitle);
 
+    // Check for badge achievements (async, non-blocking)
+    checkAndAwardBadges(userId).catch(() => {});
+
     res.json({ success: true, threadId: threadId });
   } catch (err) {
     console.error('[CREATE THREAD ERROR]', err.message);
@@ -3233,6 +3243,9 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
       console.error('[SUBSCRIPTION NOTIFICATION ERROR]', subErr.message);
     }
 
+    // Check for badge achievements (async, non-blocking)
+    checkAndAwardBadges(userId).catch(() => {});
+
     res.json({ success: true, entry: insertResult.rows[0] });
   } catch (err) {
     console.error('[CREATE ENTRY ERROR]', err.message);
@@ -3253,7 +3266,7 @@ app.put('/api/entries/:id', authMiddleware, async (req, res) => {
   try {
     // Get entry and check ownership
     const entryResult = await db.query(
-      'SELECT id, user_id, created_at FROM entries WHERE id = $1',
+      'SELECT id, user_id, content, created_at FROM entries WHERE id = $1',
       [entryId]
     );
 
@@ -3277,13 +3290,25 @@ app.put('/api/entries/:id', authMiddleware, async (req, res) => {
       return res.status(403).json({ success: false, error: 'edit_window_expired', message: 'Posts can only be edited within 15 minutes' });
     }
 
+    // Save current content to revisions before updating
+    const revisionCount = await db.query(
+      'SELECT COUNT(*) FROM post_revisions WHERE entry_id = $1',
+      [entryId]
+    );
+    const revisionNumber = parseInt(revisionCount.rows[0].count) + 1;
+    
+    await db.query(
+      'INSERT INTO post_revisions (entry_id, content, edited_by, revision_number) VALUES ($1, $2, $3, $4)',
+      [entryId, entry.content, userId, revisionNumber]
+    );
+
     // Update entry
     await db.query(
       'UPDATE entries SET content = $1, edited_at = NOW() WHERE id = $2',
       [content.trim(), entryId]
     );
 
-    res.json({ success: true });
+    res.json({ success: true, revisionNumber });
   } catch (err) {
     console.error('[EDIT ENTRY ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
@@ -3331,6 +3356,230 @@ app.delete('/api/entries/:id', authMiddleware, async (req, res) => {
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
+
+// ========================================
+// POST REVISION HISTORY
+// ========================================
+
+// Get revision history for a post
+app.get('/api/entries/:id/revisions', authMiddleware, async (req, res) => {
+  const entryId = parseInt(req.params.id);
+  
+  try {
+    const result = await db.query(
+      `SELECT pr.id, pr.content, pr.revision_number, pr.created_at,
+              u.alias AS edited_by_alias
+       FROM post_revisions pr
+       LEFT JOIN users u ON u.id = pr.edited_by
+       WHERE pr.entry_id = $1
+       ORDER BY pr.revision_number DESC`,
+      [entryId]
+    );
+    
+    res.json({ 
+      success: true, 
+      revisions: result.rows.map(r => ({
+        id: r.id,
+        content: r.content,
+        revisionNumber: r.revision_number,
+        editedAt: r.created_at,
+        editedBy: r.edited_by_alias
+      }))
+    });
+  } catch (err) {
+    console.error('[GET REVISIONS ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get a specific revision
+app.get('/api/revisions/:id', authMiddleware, async (req, res) => {
+  const revisionId = parseInt(req.params.id);
+  
+  try {
+    const result = await db.query(
+      `SELECT pr.*, u.alias AS edited_by_alias,
+              e.content AS current_content
+       FROM post_revisions pr
+       LEFT JOIN users u ON u.id = pr.edited_by
+       LEFT JOIN entries e ON e.id = pr.entry_id
+       WHERE pr.id = $1`,
+      [revisionId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'revision_not_found' });
+    }
+    
+    const r = result.rows[0];
+    res.json({ 
+      success: true, 
+      revision: {
+        id: r.id,
+        entryId: r.entry_id,
+        content: r.content,
+        currentContent: r.current_content,
+        revisionNumber: r.revision_number,
+        editedAt: r.created_at,
+        editedBy: r.edited_by_alias
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// USER BADGES SYSTEM
+// ========================================
+
+// Get all available badges
+app.get('/api/badges', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT id, slug, name, description, icon, color, rarity FROM badges ORDER BY rarity, name'
+    );
+    res.json({ success: true, badges: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get badges for a user
+app.get('/api/users/:alias/badges', authMiddleware, async (req, res) => {
+  const { alias } = req.params;
+  
+  try {
+    const result = await db.query(
+      `SELECT b.id, b.slug, b.name, b.description, b.icon, b.color, b.rarity,
+              ub.awarded_at
+       FROM badges b
+       JOIN user_badges ub ON ub.badge_id = b.id
+       JOIN users u ON u.id = ub.user_id
+       WHERE u.alias = $1
+       ORDER BY ub.awarded_at DESC`,
+      [alias]
+    );
+    res.json({ success: true, badges: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Award badge to user (admin only)
+app.post('/api/admin/badges/award', authMiddleware, async (req, res) => {
+  const { userId, badgeSlug } = req.body;
+  const adminId = req.user.userId;
+  
+  try {
+    // Check admin
+    const adminCheck = await db.query('SELECT is_admin FROM users WHERE id = $1', [adminId]);
+    if (!adminCheck.rows[0]?.is_admin) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    
+    // Get badge
+    const badge = await db.query('SELECT id FROM badges WHERE slug = $1', [badgeSlug]);
+    if (badge.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'badge_not_found' });
+    }
+    
+    // Award badge
+    await db.query(
+      `INSERT INTO user_badges (user_id, badge_id, awarded_by)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, badge_id) DO NOTHING`,
+      [userId, badge.rows[0].id, adminId]
+    );
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Helper: Check and award automatic badges
+async function checkAndAwardBadges(userId) {
+  try {
+    // Get user stats
+    const stats = await db.query(
+      `SELECT 
+        (SELECT COUNT(*) FROM entries WHERE user_id = $1 AND is_deleted = FALSE) AS post_count,
+        (SELECT COUNT(*) FROM threads WHERE user_id = $1) AS thread_count,
+        (SELECT reputation FROM users WHERE id = $1) AS reputation,
+        (SELECT email_verified FROM users WHERE id = $1) AS email_verified,
+        (SELECT totp_enabled FROM users WHERE id = $1) AS totp_enabled,
+        (SELECT created_at FROM users WHERE id = $1) AS created_at,
+        (SELECT MAX(vote_value) FROM (
+          SELECT COALESCE(SUM(vote_value), 0) AS vote_value 
+          FROM entry_votes ev 
+          JOIN entries e ON e.id = ev.entry_id 
+          WHERE e.user_id = $1 
+          GROUP BY ev.entry_id
+        ) AS votes) AS max_post_votes`,
+      [userId]
+    );
+    
+    if (stats.rows.length === 0) return;
+    
+    const s = stats.rows[0];
+    const postCount = parseInt(s.post_count) || 0;
+    const threadCount = parseInt(s.thread_count) || 0;
+    const reputation = parseInt(s.reputation) || 0;
+    const maxPostVotes = parseInt(s.max_post_votes) || 0;
+    
+    const badgesToAward = [];
+    
+    // Post milestones
+    if (postCount >= 1) badgesToAward.push('first-post');
+    if (postCount >= 10) badgesToAward.push('ten-posts');
+    if (postCount >= 50) badgesToAward.push('fifty-posts');
+    if (postCount >= 100) badgesToAward.push('hundred-posts');
+    if (postCount >= 500) badgesToAward.push('five-hundred-posts');
+    if (postCount >= 1000) badgesToAward.push('thousand-posts');
+    
+    // Thread milestones
+    if (threadCount >= 1) badgesToAward.push('first-thread');
+    if (threadCount >= 10) badgesToAward.push('ten-threads');
+    
+    // Reputation milestones
+    if (reputation >= 10) badgesToAward.push('reputation-10');
+    if (reputation >= 50) badgesToAward.push('reputation-50');
+    if (reputation >= 100) badgesToAward.push('reputation-100');
+    if (reputation >= 500) badgesToAward.push('reputation-500');
+    
+    // Helpful badges
+    if (maxPostVotes >= 10) badgesToAward.push('helpful');
+    if (maxPostVotes >= 50) badgesToAward.push('very-helpful');
+    
+    // Email verified
+    if (s.email_verified) badgesToAward.push('verified-email');
+    
+    // 2FA enabled
+    if (s.totp_enabled) badgesToAward.push('two-factor');
+    
+    // One year anniversary
+    if (s.created_at) {
+      const yearAgo = new Date();
+      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+      if (new Date(s.created_at) <= yearAgo) {
+        badgesToAward.push('one-year');
+      }
+    }
+    
+    // Award badges
+    for (const slug of badgesToAward) {
+      await db.query(
+        `INSERT INTO user_badges (user_id, badge_id)
+         SELECT $1, id FROM badges WHERE slug = $2
+         ON CONFLICT (user_id, badge_id) DO NOTHING`,
+        [userId, slug]
+      );
+    }
+  } catch (err) {
+    console.error('[BADGE CHECK ERROR]', err.message);
+  }
+}
 
 // ========================================
 // REPORT SYSTEM
@@ -6059,6 +6308,11 @@ app.post('/api/entries/:entryId/vote', authMiddleware, voteLimiter, async (req, 
     
     await client.query('COMMIT');
     
+    // Check for badge achievements for post author (reputation changes)
+    if (reputationChange !== 0 && entryUserId) {
+      checkAndAwardBadges(entryUserId).catch(() => {});
+    }
+    
     res.json({ success: true, score: parseInt(scoreResult.rows[0].score), userVote: vote });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -6212,6 +6466,62 @@ async function migrate() {
       );
       CREATE INDEX IF NOT EXISTS idx_post_audit_entry ON post_audit(entry_id);
       CREATE INDEX IF NOT EXISTS idx_post_audit_ip ON post_audit(ip_hash);
+      
+      -- Post edit revisions (history of edits)
+      CREATE TABLE IF NOT EXISTS post_revisions (
+        id SERIAL PRIMARY KEY,
+        entry_id INTEGER REFERENCES entries(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        edited_by INTEGER REFERENCES users(id),
+        revision_number INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_post_revisions_entry ON post_revisions(entry_id);
+      
+      -- User badges system
+      CREATE TABLE IF NOT EXISTS badges (
+        id SERIAL PRIMARY KEY,
+        slug VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        icon VARCHAR(10) DEFAULT '🏆',
+        color VARCHAR(7) DEFAULT '#666666',
+        rarity VARCHAR(20) DEFAULT 'common',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS user_badges (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        badge_id INTEGER REFERENCES badges(id) ON DELETE CASCADE,
+        awarded_at TIMESTAMP DEFAULT NOW(),
+        awarded_by INTEGER REFERENCES users(id),
+        UNIQUE(user_id, badge_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id);
+      
+      -- Insert default badges
+      INSERT INTO badges (slug, name, description, icon, color, rarity) VALUES
+        ('first-post', 'First Post', 'Made your first post', '✍️', '#4a9eff', 'common'),
+        ('ten-posts', '10 Posts', 'Reached 10 posts', '📝', '#26de81', 'common'),
+        ('fifty-posts', '50 Posts', 'Reached 50 posts', '📚', '#45aaf2', 'uncommon'),
+        ('hundred-posts', '100 Posts', 'Reached 100 posts', '🗂️', '#a55eea', 'rare'),
+        ('five-hundred-posts', '500 Posts', 'Reached 500 posts', '📖', '#fed330', 'epic'),
+        ('thousand-posts', '1000 Posts', 'Reached 1000 posts', '🏛️', '#fc5c65', 'legendary'),
+        ('first-thread', 'Thread Starter', 'Started your first thread', '🧵', '#4a9eff', 'common'),
+        ('ten-threads', '10 Threads', 'Started 10 threads', '🗃️', '#26de81', 'uncommon'),
+        ('helpful', 'Helpful', 'Received 10 upvotes on a single post', '🤝', '#20bf6b', 'uncommon'),
+        ('very-helpful', 'Very Helpful', 'Received 50 upvotes on a single post', '⭐', '#f7b731', 'rare'),
+        ('reputation-10', 'Rising Star', 'Reached 10 reputation', '⬆️', '#45aaf2', 'common'),
+        ('reputation-50', 'Respected', 'Reached 50 reputation', '🌟', '#a55eea', 'uncommon'),
+        ('reputation-100', 'Esteemed', 'Reached 100 reputation', '💫', '#fed330', 'rare'),
+        ('reputation-500', 'Legendary', 'Reached 500 reputation', '👑', '#fc5c65', 'legendary'),
+        ('early-adopter', 'Early Adopter', 'Joined during the first month', '🌱', '#26de81', 'rare'),
+        ('verified-email', 'Verified', 'Verified email address', '✅', '#20bf6b', 'common'),
+        ('night-owl', 'Night Owl', 'Posted between 2am and 5am', '🦉', '#5f27cd', 'uncommon'),
+        ('one-year', 'One Year', 'Member for one year', '🎂', '#ff9f43', 'rare'),
+        ('two-factor', 'Security Pro', 'Enabled two-factor authentication', '🔐', '#20bf6b', 'uncommon')
+      ON CONFLICT (slug) DO NOTHING;
       
       CREATE TABLE IF NOT EXISTS reports (
         id SERIAL PRIMARY KEY,

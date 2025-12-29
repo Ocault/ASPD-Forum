@@ -81,6 +81,14 @@
         <a href="settings.html" class="settings-btn" style="display: inline-block; text-decoration: none; text-align: center;">⚙️ ACCOUNT SETTINGS</a>
       </div>
 
+      <!-- User Badges -->
+      <div class="profile-section" id="badges-section">
+        <h2 class="section-title">BADGES</h2>
+        <div class="badges-container" id="badges-container">
+          <div class="empty-state" id="badges-loading">Loading badges...</div>
+        </div>
+      </div>
+
       <!-- Recent Activity -->
       <div class="profile-section">
         <h2 class="section-title">RECENT ACTIVITY <a href="#" id="view-all-posts" class="section-link">[VIEW ALL]</a></h2>
@@ -435,6 +443,30 @@
           document.getElementById('social-actions').style.display = 'flex';
           checkFollowMuteState(profile.alias);
         }
+        
+        // Load user badges
+        loadUserBadges(profile.alias);
+      }
+      
+      function loadUserBadges(alias) {
+        var container = document.getElementById('badges-container');
+        
+        AuthState.apiRequest('/api/users/' + encodeURIComponent(alias) + '/badges')
+          .then(function(data) {
+            if (data.success && data.badges && data.badges.length > 0) {
+              container.innerHTML = data.badges.map(function(badge) {
+                return '<div class="badge-item rarity-' + escapeHtml(badge.rarity) + '" title="' + escapeHtml(badge.description) + '">' +
+                  '<span class="badge-icon">' + badge.icon + '</span>' +
+                  '<span class="badge-name">' + escapeHtml(badge.name) + '</span>' +
+                '</div>';
+              }).join('');
+            } else {
+              container.innerHTML = '<div class="empty-state">NO BADGES YET</div>';
+            }
+          })
+          .catch(function() {
+            container.innerHTML = '<div class="empty-state">FAILED TO LOAD BADGES</div>';
+          });
       }
 
       var isFollowing = false;

@@ -153,6 +153,19 @@
     </a>
   </nav>
 
+  <!-- Revision History Modal -->
+  <div class="modal-overlay" id="revision-modal" role="dialog" aria-modal="true" aria-labelledby="revision-title">
+    <div class="modal-content revision-modal">
+      <h2 class="modal-title" id="revision-title">EDIT HISTORY</h2>
+      <div class="revision-list" id="revision-list">
+        <div class="empty-state">Loading...</div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-close-btn" id="revision-close">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Keyboard Shortcuts Modal -->
   <div class="shortcuts-modal-overlay" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
     <div class="shortcuts-modal">
@@ -366,6 +379,15 @@
           });
         });
 
+        // Bind edit history link events
+        entriesContainer.querySelectorAll('.entry-history-link').forEach(function(link) {
+          link.addEventListener('click', function(e) {
+            e.preventDefault();
+            var entryId = link.dataset.entryId;
+            showRevisionHistory(entryId);
+          });
+        });
+
         // Bind vote button events
         entriesContainer.querySelectorAll('.vote-btn').forEach(function(btn) {
           btn.addEventListener('click', function() {
@@ -395,6 +417,48 @@
             return AvatarRenderer.loadFromStorage();
           }
         });
+      }
+
+      // Revision history modal
+      function showRevisionHistory(entryId) {
+        var revisionModal = document.getElementById('revision-modal');
+        var revisionList = document.getElementById('revision-list');
+        var revisionClose = document.getElementById('revision-close');
+        
+        revisionList.innerHTML = '<div class="empty-state">Loading...</div>';
+        revisionModal.style.display = 'flex';
+        
+        AuthState.apiRequest('/api/entries/' + entryId + '/revisions')
+          .then(function(data) {
+            if (data.success && data.revisions && data.revisions.length > 0) {
+              revisionList.innerHTML = data.revisions.map(function(rev) {
+                var date = new Date(rev.editedAt);
+                var dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                return '<div class="revision-item">' +
+                  '<div class="revision-header">' +
+                    '<span class="revision-number">Revision #' + rev.revisionNumber + '</span>' +
+                    '<span class="revision-date">' + dateStr + '</span>' +
+                  '</div>' +
+                  '<div class="revision-content">' + Utils.escapeHtml(rev.content) + '</div>' +
+                '</div>';
+              }).join('');
+            } else {
+              revisionList.innerHTML = '<div class="empty-state">NO EDIT HISTORY FOUND</div>';
+            }
+          })
+          .catch(function() {
+            revisionList.innerHTML = '<div class="empty-state">FAILED TO LOAD HISTORY</div>';
+          });
+        
+        revisionClose.onclick = function() {
+          revisionModal.style.display = 'none';
+        };
+        
+        revisionModal.onclick = function(e) {
+          if (e.target === revisionModal) {
+            revisionModal.style.display = 'none';
+          }
+        };
       }
 
       // Edit modal

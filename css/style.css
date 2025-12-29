@@ -2441,6 +2441,64 @@ ul {
   margin-top: var(--spacing-xl);
 }
 
+/* User Badges */
+.badges-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.badge-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+  cursor: default;
+}
+
+.badge-item:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+}
+
+.badge-icon {
+  font-size: 0.85rem;
+}
+
+.badge-name {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Badge rarity colors */
+.badge-item.rarity-common {
+  border-left: 2px solid #606060;
+}
+
+.badge-item.rarity-uncommon {
+  border-left: 2px solid #26de81;
+}
+
+.badge-item.rarity-rare {
+  border-left: 2px solid #45aaf2;
+}
+
+.badge-item.rarity-epic {
+  border-left: 2px solid #a55eea;
+}
+
+.badge-item.rarity-legendary {
+  border-left: 2px solid #fed330;
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(254, 211, 48, 0.05) 100%);
+}
+
 .section-title {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
@@ -6581,6 +6639,65 @@ img.loaded {
 /* Entry hover lift */
 .entry:hover {
   background: rgba(255, 255, 255, 0.01);
+}
+
+/* Edit history link */
+.entry-history-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.6rem;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.entry-history-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* Revision History Modal */
+.revision-modal {
+  max-width: 600px;
+  max-height: 80vh;
+}
+
+.revision-list {
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: var(--spacing-md) 0;
+}
+
+.revision-item {
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.revision-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.revision-number {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.revision-content {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-panel);
+  padding: var(--spacing-sm);
+  border-left: 2px solid var(--border-color);
 }
 
 /* ========================================
