@@ -428,7 +428,8 @@
 
       function getAliasFromUrl() {
         var params = new URLSearchParams(window.location.search);
-        return params.get('alias');
+        // Support both 'u' and 'alias' parameters for backwards compatibility
+        return params.get('u') || params.get('alias');
       }
 
       function formatDate(dateStr) {
