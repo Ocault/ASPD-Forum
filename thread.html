@@ -21,9 +21,9 @@
     <!-- Header -->
     <header class="thread-header" data-component="thread-header" role="banner">
       <nav class="thread-header-left" aria-label="Breadcrumb">
-        <a href="room.html" class="thread-back" data-bind="back-link" aria-label="Back to room">← INDEX</a>
+        <a href="room.html" class="thread-back" data-bind="back-link" aria-label="Back to room">← BACK</a>
         <span class="thread-divider" aria-hidden="true">/</span>
-        <span class="thread-room" data-bind="room-name">NODE.000</span>
+        <span class="thread-room" data-bind="room-name">ROOM</span>
       </nav>
       <nav class="header-right" aria-label="User navigation">
         <span class="thread-entry-count" data-bind="entry-count" aria-live="polite"><span id="entry-count">0</span> RECORDS</span>
@@ -39,16 +39,21 @@
 
     <!-- Thread Title -->
     <div class="thread-title-bar" role="heading" aria-level="1">
-      <h1 class="thread-title" data-bind="thread-title">Loading...</h1>
-      <span class="thread-status-badges" id="thread-badges" aria-live="polite"></span>
-      <button class="subscribe-btn" id="subscribe-btn" title="Subscribe to thread" aria-label="Subscribe to this thread" aria-pressed="false">[WATCH]</button>
-      <button class="bookmark-btn" id="bookmark-btn" title="Bookmark this thread" aria-label="Bookmark this thread" aria-pressed="false">[SAVE]</button>
-      <button class="share-btn" id="share-btn" title="Copy link to clipboard" aria-label="Share this thread">[SHARE]</button>
-      <span class="thread-slow-mode" id="slow-mode-indicator" style="display: none;" role="status" aria-live="polite"></span>
-      <!-- Admin Controls -->
-      <div class="thread-admin-controls" id="thread-admin-controls" style="display: none;" role="group" aria-label="Admin controls">
-        <button class="admin-btn" id="pin-btn" title="Pin/Unpin thread" aria-label="Pin or unpin thread" aria-pressed="false">[PIN]</button>
-        <button class="admin-btn" id="lock-btn" title="Lock/Unlock thread" aria-label="Lock or unlock thread" aria-pressed="false">[LOCK]</button>
+      <div class="thread-title-info">
+        <span class="thread-room-label" id="thread-room-label"></span>
+        <h1 class="thread-title" data-bind="thread-title">Loading...</h1>
+      </div>
+      <div class="thread-title-actions">
+        <span class="thread-status-badges" id="thread-badges" aria-live="polite"></span>
+        <button class="subscribe-btn" id="subscribe-btn" title="Subscribe to thread" aria-label="Subscribe to this thread" aria-pressed="false">[WATCH]</button>
+        <button class="bookmark-btn" id="bookmark-btn" title="Bookmark this thread" aria-label="Bookmark this thread" aria-pressed="false">[SAVE]</button>
+        <button class="share-btn" id="share-btn" title="Copy link to clipboard" aria-label="Share this thread">[SHARE]</button>
+        <span class="thread-slow-mode" id="slow-mode-indicator" style="display: none;" role="status" aria-live="polite"></span>
+        <!-- Admin Controls -->
+        <div class="thread-admin-controls" id="thread-admin-controls" style="display: none;" role="group" aria-label="Admin controls">
+          <button class="admin-btn" id="pin-btn" title="Pin/Unpin thread" aria-label="Pin or unpin thread" aria-pressed="false">[PIN]</button>
+          <button class="admin-btn" id="lock-btn" title="Lock/Unlock thread" aria-label="Lock or unlock thread" aria-pressed="false">[LOCK]</button>
+        </div>
       </div>
     </div>
 
@@ -1206,7 +1211,13 @@
           .then(function(data) {
             if (data.success) {
               updateSignalMeta(data.thread);
-              roomNameEl.textContent = data.thread.roomName || 'NODE.001';
+              var roomName = data.thread.roomName || 'NODE.001';
+              roomNameEl.textContent = roomName;
+              // Also update the room label above the title
+              var roomLabelEl = document.getElementById('thread-room-label');
+              if (roomLabelEl) {
+                roomLabelEl.textContent = roomName.toUpperCase();
+              }
               allEntries = data.entries || [];
               allAvatarConfigs = data.avatarConfigs || {};
               currentPagination = data.pagination || null;

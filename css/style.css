@@ -713,11 +713,14 @@ ul {
 .signal-row {
   position: relative;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background-color: transparent;
-  border-bottom: 1px solid var(--border-color);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: rgba(30, 30, 30, 0.4);
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  margin-bottom: var(--spacing-sm);
   text-decoration: none;
   transition: all 0.15s ease;
 }
@@ -738,7 +741,8 @@ ul {
 }
 
 .signal-row:hover {
-  background-color: var(--bg-panel);
+  background-color: rgba(45, 45, 45, 0.6);
+  border-color: var(--text-muted);
 }
 
 .signal-row:hover::before {
@@ -746,7 +750,8 @@ ul {
 }
 
 .signal-row:active {
-  background-color: var(--bg-secondary);
+  background-color: rgba(50, 50, 50, 0.7);
+  border-color: var(--text-secondary);
 }
 
 .signal-row:active::before {
@@ -755,44 +760,46 @@ ul {
 
 .signal-title {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.03em;
-  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  line-height: 1.3;
   transition: color 0.15s ease;
 }
 
 .signal-row:hover .signal-title {
-  color: var(--text-primary);
+  color: #fff;
 }
 
 .signal-meta {
   font-family: var(--font-mono);
-  font-size: 0.5rem;
+  font-size: 0.55rem;
   letter-spacing: 0.1em;
   color: var(--text-muted);
   text-transform: uppercase;
   flex-shrink: 0;
-  margin-left: var(--spacing-md);
 }
 
 /* Signal row wrapper for admin delete button */
 .signal-row-wrapper {
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid var(--border-color);
+  margin-bottom: var(--spacing-sm);
 }
 
 .signal-row-wrapper:first-child {
-  border-top: 1px solid var(--border-color);
+  /* Remove special first-child styling */
 }
 
 .signal-row-wrapper .signal-row {
   flex: 1;
-  border-bottom: none;
+  margin-bottom: 0;
+  border-radius: 2px 0 0 2px;
 }
 
 .signal-row-wrapper:first-child .signal-row {
-  border-top: none;
+  /* Consistent styling */
 }
 
 .signal-delete-btn {
@@ -801,9 +808,10 @@ ul {
   justify-content: center;
   width: 32px;
   padding: 0;
-  background-color: transparent;
-  border: none;
-  border-left: 1px solid var(--border-color);
+  background-color: rgba(30, 30, 30, 0.4);
+  border: 1px solid var(--border-color);
+  border-left: none;
+  border-radius: 0 2px 2px 0;
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 1rem;
@@ -916,20 +924,53 @@ ul {
 .thread-title-bar {
   padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid var(--border-color);
-  background-color: var(--bg-panel);
+  background-color: rgba(25, 25, 25, 0.8);
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.thread-title-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.thread-room-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: 3px 8px;
+  background: rgba(80, 80, 80, 0.3);
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  display: inline-block;
+  width: fit-content;
 }
 
 .thread-title {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 400;
-  letter-spacing: 0.03em;
-  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
   text-transform: none;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.thread-title-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
 .thread-slow-mode {
@@ -2008,19 +2049,21 @@ ul {
 /* Signal Tags */
 .signal-tags {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 4px;
-  margin-right: 8px;
+  margin-bottom: 2px;
 }
 
 .signal-tag {
   display: inline-block;
-  padding: 2px 6px;
+  padding: 2px 8px;
   font-family: var(--font-mono);
-  font-size: 0.45rem;
-  letter-spacing: 0.05em;
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
   color: #000;
   border-radius: 2px;
   font-weight: 600;
+  text-transform: uppercase;
 }
 
 @media (max-width: 768px) {
@@ -5241,12 +5284,25 @@ ul {
 /* Signal row badges */
 .signal-badge {
   margin-right: var(--spacing-xs);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.signal-badge.pinned {
+  color: #4caf50;
+}
+
+.signal-badge.locked {
+  color: #ff9800;
 }
 
 .signal-row-wrapper.pinned {
-  background: rgba(76, 175, 80, 0.05);
+  background: rgba(76, 175, 80, 0.08);
   border-left: 2px solid #4caf50;
+}
+
+.signal-row-wrapper.pinned .signal-row {
+  border-left: none;
+  border-radius: 0 2px 2px 0;
 }
 
 /* ========================================
