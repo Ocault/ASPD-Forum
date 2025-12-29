@@ -10,8 +10,17 @@ const helmet = require('helmet');
 const sanitizeHtml = require('sanitize-html');
 const path = require('path');
 const db = require('./db');
-const speakeasy = require('speakeasy');
-const QRCode = require('qrcode');
+
+// Optional 2FA dependencies - gracefully degrade if not installed
+let speakeasy = null;
+let QRCode = null;
+try {
+  speakeasy = require('speakeasy');
+  QRCode = require('qrcode');
+  console.log('[2FA] speakeasy and qrcode loaded successfully');
+} catch (err) {
+  console.log('[2FA] speakeasy/qrcode not installed - 2FA features disabled');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -668,8 +677,8 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
       return res.status(401).json({ success: false, error: 'invalid_credentials' });
     }
 
-    // Check if 2FA is enabled
-    if (user.totp_enabled) {
+    // Check if 2FA is enabled (only if speakeasy is available)
+    if (user.totp_enabled && speakeasy) {
       if (!totpCode) {
         // Return special status to indicate 2FA is required
         return res.status(200).json({ success: false, requires2fa: true, message: 'Two-factor authentication required' });
@@ -1428,6 +1437,11 @@ app.get('/api/settings/2fa', authMiddleware, async (req, res) => {
 
 // Generate 2FA secret (setup)
 app.post('/api/settings/2fa/setup', authMiddleware, async (req, res) => {
+  // Check if 2FA modules are available
+  if (!speakeasy || !QRCode) {
+    return res.status(503).json({ success: false, error: '2fa_not_available', message: '2FA is not available on this server' });
+  }
+  
   const userId = req.user.userId;
   const userAlias = req.user.alias;
   
@@ -1463,9 +1477,13 @@ app.post('/api/settings/2fa/setup', authMiddleware, async (req, res) => {
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
-
 // Verify and enable 2FA
 app.post('/api/settings/2fa/verify', authMiddleware, async (req, res) => {
+  // Check if 2FA modules are available
+  if (!speakeasy) {
+    return res.status(503).json({ success: false, error: '2fa_not_available', message: '2FA is not available on this server' });
+  }
+  
   const userId = req.user.userId;
   const { code } = req.body;
   
@@ -1521,6 +1539,11 @@ app.post('/api/settings/2fa/verify', authMiddleware, async (req, res) => {
 
 // Disable 2FA
 app.post('/api/settings/2fa/disable', authMiddleware, async (req, res) => {
+  // Check if 2FA modules are available
+  if (!speakeasy) {
+    return res.status(503).json({ success: false, error: '2fa_not_available', message: '2FA is not available on this server' });
+  }
+  
   const userId = req.user.userId;
   const { password, code } = req.body;
   
