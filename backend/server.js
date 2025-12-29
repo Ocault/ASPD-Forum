@@ -7,7 +7,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
-const nodemailer = require('nodemailer');
 const sanitizeHtml = require('sanitize-html');
 const path = require('path');
 const db = require('./db');
@@ -49,19 +48,48 @@ app.use(helmet({
   xssFilter: true
 }));
 
-// Email transporter configuration (Resend SMTP)
-const emailTransporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.resend.com',
-  port: parseInt(process.env.SMTP_PORT) || 465,
-  secure: true, // true for port 465
-  auth: {
-    user: process.env.SMTP_USER || 'resend',
-    pass: process.env.SMTP_PASS
-  },
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 10000
-});
+// Email transporter configuration - using Resend HTTP API instead of SMTP
+// (Railway blocks outbound SMTP ports)
+
+// Send email helper using Resend HTTP API
+async function sendEmail(to, subject, html) {
+  if (!process.env.RESEND_API_KEY) {
+    console.error('[EMAIL] RESEND_API_KEY not configured');
+    return false;
+  }
+  
+  const fromAddress = process.env.EMAIL_FROM || 'ASPD Forum <onboarding@resend.dev>';
+  console.log('[EMAIL] Sending from:', fromAddress, 'to:', to);
+  
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: fromAddress,
+        to: [to],
+        subject: subject,
+        html: html
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      console.log('[EMAIL] Sent successfully:', data.id);
+      return true;
+    } else {
+      console.error('[EMAIL ERROR]', data);
+      return false;
+    }
+  } catch (err) {
+    console.error('[EMAIL ERROR]', err.message);
+    return false;
+  }
+}
 
 // XSS Sanitization helper
 function sanitizeContent(content) {
@@ -84,33 +112,6 @@ function sanitizeContent(content) {
       }
     }
   });
-}
-
-// Send email helper
-async function sendEmail(to, subject, html) {
-  if (!process.env.SMTP_PASS) {
-    console.error('[EMAIL] SMTP_PASS not configured');
-    return false;
-  }
-  
-  const fromAddress = process.env.SMTP_FROM || 'ASPD Forum <onboarding@resend.dev>';
-  console.log('[EMAIL] Attempting to send from:', fromAddress, 'to:', to);
-  console.log('[EMAIL] SMTP Host:', process.env.SMTP_HOST || 'smtp.resend.com');
-  console.log('[EMAIL] SMTP Port:', process.env.SMTP_PORT || 465);
-  
-  try {
-    const result = await emailTransporter.sendMail({
-      from: fromAddress,
-      to,
-      subject,
-      html
-    });
-    console.log('[EMAIL] Sent successfully:', result.messageId);
-    return true;
-  } catch (err) {
-    console.error('[EMAIL ERROR] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
-    return false;
-  }
 }
 
 // Middleware
