@@ -1586,7 +1586,7 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
   try {
     // Get user info
     const userResult = await db.query(
-      'SELECT id, alias, bio, avatar_config, signature, reputation, custom_title, is_admin, created_at, followers_private FROM users WHERE alias = $1',
+      'SELECT id, alias, bio, avatar_config, signature, reputation, custom_title, is_admin, created_at, followers_private, following_private FROM users WHERE alias = $1',
       [alias]
     );
     
@@ -1646,6 +1646,7 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
     // Determine if viewer can see followers/following lists
     const isOwnProfile = viewerId === user.id;
     const canViewFollowers = isOwnProfile || !user.followers_private;
+    const canViewFollowing = isOwnProfile || !user.following_private;
     
     // Get recent posts (last 5)
     const recentPostsResult = await db.query(
@@ -1672,9 +1673,11 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
         isAdmin: user.is_admin || false,
         createdAt: user.created_at,
         followersPrivate: user.followers_private || false,
+        followingPrivate: user.following_private || false,
         followersCount: followersCount,
         followingCount: followingCount,
         canViewFollowers: canViewFollowers,
+        canViewFollowing: canViewFollowing,
         stats: {
           posts: postCount,
           threads: threadCount
@@ -5749,7 +5752,7 @@ app.get('/api/users/:alias/following-list', authMiddleware, async (req, res) => 
   const viewerId = req.user.userId;
 
   try {
-    const target = await db.query('SELECT id, followers_private FROM users WHERE alias = $1', [alias]);
+    const target = await db.query('SELECT id, following_private FROM users WHERE alias = $1', [alias]);
     if (target.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'user_not_found' });
     }
@@ -5757,8 +5760,8 @@ app.get('/api/users/:alias/following-list', authMiddleware, async (req, res) => 
     const targetUser = target.rows[0];
     const isOwnProfile = targetUser.id === viewerId;
     
-    // Check privacy setting
-    if (targetUser.followers_private && !isOwnProfile) {
+    // Check privacy setting for following list
+    if (targetUser.following_private && !isOwnProfile) {
       return res.json({ success: true, following: [], isPrivate: true });
     }
     
@@ -5785,6 +5788,19 @@ app.post('/api/my/followers-privacy', authMiddleware, async (req, res) => {
   try {
     await db.query('UPDATE users SET followers_private = $1 WHERE id = $2', [!!isPrivate, userId]);
     res.json({ success: true, followersPrivate: !!isPrivate });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Toggle following privacy setting
+app.post('/api/my/following-privacy', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { isPrivate } = req.body;
+
+  try {
+    await db.query('UPDATE users SET following_private = $1 WHERE id = $2', [!!isPrivate, userId]);
+    res.json({ success: true, followingPrivate: !!isPrivate });
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
   }
@@ -7182,6 +7198,7 @@ async function migrate() {
       -- Add reputation system columns
       ALTER TABLE users ADD COLUMN IF NOT EXISTS reputation INTEGER DEFAULT 0;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS followers_private BOOLEAN DEFAULT FALSE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS following_private BOOLEAN DEFAULT FALSE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS post_count INTEGER DEFAULT 0;
       
       -- Add user custom title (admin-assignable)

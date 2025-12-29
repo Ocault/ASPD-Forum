@@ -553,8 +553,6 @@
             </button>
           </div>
         </div>
-          </div>
-        </div>
 
         <!-- Stats -->
         <div class="admin-section" id="section-stats">
@@ -1017,8 +1015,10 @@
       }
 
       // Owner: Download user data
-      document.getElementById('owner-download-data').addEventListener('click', function() {
-        if (!isOwner) return;
+      var ownerDownloadBtn = document.getElementById('owner-download-data');
+      if (ownerDownloadBtn) {
+        ownerDownloadBtn.addEventListener('click', function() {
+          if (!isOwner) return;
         var username = document.getElementById('owner-user-search').value.trim();
         if (!username) {
           Notify.show('Enter a username', 'error');
@@ -1043,7 +1043,8 @@
           .catch(function(err) {
             Notify.show(err.message || 'Download failed', 'error');
           });
-      });
+        });
+      }
 
       // Owner: Demote admin
       window.demoteAdmin = function(userId) {
