@@ -272,6 +272,9 @@
       var activeViewers = new Map(); // userId -> { alias, avatarConfig }
       var typingUsers = new Map(); // userId -> { alias, timeout }
 
+      // Initial render showing connecting state
+      presenceViewersEl.innerHTML = '<span class="presence-count">CONNECTING</span>';
+
       function renderViewers() {
         if (activeViewers.size === 0) {
           presenceViewersEl.innerHTML = '<span class="presence-count">VIEWING ALONE</span>';
