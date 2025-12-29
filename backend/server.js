@@ -7,6 +7,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const nodemailer = require('nodemailer');
+const sanitizeHtml = require('sanitize-html');
 const path = require('path');
 const db = require('./db');
 
@@ -46,6 +48,61 @@ app.use(helmet({
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   xssFilter: true
 }));
+
+// Email transporter configuration (Resend SMTP)
+const emailTransporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.resend.com',
+  port: parseInt(process.env.SMTP_PORT) || 465,
+  secure: true, // true for port 465
+  auth: {
+    user: process.env.SMTP_USER || 'resend',
+    pass: process.env.SMTP_PASS
+  }
+});
+
+// XSS Sanitization helper
+function sanitizeContent(content) {
+  return sanitizeHtml(content, {
+    allowedTags: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li', 'code', 'pre', 'blockquote'],
+    allowedAttributes: {
+      'a': ['href', 'target', 'rel']
+    },
+    allowedSchemes: ['http', 'https'],
+    transformTags: {
+      'a': function(tagName, attribs) {
+        return {
+          tagName: 'a',
+          attribs: {
+            href: attribs.href,
+            target: '_blank',
+            rel: 'noopener noreferrer nofollow'
+          }
+        };
+      }
+    }
+  });
+}
+
+// Send email helper
+async function sendEmail(to, subject, html) {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.error('[EMAIL] SMTP not configured');
+    return false;
+  }
+  
+  try {
+    await emailTransporter.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to,
+      subject,
+      html
+    });
+    return true;
+  } catch (err) {
+    console.error('[EMAIL ERROR]', err.message);
+    return false;
+  }
+}
 
 // Middleware
 app.use(cors({
@@ -292,7 +349,7 @@ function clearFailedLogin(ipHash) {
 
 // Register (with rate limiting and password validation)
 app.post('/register', authRateLimiter, async (req, res) => {
-  const { alias, password } = req.body;
+  const { alias, password, email } = req.body;
 
   if (!alias || !password) {
     return res.status(400).json({ success: false, error: 'missing_fields' });
@@ -301,6 +358,11 @@ app.post('/register', authRateLimiter, async (req, res) => {
   // Validate alias format
   if (!/^[a-zA-Z0-9_]{3,20}$/.test(alias)) {
     return res.status(400).json({ success: false, error: 'invalid_alias', message: 'Alias must be 3-20 characters, alphanumeric or underscore only' });
+  }
+
+  // Validate email if provided
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ success: false, error: 'invalid_email', message: 'Invalid email format' });
   }
 
   // Validate password strength
@@ -312,8 +374,8 @@ app.post('/register', authRateLimiter, async (req, res) => {
   try {
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
     await db.query(
-      'INSERT INTO users (alias, password_hash) VALUES ($1, $2)',
-      [alias, hash]
+      'INSERT INTO users (alias, password_hash, email) VALUES ($1, $2, $3)',
+      [alias, hash, email || null]
     );
     res.json({ success: true });
   } catch (err) {
@@ -376,6 +438,135 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
 
     res.json({ success: true, token, refreshToken, isAdmin: user.is_admin || false });
   } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Request password reset
+app.post('/api/auth/forgot-password', authRateLimiter, async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'missing_email' });
+  }
+
+  try {
+    // Find user by email
+    const result = await db.query('SELECT id, alias FROM users WHERE email = $1', [email]);
+    
+    // Always return success to prevent email enumeration
+    if (result.rows.length === 0) {
+      return res.json({ success: true, message: 'If an account exists with this email, a reset link has been sent.' });
+    }
+
+    const user = result.rows[0];
+    
+    // Generate secure token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour expiry
+
+    // Invalidate existing tokens for this user
+    await db.query('UPDATE password_reset_tokens SET used = TRUE WHERE user_id = $1', [user.id]);
+
+    // Store new token
+    await db.query(
+      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, token, expiresAt]
+    );
+
+    // Send reset email
+    const resetUrl = `${process.env.SITE_URL || 'https://www.aspdforum.com'}/reset-password.html?token=${token}`;
+    const emailSent = await sendEmail(
+      email,
+      'ASPD Forum - Password Reset',
+      `
+        <div style="font-family: monospace; background: #0a0a0a; color: #808080; padding: 40px; max-width: 500px;">
+          <h2 style="color: #a0a0a0; font-weight: normal; letter-spacing: 0.1em;">PASSWORD RESET</h2>
+          <p>Hello ${user.alias},</p>
+          <p>A password reset was requested for your account.</p>
+          <p style="margin: 30px 0;">
+            <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background: #1a1a1a; color: #909090; text-decoration: none; border: 1px solid #303030; letter-spacing: 0.1em;">RESET PASSWORD</a>
+          </p>
+          <p style="color: #505050; font-size: 12px;">This link expires in 1 hour.</p>
+          <p style="color: #505050; font-size: 12px;">If you didn't request this, you can ignore this email.</p>
+        </div>
+      `
+    );
+
+    if (!emailSent) {
+      console.error('[PASSWORD RESET] Failed to send email to', email);
+    }
+
+    res.json({ success: true, message: 'If an account exists with this email, a reset link has been sent.' });
+  } catch (err) {
+    console.error('[FORGOT PASSWORD ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Verify reset token
+app.get('/api/auth/verify-reset-token', async (req, res) => {
+  const { token } = req.query;
+
+  if (!token) {
+    return res.status(400).json({ success: false, error: 'missing_token' });
+  }
+
+  try {
+    const result = await db.query(
+      'SELECT prt.*, u.alias FROM password_reset_tokens prt JOIN users u ON prt.user_id = u.id WHERE prt.token = $1 AND prt.used = FALSE AND prt.expires_at > NOW()',
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'invalid_or_expired_token' });
+    }
+
+    res.json({ success: true, alias: result.rows[0].alias });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Reset password with token
+app.post('/api/auth/reset-password', authRateLimiter, async (req, res) => {
+  const { token, password } = req.body;
+
+  if (!token || !password) {
+    return res.status(400).json({ success: false, error: 'missing_fields' });
+  }
+
+  // Validate password strength
+  const passwordErrors = validatePassword(password);
+  if (passwordErrors.length > 0) {
+    return res.status(400).json({ success: false, error: 'weak_password', message: passwordErrors.join('. ') });
+  }
+
+  try {
+    // Find valid token
+    const result = await db.query(
+      'SELECT user_id FROM password_reset_tokens WHERE token = $1 AND used = FALSE AND expires_at > NOW()',
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'invalid_or_expired_token' });
+    }
+
+    const userId = result.rows[0].user_id;
+    
+    // Hash new password
+    const hash = await bcrypt.hash(password, SALT_ROUNDS);
+
+    // Update password
+    await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, userId]);
+
+    // Mark token as used
+    await db.query('UPDATE password_reset_tokens SET used = TRUE WHERE token = $1', [token]);
+
+    res.json({ success: true, message: 'Password has been reset successfully.' });
+  } catch (err) {
+    console.error('[RESET PASSWORD ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -620,6 +811,158 @@ app.put('/api/profile', authMiddleware, async (req, res) => {
     res.json({ success: true, user: result.rows[0] });
   } catch (err) {
     console.error('[UPDATE PROFILE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Get user settings
+app.get('/api/settings', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT email, email_verified, notification_replies, notification_mentions, notification_messages FROM users WHERE id = $1',
+      [req.user.userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    res.json({ success: true, settings: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Update user settings
+app.put('/api/settings', authMiddleware, async (req, res) => {
+  const { email, notification_replies, notification_mentions, notification_messages } = req.body;
+  const userId = req.user.userId;
+  
+  try {
+    // If email is being changed, validate and mark as unverified
+    if (email !== undefined) {
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ success: false, error: 'invalid_email' });
+      }
+      
+      // Check if email is already used by another user
+      if (email) {
+        const existing = await db.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, userId]);
+        if (existing.rows.length > 0) {
+          return res.status(400).json({ success: false, error: 'email_in_use' });
+        }
+      }
+      
+      await db.query(
+        'UPDATE users SET email = $1, email_verified = FALSE WHERE id = $2',
+        [email || null, userId]
+      );
+    }
+    
+    // Update notification preferences
+    if (notification_replies !== undefined || notification_mentions !== undefined || notification_messages !== undefined) {
+      const updates = [];
+      const values = [];
+      let paramIndex = 1;
+      
+      if (notification_replies !== undefined) {
+        updates.push(`notification_replies = $${paramIndex++}`);
+        values.push(notification_replies);
+      }
+      if (notification_mentions !== undefined) {
+        updates.push(`notification_mentions = $${paramIndex++}`);
+        values.push(notification_mentions);
+      }
+      if (notification_messages !== undefined) {
+        updates.push(`notification_messages = $${paramIndex++}`);
+        values.push(notification_messages);
+      }
+      
+      if (updates.length > 0) {
+        values.push(userId);
+        await db.query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
+      }
+    }
+    
+    // Return updated settings
+    const result = await db.query(
+      'SELECT email, email_verified, notification_replies, notification_mentions, notification_messages FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    res.json({ success: true, settings: result.rows[0] });
+  } catch (err) {
+    console.error('[UPDATE SETTINGS ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Change password (authenticated)
+app.post('/api/settings/change-password', authMiddleware, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const userId = req.user.userId;
+  
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ success: false, error: 'missing_fields' });
+  }
+  
+  // Validate new password strength
+  const passwordErrors = validatePassword(newPassword);
+  if (passwordErrors.length > 0) {
+    return res.status(400).json({ success: false, error: 'weak_password', message: passwordErrors.join('. ') });
+  }
+  
+  try {
+    // Get current password hash
+    const result = await db.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    // Verify current password
+    const valid = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
+    if (!valid) {
+      return res.status(401).json({ success: false, error: 'invalid_password' });
+    }
+    
+    // Hash and update new password
+    const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, userId]);
+    
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (err) {
+    console.error('[CHANGE PASSWORD ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Delete account
+app.delete('/api/settings/account', authMiddleware, async (req, res) => {
+  const { password } = req.body;
+  const userId = req.user.userId;
+  
+  if (!password) {
+    return res.status(400).json({ success: false, error: 'password_required' });
+  }
+  
+  try {
+    // Verify password
+    const result = await db.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    const valid = await bcrypt.compare(password, result.rows[0].password_hash);
+    if (!valid) {
+      return res.status(401).json({ success: false, error: 'invalid_password' });
+    }
+    
+    // Delete user (cascade will handle related records)
+    await db.query('DELETE FROM users WHERE id = $1', [userId]);
+    
+    res.json({ success: true, message: 'Account deleted successfully' });
+  } catch (err) {
+    console.error('[DELETE ACCOUNT ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -1431,9 +1774,9 @@ app.post('/api/threads', authMiddleware, ipBanMiddleware, userBanMiddleware, asy
     }
     const roomDbId = roomResult.rows[0].id;
 
-    // Apply word filter to title and content
-    const filteredTitle = await filterContent(title);
-    const filteredContent = await filterContent(content);
+    // Apply word filter and XSS sanitization to title and content
+    const filteredTitle = sanitizeContent(await filterContent(title));
+    const filteredContent = sanitizeContent(await filterContent(content));
 
     // Create thread
     const threadResult = await db.query(
@@ -1547,8 +1890,8 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
     // Use provided alias or user's alias
     const entryAlias = alias || userAlias;
     
-    // Apply word filter
-    const filteredContent = await filterContent(content);
+    // Apply word filter and XSS sanitization
+    const filteredContent = sanitizeContent(await filterContent(content));
 
     const insertResult = await db.query(
       `INSERT INTO entries (thread_id, content, alias, avatar_config, user_id, ip_hash, shadow_banned)
@@ -3680,12 +4023,16 @@ app.post('/api/messages', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, error: 'cannot_message_self' });
     }
 
+    // Sanitize content for XSS
+    const sanitizedContent = sanitizeContent(content);
+    const sanitizedSubject = subject ? sanitizeContent(subject) : null;
+
     // Create message
     const insertResult = await db.query(
       `INSERT INTO private_messages (sender_id, recipient_id, subject, content)
        VALUES ($1, $2, $3, $4)
        RETURNING id`,
-      [senderId, recipientId, subject || null, content]
+      [senderId, recipientId, sanitizedSubject, sanitizedContent]
     );
 
     // Create notification for recipient
@@ -4023,6 +4370,21 @@ async function migrate() {
       -- Add columns if they don't exist
       ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_config JSONB;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_replies BOOLEAN DEFAULT TRUE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_mentions BOOLEAN DEFAULT TRUE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_messages BOOLEAN DEFAULT TRUE;
+      
+      -- Password reset tokens table
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        token VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
       
       CREATE TABLE IF NOT EXISTS rooms (
         id SERIAL PRIMARY KEY,

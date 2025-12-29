@@ -38,13 +38,18 @@
       
       <form class="auth-form" id="register-form" data-form="register" aria-label="Registration form">
         <div class="auth-field">
-          <label class="auth-label" for="alias">ALIAS</label>
+          <label class="auth-label" for="alias">USERNAME</label>
           <input type="text" id="alias" name="alias" class="auth-input" required autocomplete="username" aria-describedby="alias-hint" placeholder="Your username">
           <span id="alias-hint" class="sr-only">3-20 characters, letters, numbers, and underscores only</span>
         </div>
         
         <div class="auth-field">
-          <label class="auth-label" for="pass">PASS</label>
+          <label class="auth-label" for="email">EMAIL <span style="color: #404040; font-size: 0.65rem;">(optional)</span></label>
+          <input type="email" id="email" name="email" class="auth-input" autocomplete="email" placeholder="For password recovery">
+        </div>
+        
+        <div class="auth-field">
+          <label class="auth-label" for="pass">PASSWORD</label>
           <input type="password" id="pass" name="pass" class="auth-input" required autocomplete="new-password" aria-describedby="pass-hint" placeholder="Password">
           <span id="pass-hint" class="sr-only">Minimum 8 characters with uppercase, lowercase, and number</span>
         </div>
@@ -82,6 +87,7 @@
       form.addEventListener('submit', function(e) {
         e.preventDefault();
         var alias = document.getElementById('alias').value.trim();
+        var email = document.getElementById('email').value.trim();
         var password = document.getElementById('pass').value;
         var passConfirm = document.getElementById('pass-confirm').value;
 
@@ -131,7 +137,7 @@
         fetch(AuthState.API_BASE + '/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ alias: alias, password: password })
+          body: JSON.stringify({ alias: alias, password: password, email: email || null })
         })
         .then(function(res) {
           if (!res.ok) {

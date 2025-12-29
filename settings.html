@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0a">
+  
+  <title>Settings — ASPD Forum</title>
+  <meta name="robots" content="noindex, nofollow">
+  
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="sigil.png">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .settings-container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    
+    .settings-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    
+    .settings-back {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.7rem;
+      color: #505050;
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+    
+    .settings-back:hover {
+      color: #707070;
+    }
+    
+    .settings-title {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 1rem;
+      font-weight: 400;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #606060;
+      margin: 0;
+    }
+    
+    .settings-section {
+      margin-bottom: 2.5rem;
+    }
+    
+    .settings-section-title {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.75rem;
+      font-weight: 400;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #505050;
+      margin: 0 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    
+    .settings-field {
+      margin-bottom: 1.25rem;
+    }
+    
+    .settings-label {
+      display: block;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #505050;
+      margin-bottom: 0.5rem;
+    }
+    
+    .settings-input {
+      width: 100%;
+      background: #0d0d0d;
+      border: 1px solid #1a1a1a;
+      color: #707070;
+      padding: 0.75rem 1rem;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.8rem;
+      transition: border-color 0.3s;
+    }
+    
+    .settings-input:focus {
+      outline: none;
+      border-color: #303030;
+    }
+    
+    .settings-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #151515;
+    }
+    
+    .settings-toggle-label {
+      font-size: 0.8rem;
+      color: #505050;
+    }
+    
+    .settings-toggle-desc {
+      font-size: 0.7rem;
+      color: #353535;
+      margin-top: 0.25rem;
+    }
+    
+    .toggle-switch {
+      position: relative;
+      width: 40px;
+      height: 20px;
+      background: #1a1a1a;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    
+    .toggle-switch.active {
+      background: #303030;
+    }
+    
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      background: #404040;
+      border-radius: 50%;
+      transition: transform 0.3s, background 0.3s;
+    }
+    
+    .toggle-switch.active::after {
+      transform: translateX(20px);
+      background: #606060;
+    }
+    
+    .settings-btn {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #505050;
+      background: transparent;
+      border: 1px solid #252525;
+      padding: 0.75rem 1.5rem;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .settings-btn:hover {
+      color: #707070;
+      border-color: #404040;
+    }
+    
+    .settings-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .settings-btn.danger {
+      border-color: #3a2020;
+      color: #804040;
+    }
+    
+    .settings-btn.danger:hover {
+      border-color: #503030;
+      color: #a06060;
+    }
+    
+    .settings-status {
+      font-size: 0.7rem;
+      color: #404040;
+      margin-top: 0.5rem;
+    }
+    
+    .settings-status.verified {
+      color: #406040;
+    }
+    
+    .settings-status.unverified {
+      color: #806040;
+    }
+    
+    .delete-section {
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid #201010;
+    }
+    
+    .delete-warning {
+      font-size: 0.75rem;
+      color: #604040;
+      margin-bottom: 1rem;
+    }
+    
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .modal-overlay.active {
+      display: flex;
+    }
+    
+    .modal-content {
+      background: #0a0a0a;
+      border: 1px solid #1a1a1a;
+      padding: 2rem;
+      max-width: 400px;
+      width: 90%;
+    }
+    
+    .modal-title {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.85rem;
+      letter-spacing: 0.1em;
+      color: #606060;
+      margin: 0 0 1rem;
+    }
+    
+    .modal-text {
+      font-size: 0.8rem;
+      color: #454545;
+      margin-bottom: 1.5rem;
+    }
+    
+    .modal-actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: flex-end;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Noise Overlay -->
+  <div class="noise" aria-hidden="true"></div>
+
+  <main class="settings-container" role="main">
+    <header class="settings-header">
+      <a href="profile.html" class="settings-back">← PROFILE</a>
+      <h1 class="settings-title">Settings</h1>
+    </header>
+    
+    <!-- Email Section -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">Email</h2>
+      <div class="settings-field">
+        <label class="settings-label" for="email">Email Address</label>
+        <input type="email" id="email" class="settings-input" placeholder="your@email.com">
+        <p id="email-status" class="settings-status"></p>
+      </div>
+      <button id="save-email-btn" class="settings-btn">Save Email</button>
+    </section>
+    
+    <!-- Notifications Section -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">Notifications</h2>
+      
+      <div class="settings-toggle">
+        <div>
+          <div class="settings-toggle-label">Thread Replies</div>
+          <div class="settings-toggle-desc">Get notified when someone replies to your threads</div>
+        </div>
+        <div id="toggle-replies" class="toggle-switch active" data-setting="notification_replies"></div>
+      </div>
+      
+      <div class="settings-toggle">
+        <div>
+          <div class="settings-toggle-label">Mentions</div>
+          <div class="settings-toggle-desc">Get notified when someone @mentions you</div>
+        </div>
+        <div id="toggle-mentions" class="toggle-switch active" data-setting="notification_mentions"></div>
+      </div>
+      
+      <div class="settings-toggle">
+        <div>
+          <div class="settings-toggle-label">Private Messages</div>
+          <div class="settings-toggle-desc">Get notified when you receive a message</div>
+        </div>
+        <div id="toggle-messages" class="toggle-switch active" data-setting="notification_messages"></div>
+      </div>
+    </section>
+    
+    <!-- Password Section -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">Change Password</h2>
+      <div class="settings-field">
+        <label class="settings-label" for="current-pass">Current Password</label>
+        <input type="password" id="current-pass" class="settings-input" placeholder="Enter current password">
+      </div>
+      <div class="settings-field">
+        <label class="settings-label" for="new-pass">New Password</label>
+        <input type="password" id="new-pass" class="settings-input" placeholder="Enter new password">
+      </div>
+      <div class="settings-field">
+        <label class="settings-label" for="confirm-pass">Confirm New Password</label>
+        <input type="password" id="confirm-pass" class="settings-input" placeholder="Confirm new password">
+      </div>
+      <button id="change-pass-btn" class="settings-btn">Change Password</button>
+    </section>
+    
+    <!-- Danger Zone -->
+    <section class="settings-section delete-section">
+      <h2 class="settings-section-title" style="color: #604040;">Danger Zone</h2>
+      <p class="delete-warning">Deleting your account is permanent and cannot be undone. All your posts will remain but will be disassociated from your profile.</p>
+      <button id="delete-account-btn" class="settings-btn danger">Delete Account</button>
+    </section>
+  </main>
+  
+  <!-- Delete Confirmation Modal -->
+  <div id="delete-modal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 class="modal-title">Delete Account</h3>
+      <p class="modal-text">Enter your password to confirm account deletion. This action cannot be undone.</p>
+      <div class="settings-field">
+        <input type="password" id="delete-confirm-pass" class="settings-input" placeholder="Enter password to confirm">
+      </div>
+      <div class="modal-actions">
+        <button id="cancel-delete" class="settings-btn">Cancel</button>
+        <button id="confirm-delete" class="settings-btn danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/auth-state.js"></script>
+  <script src="js/notify.js"></script>
+  <script>
+    (function() {
+      'use strict';
+      
+      // Check authentication
+      if (!AuthState.isLoggedIn()) {
+        window.location.href = 'login.html';
+        return;
+      }
+      
+      var token = AuthState.getToken();
+      var headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      };
+      
+      // Load settings
+      fetch(AuthState.API_BASE + '/api/settings', { headers: headers })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success) {
+            var settings = data.settings;
+            
+            // Email
+            document.getElementById('email').value = settings.email || '';
+            var statusEl = document.getElementById('email-status');
+            if (settings.email) {
+              if (settings.email_verified) {
+                statusEl.textContent = 'Verified';
+                statusEl.className = 'settings-status verified';
+              } else {
+                statusEl.textContent = 'Not verified';
+                statusEl.className = 'settings-status unverified';
+              }
+            }
+            
+            // Toggles
+            updateToggle('toggle-replies', settings.notification_replies);
+            updateToggle('toggle-mentions', settings.notification_mentions);
+            updateToggle('toggle-messages', settings.notification_messages);
+          }
+        });
+      
+      function updateToggle(id, value) {
+        var el = document.getElementById(id);
+        if (value) {
+          el.classList.add('active');
+        } else {
+          el.classList.remove('active');
+        }
+      }
+      
+      // Toggle switches
+      document.querySelectorAll('.toggle-switch').forEach(function(toggle) {
+        toggle.addEventListener('click', function() {
+          var isActive = toggle.classList.toggle('active');
+          var setting = toggle.dataset.setting;
+          var body = {};
+          body[setting] = isActive;
+          
+          fetch(AuthState.API_BASE + '/api/settings', {
+            method: 'PUT',
+            headers: headers,
+            body: JSON.stringify(body)
+          });
+        });
+      });
+      
+      // Save email
+      document.getElementById('save-email-btn').addEventListener('click', function() {
+        var btn = this;
+        var email = document.getElementById('email').value.trim();
+        
+        btn.disabled = true;
+        btn.textContent = 'SAVING...';
+        
+        fetch(AuthState.API_BASE + '/api/settings', {
+          method: 'PUT',
+          headers: headers,
+          body: JSON.stringify({ email: email || null })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          btn.disabled = false;
+          btn.textContent = 'SAVE EMAIL';
+          
+          if (data.success) {
+            Notify.show('EMAIL UPDATED', 'success');
+            var statusEl = document.getElementById('email-status');
+            if (email) {
+              statusEl.textContent = 'Not verified';
+              statusEl.className = 'settings-status unverified';
+            } else {
+              statusEl.textContent = '';
+            }
+          } else {
+            Notify.show(data.error || 'FAILED', 'error');
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'SAVE EMAIL';
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      });
+      
+      // Change password
+      document.getElementById('change-pass-btn').addEventListener('click', function() {
+        var btn = this;
+        var currentPass = document.getElementById('current-pass').value;
+        var newPass = document.getElementById('new-pass').value;
+        var confirmPass = document.getElementById('confirm-pass').value;
+        
+        if (!currentPass || !newPass || !confirmPass) {
+          Notify.show('ALL FIELDS REQUIRED', 'error');
+          return;
+        }
+        
+        if (newPass !== confirmPass) {
+          Notify.show('PASSWORDS DO NOT MATCH', 'error');
+          return;
+        }
+        
+        if (newPass.length < 8) {
+          Notify.show('PASSWORD MUST BE 8+ CHARACTERS', 'error');
+          return;
+        }
+        
+        btn.disabled = true;
+        btn.textContent = 'CHANGING...';
+        
+        fetch(AuthState.API_BASE + '/api/settings/change-password', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          btn.disabled = false;
+          btn.textContent = 'CHANGE PASSWORD';
+          
+          if (data.success) {
+            Notify.show('PASSWORD CHANGED', 'success');
+            document.getElementById('current-pass').value = '';
+            document.getElementById('new-pass').value = '';
+            document.getElementById('confirm-pass').value = '';
+          } else {
+            Notify.show(data.error === 'invalid_password' ? 'CURRENT PASSWORD INCORRECT' : (data.message || 'FAILED'), 'error');
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'CHANGE PASSWORD';
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      });
+      
+      // Delete account modal
+      var modal = document.getElementById('delete-modal');
+      
+      document.getElementById('delete-account-btn').addEventListener('click', function() {
+        modal.classList.add('active');
+      });
+      
+      document.getElementById('cancel-delete').addEventListener('click', function() {
+        modal.classList.remove('active');
+        document.getElementById('delete-confirm-pass').value = '';
+      });
+      
+      document.getElementById('confirm-delete').addEventListener('click', function() {
+        var btn = this;
+        var password = document.getElementById('delete-confirm-pass').value;
+        
+        if (!password) {
+          Notify.show('PASSWORD REQUIRED', 'error');
+          return;
+        }
+        
+        btn.disabled = true;
+        btn.textContent = 'DELETING...';
+        
+        fetch(AuthState.API_BASE + '/api/settings/account', {
+          method: 'DELETE',
+          headers: headers,
+          body: JSON.stringify({ password: password })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success) {
+            AuthState.logout();
+            window.location.href = 'index.html';
+          } else {
+            btn.disabled = false;
+            btn.textContent = 'DELETE';
+            Notify.show(data.error === 'invalid_password' ? 'INCORRECT PASSWORD' : 'DELETION FAILED', 'error');
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'DELETE';
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      });
+      
+      // Close modal on overlay click
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+          modal.classList.remove('active');
+        }
+      });
+    })();
+  </script>
+
+</body>
+</html>
