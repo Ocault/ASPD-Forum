@@ -488,17 +488,33 @@ app.post('/api/auth/forgot-password', authRateLimiter, async (req, res) => {
     const resetUrl = `${process.env.SITE_URL || 'https://www.aspdforum.com'}/reset-password.html?token=${token}`;
     const emailSent = await sendEmail(
       email,
-      'ASPD Forum - Password Reset',
+      'Password Reset — ASPD Forum',
       `
-        <div style="font-family: monospace; background: #0a0a0a; color: #808080; padding: 40px; max-width: 500px;">
-          <h2 style="color: #a0a0a0; font-weight: normal; letter-spacing: 0.1em;">PASSWORD RESET</h2>
-          <p>Hello ${user.alias},</p>
-          <p>A password reset was requested for your account.</p>
-          <p style="margin: 30px 0;">
-            <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background: #1a1a1a; color: #909090; text-decoration: none; border: 1px solid #303030; letter-spacing: 0.1em;">RESET PASSWORD</a>
-          </p>
-          <p style="color: #505050; font-size: 12px;">This link expires in 1 hour.</p>
-          <p style="color: #505050; font-size: 12px;">If you didn't request this, you can ignore this email.</p>
+        <div style="font-family: 'Courier New', monospace; background: #0a0a0a; max-width: 480px; margin: 0 auto;">
+          <div style="border: 1px solid #1a1a1a; padding: 40px;">
+            <!-- Header -->
+            <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #151515;">
+              <div style="font-size: 11px; letter-spacing: 0.3em; color: #303030; text-transform: uppercase;">ASPD FORUM</div>
+            </div>
+            
+            <!-- Content -->
+            <div style="color: #404040; font-size: 13px; line-height: 1.7;">
+              <p style="margin: 0 0 16px 0;">Hello <span style="color: #505050;">${user.alias}</span>,</p>
+              <p style="margin: 0 0 24px 0;">A password reset was requested for your account.</p>
+              
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${resetUrl}" style="display: inline-block; padding: 14px 32px; background: #0a0a0a; color: #505050; text-decoration: none; border: 1px solid #252525; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;">RESET PASSWORD</a>
+              </div>
+              
+              <p style="margin: 24px 0 0 0; font-size: 11px; color: #252525;">This link expires in 1 hour.</p>
+              <p style="margin: 8px 0 0 0; font-size: 11px; color: #252525;">If you didn't request this, ignore this email.</p>
+            </div>
+            
+            <!-- Footer -->
+            <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #151515; text-align: center;">
+              <div style="font-size: 10px; letter-spacing: 0.2em; color: #1a1a1a;">ASPDFORUM.COM</div>
+            </div>
+          </div>
         </div>
       `
     );
@@ -988,14 +1004,34 @@ app.post('/api/settings/verify-email', authMiddleware, async (req, res) => {
     const verifyUrl = `https://www.aspdforum.com/verify-email.html?token=${token}`;
     const emailSent = await sendEmail(
       email,
-      'Verify Your Email - ASPD Forum',
-      `<div style="font-family: monospace; background: #0a0a0a; color: #e0e0e0; padding: 30px; max-width: 500px; margin: 0 auto;">
-        <h2 style="color: #ff3333; text-transform: uppercase; letter-spacing: 2px;">Email Verification</h2>
-        <p>Click the link below to verify your email address:</p>
-        <a href="${verifyUrl}" style="display: inline-block; background: #ff3333; color: #fff; padding: 12px 24px; text-decoration: none; margin: 20px 0;">VERIFY EMAIL</a>
-        <p style="color: #666; font-size: 12px;">This link expires in 24 hours.</p>
-        <p style="color: #666; font-size: 12px;">If you didn't request this, ignore this email.</p>
-      </div>`
+      'Verify Email — ASPD Forum',
+      `
+        <div style="font-family: 'Courier New', monospace; background: #0a0a0a; max-width: 480px; margin: 0 auto;">
+          <div style="border: 1px solid #1a1a1a; padding: 40px;">
+            <!-- Header -->
+            <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #151515;">
+              <div style="font-size: 11px; letter-spacing: 0.3em; color: #303030; text-transform: uppercase;">ASPD FORUM</div>
+            </div>
+            
+            <!-- Content -->
+            <div style="color: #404040; font-size: 13px; line-height: 1.7;">
+              <p style="margin: 0 0 24px 0;">Verify your email address to enable password recovery and notifications.</p>
+              
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${verifyUrl}" style="display: inline-block; padding: 14px 32px; background: #0a0a0a; color: #505050; text-decoration: none; border: 1px solid #252525; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;">VERIFY EMAIL</a>
+              </div>
+              
+              <p style="margin: 24px 0 0 0; font-size: 11px; color: #252525;">This link expires in 24 hours.</p>
+              <p style="margin: 8px 0 0 0; font-size: 11px; color: #252525;">If you didn't request this, ignore this email.</p>
+            </div>
+            
+            <!-- Footer -->
+            <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #151515; text-align: center;">
+              <div style="font-size: 10px; letter-spacing: 0.2em; color: #1a1a1a;">ASPDFORUM.COM</div>
+            </div>
+          </div>
+        </div>
+      `
     );
     
     if (!emailSent) {
