@@ -87,10 +87,12 @@
             <span class="settings-label">EMAIL ADDRESS</span>
           </div>
           <p style="font-size: 0.75rem; color: #404040; margin-bottom: 1rem;">Add an email for password recovery and notifications.</p>
-          <div class="form-row" style="display: flex; gap: 0.5rem; align-items: center;">
-            <input type="email" id="account-email" placeholder="your@email.com" style="flex: 1;">
-            <span id="email-verify-status" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;"></span>
-          </div>
+          <form class="settings-form" style="margin: 0;">
+            <div class="form-row" style="display: flex; gap: 0.5rem; align-items: center;">
+              <input type="email" id="account-email" placeholder="your@email.com" style="flex: 1;">
+              <span id="email-verify-status" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;"></span>
+            </div>
+          </form>
           <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
             <button type="button" class="settings-btn" id="save-email-btn">SAVE EMAIL</button>
             <button type="button" class="settings-btn" id="verify-email-btn" style="display: none;">SEND VERIFICATION</button>

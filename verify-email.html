@@ -3,173 +3,96 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verify Email - ASPD Forum</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%230a0a0a' stroke='%23ff3333' stroke-width='3'/><circle cx='50' cy='50' r='8' fill='%23ff3333'/><g stroke='%23ff3333' stroke-width='2' fill='none'><circle cx='50' cy='50' r='20'/><circle cx='50' cy='50' r='32'/></g><g stroke='%23ff3333' stroke-width='2'><line x1='50' y1='5' x2='50' y2='18'/><line x1='50' y1='82' x2='50' y2='95'/><line x1='5' y1='50' x2='18' y2='50'/><line x1='82' y1='50' x2='95' y2='50'/></g></svg>">
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
-    body {
-      background: #0a0a0a;
-      color: #e0e0e0;
-      font-family: 'Courier New', monospace;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    
-    .container {
-      max-width: 400px;
-      width: 100%;
-      text-align: center;
-    }
-    
-    .icon {
-      font-size: 64px;
-      margin-bottom: 20px;
-    }
-    
-    h1 {
-      color: #ff3333;
-      font-size: 24px;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 20px;
-    }
-    
-    .message {
-      color: #888;
-      margin-bottom: 30px;
-      line-height: 1.6;
-    }
-    
-    .status {
-      padding: 20px;
-      border: 1px solid #222;
-      margin-bottom: 30px;
-    }
-    
-    .status.success {
-      border-color: #2ecc40;
-      color: #2ecc40;
-    }
-    
-    .status.error {
-      border-color: #ff3333;
-      color: #ff3333;
-    }
-    
-    .status.loading {
-      border-color: #444;
-      color: #888;
-    }
-    
-    .back-link {
-      color: #ff3333;
-      text-decoration: none;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      font-size: 12px;
-      border: 1px solid #ff3333;
-      padding: 10px 20px;
-      display: inline-block;
-      transition: all 0.3s ease;
-    }
-    
-    .back-link:hover {
-      background: #ff3333;
-      color: #0a0a0a;
-    }
-    
-    .spinner {
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      border: 2px solid #444;
-      border-top-color: #ff3333;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin-right: 10px;
-      vertical-align: middle;
-    }
-    
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-  </style>
+  <meta name="theme-color" content="#0a0a0a">
+  
+  <title>Verify Email — ASPD Forum</title>
+  <meta name="robots" content="noindex, nofollow">
+  
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="sigil.png">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div class="container">
-    <div class="icon">✉️</div>
-    <h1>Email Verification</h1>
-    
-    <div id="status" class="status loading">
-      <span class="spinner"></span>
-      Verifying your email...
-    </div>
-    
-    <a href="profile.html" class="back-link" id="back-link" style="display: none;">Go to Profile</a>
-  </div>
 
+  <!-- Noise Overlay -->
+  <div class="noise" aria-hidden="true"></div>
+
+  <!-- Auth Layout -->
+  <main class="auth-container" data-page="verify-email" role="main">
+    <div class="auth-content">
+      <h1 class="auth-title">EMAIL VERIFICATION</h1>
+      
+      <div id="loading" style="text-align: center; padding: 2rem;">
+        <p style="color: #505050;">Verifying your email...</p>
+      </div>
+      
+      <div id="success-message" style="display: none; text-align: center; padding: 2rem 0;">
+        <p style="color: #404040; font-size: 0.85rem; margin-bottom: 1rem;">
+          Your email has been verified successfully.
+        </p>
+        <a href="profile.html" class="auth-btn" style="display: inline-block; text-decoration: none;">VIEW PROFILE</a>
+      </div>
+      
+      <div id="error-message" style="display: none; text-align: center; padding: 2rem 0;">
+        <p id="error-text" style="color: #404040; font-size: 0.85rem; margin-bottom: 1rem;"></p>
+        <a href="settings.html" class="auth-btn" style="display: inline-block; text-decoration: none;">GO TO SETTINGS</a>
+      </div>
+      
+      <nav class="auth-links" aria-label="Navigation">
+        <a href="index.html" class="auth-link">← BACK TO HOME</a>
+      </nav>
+    </div>
+  </main>
+
+  <script src="js/auth-state.js"></script>
   <script>
-    const API_BASE = 'https://www.aspdforum.com';
     
-    async function verifyEmail() {
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get('token');
-      const statusEl = document.getElementById('status');
-      const backLink = document.getElementById('back-link');
+    (function() {
+      'use strict';
+      var loading = document.getElementById('loading');
+      var successMessage = document.getElementById('success-message');
+      var errorMessage = document.getElementById('error-message');
+      var errorText = document.getElementById('error-text');
+      
+      // Get token from URL
+      var urlParams = new URLSearchParams(window.location.search);
+      var token = urlParams.get('token');
       
       if (!token) {
-        statusEl.className = 'status error';
-        statusEl.textContent = 'Invalid verification link. No token provided.';
-        backLink.style.display = 'inline-block';
-        backLink.href = 'index.html';
-        backLink.textContent = 'Go to Home';
+        loading.style.display = 'none';
+        errorText.textContent = 'Invalid verification link. No token provided.';
+        errorMessage.style.display = 'block';
         return;
       }
       
-      try {
-        const response = await fetch(`${API_BASE}/api/auth/confirm-email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          statusEl.className = 'status success';
-          statusEl.textContent = '✓ Email verified successfully! You can now use password recovery.';
-          backLink.style.display = 'inline-block';
-        } else {
-          statusEl.className = 'status error';
-          if (data.error === 'expired_token') {
-            statusEl.textContent = 'This verification link has expired. Please request a new one from your profile settings.';
-          } else if (data.error === 'invalid_token') {
-            statusEl.textContent = 'Invalid or already used verification link.';
+      // Verify email
+      fetch(AuthState.API_BASE + '/api/auth/confirm-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token })
+      })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          loading.style.display = 'none';
+          if (data.success) {
+            successMessage.style.display = 'block';
           } else {
-            statusEl.textContent = 'Verification failed. Please try again.';
+            if (data.error === 'expired_token') {
+              errorText.textContent = 'This verification link has expired. Please request a new one from your settings.';
+            } else if (data.error === 'invalid_token') {
+              errorText.textContent = 'Invalid or already used verification link.';
+            } else {
+              errorText.textContent = 'Verification failed. Please try again.';
+            }
+            errorMessage.style.display = 'block';
           }
-          backLink.style.display = 'inline-block';
-          backLink.href = 'settings.html';
-          backLink.textContent = 'Go to Settings';
-        }
-      } catch (err) {
-        console.error('Verification error:', err);
-        statusEl.className = 'status error';
-        statusEl.textContent = 'Connection error. Please try again.';
-        backLink.style.display = 'inline-block';
-      }
-    }
-    
-    verifyEmail();
+        })
+        .catch(function() {
+          loading.style.display = 'none';
+          errorText.textContent = 'Connection error. Please try again.';
+          errorMessage.style.display = 'block';
+        });
+    })();
   </script>
 </body>
 </html>
