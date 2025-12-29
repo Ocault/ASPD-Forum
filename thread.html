@@ -113,10 +113,10 @@
           </div>
         </div>
         <div class="reply-actions">
-          <label class="ghost-toggle" id="ghost-toggle-container" title="Post anonymously - your identity will be hidden from other users">
+          <label class="ghost-toggle" id="ghost-toggle-container" title="Post without revealing your identity">
             <input type="checkbox" id="ghost-mode-toggle">
-            <span class="ghost-toggle-icon">👻</span>
-            <span class="ghost-toggle-label">GHOST MODE</span>
+            <span class="ghost-toggle-icon">[?]</span>
+            <span class="ghost-toggle-label">ANONYMOUS</span>
           </label>
           <button type="submit" class="reply-submit" aria-label="Submit reply">TRANSMIT</button>
         </div>
@@ -1580,7 +1580,7 @@
       ghostModeToggle.addEventListener('change', function() {
         if (this.checked) {
           ghostToggleContainer.classList.add('active');
-          replyContent.placeholder = '👻 POST ANONYMOUSLY... Your identity will be hidden.';
+          replyContent.placeholder = 'ANONYMOUS POST — Identity will not be displayed.';
         } else {
           ghostToggleContainer.classList.remove('active');
           replyContent.placeholder = 'ENTER YOUR RESPONSE... (Markdown supported: **bold**, *italic*, `code`, > quote)';
@@ -1602,7 +1602,7 @@
         var submitBtn = replyForm.querySelector('.reply-submit');
         var isGhostMode = ghostModeToggle.checked;
         submitBtn.disabled = true;
-        submitBtn.textContent = isGhostMode ? 'GHOSTING...' : 'TRANSMITTING...';
+        submitBtn.textContent = isGhostMode ? 'POSTING...' : 'TRANSMITTING...';
         
         AuthState.apiRequest('/api/entries', {
           method: 'POST',
@@ -1620,7 +1620,7 @@
             ghostModeToggle.checked = false;
             ghostToggleContainer.classList.remove('active');
             replyContent.placeholder = 'ENTER YOUR RESPONSE... (Markdown supported: **bold**, *italic*, `code`, > quote)';
-            Notify.show(isGhostMode ? '👻 GHOST POST RECORDED' : 'ENTRY RECORDED', 'info');
+            Notify.show(isGhostMode ? 'ANONYMOUS ENTRY RECORDED' : 'ENTRY RECORDED', 'info');
             // Reload entries
             fetchThread(currentSignalId, currentPage)
               .then(function(data) {

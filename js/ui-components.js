@@ -277,7 +277,7 @@ const UIComponents = (function() {
       'REGULAR': 'Regular • 100+ posts',
       'EXPERT': 'Expert • 200+ posts',
       'VETERAN': 'Veteran • 500+ posts',
-      'GHOST': 'Anonymous post • Identity hidden'
+      'GHOST': 'Anonymous post'
     };
     
     // If user has custom title, show that instead of rank
@@ -296,7 +296,7 @@ const UIComponents = (function() {
     
     // Mod indicator for ghost posts (shows real alias to mods)
     const ghostModIndicator = ghostModVisible 
-      ? `<span class="ghost-mod-indicator" title="This is a ghost post - only you can see the real identity">GHOST</span>` 
+      ? `<span class="ghost-mod-indicator" title="Anonymous post — You can see the real identity">ANON</span>` 
       : '';
     
     // Make alias a clickable link to profile (not for ghost posts unless mod)
