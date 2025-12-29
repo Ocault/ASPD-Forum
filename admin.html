@@ -915,7 +915,8 @@
       }
 
       var userRole = AuthState.getRole();
-      var isAdmin = userRole === 'admin' || userRole === 'owner';
+      // Fallback: if isAdmin() is true but role isn't admin/owner, treat as admin
+      var isAdmin = userRole === 'admin' || userRole === 'owner' || AuthState.isAdmin();
       var isOwner = userRole === 'owner';
 
       // Set role badge in sidebar
@@ -939,6 +940,7 @@
         } else if (requiredRole === 'admin' && !isAdmin) {
           btn.style.display = 'none';
         }
+        // mod and lower roles: always show (since we already checked isMod() at the top)
       });
 
       // Update permissions display based on role
