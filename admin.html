@@ -1456,7 +1456,7 @@
         var select = document.getElementById('badge-select');
         list.innerHTML = '<div style="color: var(--text-muted);">Loading badges...</div>';
         
-        Utils.apiRequest('/badges')
+        AuthState.apiRequest('/api/badges')
           .then(function(response) {
             var badges = response.badges || [];
             select.innerHTML = '<option value="">Select a badge...</option>';
@@ -1465,7 +1465,7 @@
             });
             
             if (badges.length === 0) {
-              list.innerHTML = '<div style="color: var(--text-muted);">No badges found.</div>';
+              list.innerHTML = '<div style="color: var(--text-muted);">No badges found. Make sure the database has been migrated.</div>';
               return;
             }
             
@@ -1499,21 +1499,21 @@
         var badgeId = document.getElementById('badge-select').value;
         
         if (!username || !badgeId) {
-          Utils.notify('Please enter a username and select a badge', 'error');
+          Notify.show('Please enter a username and select a badge', 'error');
           return;
         }
         
-        Utils.apiRequest('/admin/badges/award', {
+        AuthState.apiRequest('/api/admin/badges/award', {
           method: 'POST',
           body: JSON.stringify({ alias: username, badge_id: parseInt(badgeId) })
         })
           .then(function(res) {
-            Utils.notify(res.message || 'Badge awarded successfully!', 'success');
+            Notify.show(res.message || 'Badge awarded successfully!', 'success');
             document.getElementById('badge-username').value = '';
             document.getElementById('badge-select').value = '';
           })
           .catch(function(err) {
-            Utils.notify('Error: ' + err.message, 'error');
+            Notify.show('Error: ' + err.message, 'error');
           });
       });
 
