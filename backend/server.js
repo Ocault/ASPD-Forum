@@ -164,6 +164,105 @@ app.use(helmet({
   xssFilter: true
 }));
 
+// ========================================
+// DDOS PROTECTION
+// ========================================
+
+// Track suspicious IPs in memory (production: use Redis)
+const suspiciousIPs = new Map(); // ip -> { count, firstSeen, blocked }
+const DDOS_THRESHOLD = 100; // requests per window
+const DDOS_WINDOW = 10 * 1000; // 10 seconds
+const DDOS_BLOCK_DURATION = 5 * 60 * 1000; // 5 minute block
+
+// Global rate limiter - catches excessive requests from any single IP
+const globalRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 300, // 300 requests per minute per IP (generous for normal use)
+  message: { success: false, error: 'rate_limit_exceeded', message: 'Too many requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+               req.headers['x-real-ip'] || 
+               req.socket?.remoteAddress || 
+               'unknown';
+    return crypto.createHash('sha256').update(ip + (process.env.IP_SALT || 'salt')).digest('hex').substring(0, 16);
+  },
+  skip: (req) => {
+    // Skip rate limit for health checks
+    return req.path === '/health';
+  }
+});
+
+// DDoS detection middleware - detect and block attack patterns
+function ddosProtection(req, res, next) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+             req.headers['x-real-ip'] || 
+             req.socket?.remoteAddress || 
+             'unknown';
+  
+  const now = Date.now();
+  let ipData = suspiciousIPs.get(ip);
+  
+  // Check if IP is currently blocked
+  if (ipData && ipData.blocked && ipData.blockedUntil > now) {
+    return res.status(429).json({ 
+      success: false, 
+      error: 'temporarily_blocked',
+      message: 'Too many requests. Please wait before trying again.',
+      retryAfter: Math.ceil((ipData.blockedUntil - now) / 1000)
+    });
+  }
+  
+  // Initialize or update IP tracking
+  if (!ipData || now - ipData.firstSeen > DDOS_WINDOW) {
+    ipData = { count: 1, firstSeen: now, blocked: false, blockedUntil: 0 };
+  } else {
+    ipData.count++;
+  }
+  
+  // Check if threshold exceeded
+  if (ipData.count > DDOS_THRESHOLD) {
+    ipData.blocked = true;
+    ipData.blockedUntil = now + DDOS_BLOCK_DURATION;
+    suspiciousIPs.set(ip, ipData);
+    logger.warn('DDOS', 'IP temporarily blocked for excessive requests', { ip: ip.substring(0, 8) + '...', count: ipData.count });
+    return res.status(429).json({ 
+      success: false, 
+      error: 'temporarily_blocked',
+      message: 'Too many requests. Please wait before trying again.',
+      retryAfter: Math.ceil(DDOS_BLOCK_DURATION / 1000)
+    });
+  }
+  
+  suspiciousIPs.set(ip, ipData);
+  next();
+}
+
+// Clean up old entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, data] of suspiciousIPs.entries()) {
+    if (now - data.firstSeen > DDOS_WINDOW * 2 && !data.blocked) {
+      suspiciousIPs.delete(ip);
+    } else if (data.blocked && data.blockedUntil < now) {
+      suspiciousIPs.delete(ip);
+    }
+  }
+}, 60 * 1000); // Clean every minute
+
+// Apply DDoS protection first
+app.use(ddosProtection);
+app.use(globalRateLimiter);
+
+// Slowloris protection - timeout for slow requests
+app.use((req, res, next) => {
+  req.setTimeout(30000, () => { // 30 second timeout
+    res.status(408).json({ success: false, error: 'request_timeout' });
+  });
+  next();
+});
+
 // Serve uploaded images
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
@@ -308,7 +407,9 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '2mb' }));
+// Request body size limits (DDoS protection)
+app.use(express.json({ limit: '2mb' })); // 2mb for avatar uploads
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Request logging middleware
 app.use((req, res, next) => {
