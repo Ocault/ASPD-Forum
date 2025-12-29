@@ -4306,11 +4306,13 @@ app.get('/api/my/subscriptions', authMiddleware, async (req, res) => {
        FROM thread_subscriptions s
        JOIN threads t ON t.id = s.thread_id
        JOIN rooms r ON r.id = t.room_id
+       WHERE s.user_id = $1
        ORDER BY last_activity DESC`,
       [userId]
     );
     res.json({ success: true, subscriptions: result.rows });
   } catch (err) {
+    logger.error('GET_SUBSCRIPTIONS', err.message, { reqId: req.reqId, userId });
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
