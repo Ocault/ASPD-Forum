@@ -4414,6 +4414,13 @@ app.get('/api/admin/users/:id', authMiddleware, modMiddleware, async (req, res) 
 
     const user = userResult.rows[0];
 
+    // Get last known IP from most recent entry
+    const lastIpResult = await db.query(
+      'SELECT ip_hash FROM entries WHERE user_id = $1 AND ip_hash IS NOT NULL ORDER BY created_at DESC LIMIT 1',
+      [userId]
+    );
+    const lastIp = lastIpResult.rows.length > 0 ? lastIpResult.rows[0].ip_hash : null;
+
     // Get warning count
     const warningCount = await db.query(
       'SELECT COUNT(*) FROM warnings WHERE user_id = $1',
@@ -4440,6 +4447,7 @@ app.get('/api/admin/users/:id', authMiddleware, modMiddleware, async (req, res) 
       success: true,
       user: {
         ...user,
+        last_ip: lastIp,
         warning_count: parseInt(warningCount.rows[0].count),
         note_count: parseInt(noteCount.rows[0].count),
         recent_entries: recentEntries.rows

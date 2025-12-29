@@ -665,6 +665,9 @@
               <span class="user-detail-alias" id="detail-alias"></span>
               <button class="admin-btn" id="close-detail">CLOSE</button>
             </div>
+            <div class="user-ip-row" style="font-size: 0.4375rem; color: var(--text-muted); padding: var(--spacing-xs) 0; border-bottom: 1px solid var(--border-color); margin-bottom: var(--spacing-sm);">
+              <span>LAST IP:</span> <code id="user-ip-display" style="font-family: var(--font-mono); color: var(--text-secondary);">-</code>
+            </div>
             <div id="role-controls" style="margin: var(--spacing-sm) 0; padding: var(--spacing-sm); background: var(--bg-tertiary); border: 1px solid var(--border-color);"></div>
             <div class="admin-form-row">
               <button class="admin-btn" id="btn-warn">WARN</button>
@@ -918,13 +921,13 @@
       // Set role badge in sidebar
       var roleBadge = document.getElementById('admin-role-badge');
       if (isOwner) {
-        roleBadge.textContent = '👑 OWNER';
+        roleBadge.textContent = 'OWNER';
         roleBadge.className = 'admin-role-badge role-owner';
       } else if (isAdmin) {
-        roleBadge.textContent = '⚡ ADMIN';
+        roleBadge.textContent = 'ADMIN';
         roleBadge.className = 'admin-role-badge role-admin';
       } else {
-        roleBadge.textContent = '🛡 MODERATOR';
+        roleBadge.textContent = 'MODERATOR';
         roleBadge.className = 'admin-role-badge role-moderator';
       }
 
@@ -1293,6 +1296,12 @@
               else if (userRole === 'moderator') roleBadge = ' <span class="badge badge--mod">MOD</span>';
               
               document.getElementById('detail-alias').innerHTML = data.user.alias + ' (#' + data.user.id + ')' + roleBadge;
+              
+              // Display last known IP if available
+              var ipDisplay = document.getElementById('user-ip-display');
+              if (ipDisplay) {
+                ipDisplay.textContent = data.user.last_ip || 'No IP recorded';
+              }
               
               // Show/hide ban buttons (mods can't ban) - fallback to isAdmin() for backwards compat
               var myRole = AuthState.getRole();
