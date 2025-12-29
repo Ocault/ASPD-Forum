@@ -1586,7 +1586,7 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
   try {
     // Get user info
     const userResult = await db.query(
-      'SELECT id, alias, bio, avatar_config, signature, reputation, custom_title, is_admin, created_at, followers_private, following_private FROM users WHERE alias = $1',
+      'SELECT id, alias, bio, avatar_config, signature, reputation, custom_title, is_admin, role, created_at, followers_private, following_private FROM users WHERE alias = $1',
       [alias]
     );
     
@@ -1621,9 +1621,12 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
     );
     const threadCount = parseInt(threadCountResult.rows[0].count);
     
-    // Calculate user rank based on post count
+    // Calculate user rank based on role first, then post count
     let rank = 'NEWCOMER';
-    if (postCount >= 500) rank = 'VETERAN';
+    if (user.role === 'owner') rank = 'OWNER';
+    else if (user.role === 'admin') rank = 'ADMIN';
+    else if (user.role === 'moderator') rank = 'MODERATOR';
+    else if (postCount >= 500) rank = 'VETERAN';
     else if (postCount >= 200) rank = 'EXPERT';
     else if (postCount >= 100) rank = 'REGULAR';
     else if (postCount >= 50) rank = 'MEMBER';
@@ -1670,6 +1673,7 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
         avatarConfig: user.avatar_config || null,
         reputation: user.reputation || 0,
         rank: rank,
+        role: user.role || 'user',
         isAdmin: user.is_admin || false,
         createdAt: user.created_at,
         followersPrivate: user.followers_private || false,
@@ -2959,7 +2963,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
       const newEntriesResult = await db.query(
         `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
                 COALESCE(u.avatar_config, e.avatar_config) AS avatar_config,
-                u.signature, u.reputation, u.custom_title, u.is_admin,
+                u.signature, u.reputation, u.custom_title, u.is_admin, u.role,
                 e.created_at, e.edited_at,
                 (SELECT COUNT(*) FROM entries WHERE user_id = e.user_id AND is_deleted = FALSE) AS post_count,
                 LENGTH(e.content) > $3 AS "exceedsCharLimit"
@@ -2992,7 +2996,10 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
       const entriesWithReactions = newEntriesResult.rows.map(entry => {
         const postCount = parseInt(entry.post_count) || 0;
         let rank = 'NEWCOMER';
-        if (postCount >= 500) rank = 'VETERAN';
+        if (entry.role === 'owner') rank = 'OWNER';
+        else if (entry.role === 'admin') rank = 'ADMIN';
+        else if (entry.role === 'moderator') rank = 'MODERATOR';
+        else if (postCount >= 500) rank = 'VETERAN';
         else if (postCount >= 200) rank = 'EXPERT';
         else if (postCount >= 100) rank = 'REGULAR';
         else if (postCount >= 50) rank = 'MEMBER';
@@ -3024,7 +3031,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     // Build entries query with muted filter
     let entriesQuery = `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
               COALESCE(u.avatar_config, e.avatar_config) AS avatar_config,
-              u.signature, u.reputation, u.custom_title, u.is_admin,
+              u.signature, u.reputation, u.custom_title, u.is_admin, u.role,
               e.created_at, e.edited_at,
               (SELECT COUNT(*) FROM entries WHERE user_id = e.user_id AND is_deleted = FALSE) AS post_count,
               LENGTH(e.content) > $2 AS "exceedsCharLimit"
@@ -3099,7 +3106,10 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     const entriesWithReactions = entriesResult.rows.map(entry => {
       const postCount = parseInt(entry.post_count) || 0;
       let rank = 'NEWCOMER';
-      if (postCount >= 500) rank = 'VETERAN';
+      if (entry.role === 'owner') rank = 'OWNER';
+      else if (entry.role === 'admin') rank = 'ADMIN';
+      else if (entry.role === 'moderator') rank = 'MODERATOR';
+      else if (postCount >= 500) rank = 'VETERAN';
       else if (postCount >= 200) rank = 'EXPERT';
       else if (postCount >= 100) rank = 'REGULAR';
       else if (postCount >= 50) rank = 'MEMBER';
@@ -5213,7 +5223,7 @@ app.get('/api/users/online', authMiddleware, async (req, res) => {
     await db.query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [req.user.userId]);
     
     const result = await db.query(
-      `SELECT alias, avatar_config, custom_title, 
+      `SELECT alias, avatar_config, custom_title, role,
               (SELECT COUNT(*) FROM entries WHERE user_id = users.id AND is_deleted = FALSE) as post_count
        FROM users 
        WHERE last_seen_at > NOW() - INTERVAL '5 minutes'
@@ -5221,11 +5231,14 @@ app.get('/api/users/online', authMiddleware, async (req, res) => {
        LIMIT 50`
     );
     
-    // Calculate rank for each user
+    // Calculate rank for each user (role takes priority)
     const onlineUsers = result.rows.map(u => {
       let rank = 'NEWCOMER';
       const postCount = parseInt(u.post_count);
-      if (postCount >= 500) rank = 'VETERAN';
+      if (u.role === 'owner') rank = 'OWNER';
+      else if (u.role === 'admin') rank = 'ADMIN';
+      else if (u.role === 'moderator') rank = 'MODERATOR';
+      else if (postCount >= 500) rank = 'VETERAN';
       else if (postCount >= 200) rank = 'EXPERT';
       else if (postCount >= 100) rank = 'REGULAR';
       else if (postCount >= 50) rank = 'MEMBER';

@@ -478,14 +478,26 @@
         
         // Check if user has a selected border preference
         var selectedBorderPref = profile.avatarConfig && profile.avatarConfig.selectedBorder;
-        if (selectedBorderPref && selectedBorderPref !== 'none') {
-          avatarWrapper.classList.add('avatar-rank-' + selectedBorderPref);
-        } else if (profile.isAdmin) {
-          // Default for admin if no preference set
-          avatarWrapper.classList.add('avatar-rank-owner');
-        } else if (profile.rank && profile.rank !== 'NEWCOMER') {
-          // Use the user's rank for border (newcomers get no border)
-          avatarWrapper.classList.add('avatar-rank-' + profile.rank.toLowerCase());
+        
+        // If user explicitly selected a border (including 'none'), respect that choice
+        if (selectedBorderPref !== undefined && selectedBorderPref !== null) {
+          // User has made a choice - only add border class if not 'none'
+          if (selectedBorderPref !== 'none') {
+            avatarWrapper.classList.add('avatar-rank-' + selectedBorderPref);
+          }
+          // If 'none' was selected, no border is added
+        } else {
+          // No preference set - apply defaults based on role/rank
+          if (profile.role === 'owner') {
+            avatarWrapper.classList.add('avatar-rank-owner');
+          } else if (profile.role === 'admin') {
+            avatarWrapper.classList.add('avatar-rank-admin');
+          } else if (profile.role === 'moderator') {
+            avatarWrapper.classList.add('avatar-rank-moderator');
+          } else if (profile.rank && profile.rank !== 'NEWCOMER') {
+            // Use the user's rank for border (newcomers get no border)
+            avatarWrapper.classList.add('avatar-rank-' + profile.rank.toLowerCase());
+          }
         }
         // If no preference and newcomer, no border is shown
 
