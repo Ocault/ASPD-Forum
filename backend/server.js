@@ -5902,6 +5902,166 @@ app.get('/api/users/:alias/following-list', authMiddleware, async (req, res) => 
   }
 });
 
+// ========================================
+// USER-TO-USER REPUTATION
+// ========================================
+
+// Give +rep or -rep to a user
+app.post('/api/users/:alias/rep', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { alias } = req.params;
+  const { value, reason } = req.body;
+
+  // Validate value
+  if (value !== 1 && value !== -1) {
+    return res.status(400).json({ success: false, error: 'invalid_value', message: 'Value must be 1 or -1' });
+  }
+
+  try {
+    // Get target user
+    const target = await db.query('SELECT id, reputation FROM users WHERE alias = $1', [alias]);
+    if (target.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    const targetId = target.rows[0].id;
+
+    // Can't rep yourself
+    if (targetId === userId) {
+      return res.status(400).json({ success: false, error: 'cannot_rep_self', message: 'You cannot give rep to yourself' });
+    }
+
+    // Check for existing rep
+    const existing = await db.query(
+      'SELECT id, rep_value FROM user_rep WHERE from_user_id = $1 AND to_user_id = $2',
+      [userId, targetId]
+    );
+
+    let action = '';
+    let repChange = 0;
+
+    if (existing.rows.length > 0) {
+      const oldValue = existing.rows[0].rep_value;
+      if (oldValue === value) {
+        // Remove rep (toggle off)
+        await db.query('DELETE FROM user_rep WHERE id = $1', [existing.rows[0].id]);
+        repChange = -oldValue;
+        action = 'removed';
+      } else {
+        // Change from +rep to -rep or vice versa
+        await db.query(
+          'UPDATE user_rep SET rep_value = $1, reason = $2, created_at = NOW() WHERE id = $3',
+          [value, reason?.substring(0, 200) || null, existing.rows[0].id]
+        );
+        repChange = value - oldValue; // +2 or -2
+        action = value === 1 ? 'changed_to_positive' : 'changed_to_negative';
+      }
+    } else {
+      // New rep entry
+      await db.query(
+        'INSERT INTO user_rep (from_user_id, to_user_id, rep_value, reason) VALUES ($1, $2, $3, $4)',
+        [userId, targetId, value, reason?.substring(0, 200) || null]
+      );
+      repChange = value;
+      action = value === 1 ? 'positive' : 'negative';
+    }
+
+    // Update user's reputation count
+    await db.query(
+      'UPDATE users SET reputation = GREATEST(0, reputation + $1) WHERE id = $2',
+      [repChange, targetId]
+    );
+
+    // Get updated rep
+    const updatedRep = await db.query('SELECT reputation FROM users WHERE id = $1', [targetId]);
+
+    res.json({
+      success: true,
+      action,
+      newReputation: updatedRep.rows[0].reputation
+    });
+  } catch (err) {
+    console.error('[USER REP ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get user's rep status (what rep current user gave them)
+app.get('/api/users/:alias/rep', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { alias } = req.params;
+
+  try {
+    const target = await db.query('SELECT id, reputation FROM users WHERE alias = $1', [alias]);
+    if (target.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    const targetId = target.rows[0].id;
+
+    const existing = await db.query(
+      'SELECT rep_value FROM user_rep WHERE from_user_id = $1 AND to_user_id = $2',
+      [userId, targetId]
+    );
+
+    res.json({
+      success: true,
+      givenRep: existing.rows.length > 0 ? existing.rows[0].rep_value : 0,
+      totalReputation: target.rows[0].reputation
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get user's rep history (who gave them rep)
+app.get('/api/users/:alias/rep/history', authMiddleware, async (req, res) => {
+  const { alias } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
+
+  try {
+    const target = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+    if (target.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    const targetId = target.rows[0].id;
+
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM user_rep WHERE to_user_id = $1',
+      [targetId]
+    );
+    const total = parseInt(countResult.rows[0].count);
+
+    const result = await db.query(
+      `SELECT ur.rep_value, ur.reason, ur.created_at, u.alias, u.avatar_config
+       FROM user_rep ur
+       JOIN users u ON u.id = ur.from_user_id
+       WHERE ur.to_user_id = $1
+       ORDER BY ur.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [targetId, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      entries: result.rows.map(r => ({
+        fromAlias: r.alias,
+        fromAvatar: r.avatar_config,
+        value: r.rep_value,
+        reason: r.reason,
+        createdAt: r.created_at
+      })),
+      pagination: {
+        page,
+        totalPages: Math.ceil(total / limit),
+        total
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // Toggle followers privacy setting
 app.post('/api/my/followers-privacy', authMiddleware, async (req, res) => {
   const userId = req.user.userId;
@@ -7451,6 +7611,19 @@ async function migrate() {
       );
       CREATE INDEX IF NOT EXISTS idx_entry_votes_entry ON entry_votes(entry_id);
       CREATE INDEX IF NOT EXISTS idx_entry_votes_user ON entry_votes(user_id);
+      
+      -- User-to-user reputation system (+rep/-rep)
+      CREATE TABLE IF NOT EXISTS user_rep (
+        id SERIAL PRIMARY KEY,
+        from_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        to_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        rep_value INTEGER NOT NULL CHECK (rep_value IN (-1, 1)),
+        reason VARCHAR(200),
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(from_user_id, to_user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_rep_to ON user_rep(to_user_id);
+      CREATE INDEX IF NOT EXISTS idx_user_rep_from ON user_rep(from_user_id);
       
       -- Performance indexes for common queries
       CREATE INDEX IF NOT EXISTS idx_threads_room_created ON threads(room_id, created_at DESC);

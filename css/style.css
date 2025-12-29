@@ -2505,6 +2505,126 @@ ul {
   color: #a44;
 }
 
+/* Rep buttons */
+.rep-buttons {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-left: var(--spacing-sm);
+}
+
+.rep-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rep-btn:hover {
+  border-color: var(--border-hover);
+}
+
+.rep-btn.rep-positive:hover,
+.rep-btn.rep-positive.active {
+  background-color: #1a3a2a;
+  border-color: #4a9;
+  color: #4a9;
+}
+
+.rep-btn.rep-negative:hover,
+.rep-btn.rep-negative.active {
+  background-color: #3a1a1a;
+  border-color: #a44;
+  color: #a44;
+}
+
+/* Rep history */
+.rep-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.rep-history-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+}
+
+.rep-history-item.rep-positive-item {
+  border-left: 3px solid #4a9;
+}
+
+.rep-history-item.rep-negative-item {
+  border-left: 3px solid #a44;
+}
+
+.rep-history-item .rep-value {
+  font-weight: bold;
+  min-width: 24px;
+}
+
+.rep-positive-item .rep-value {
+  color: #4a9;
+}
+
+.rep-negative-item .rep-value {
+  color: #a44;
+}
+
+.rep-history-item .rep-from {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.rep-history-item .rep-from:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.rep-history-item .rep-reason {
+  flex: 1;
+  color: var(--text-muted);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rep-history-item .rep-time {
+  color: var(--text-muted);
+  font-size: 0.5625rem;
+}
+
+.load-more-btn {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.load-more-btn:hover {
+  background-color: var(--bg-secondary);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
 .edit-profile-btn {
   padding: var(--spacing-sm) var(--spacing-md);
   background-color: var(--bg-panel);

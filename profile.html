@@ -168,6 +168,10 @@
       <div class="profile-actions profile-social-actions" id="social-actions" style="display: none;">
         <button class="follow-btn" id="follow-btn" aria-label="Follow this user">[FOLLOW]</button>
         <button class="mute-btn" id="mute-btn" aria-label="Mute this user">[MUTE]</button>
+        <div class="rep-buttons" id="rep-buttons">
+          <button class="rep-btn rep-positive" id="rep-positive-btn" title="Give positive reputation" aria-label="Give positive reputation">+REP</button>
+          <button class="rep-btn rep-negative" id="rep-negative-btn" title="Give negative reputation" aria-label="Give negative reputation">-REP</button>
+        </div>
       </div>
 
       <!-- Settings Link (own profile only) -->
@@ -181,6 +185,15 @@
         <div class="badges-container" id="badges-container">
           <div class="empty-state" id="badges-loading">Loading badges...</div>
         </div>
+      </div>
+
+      <!-- Reputation History Section -->
+      <div class="profile-section" id="rep-history-section">
+        <h2 class="section-title">REPUTATION HISTORY</h2>
+        <div class="rep-history-list" id="rep-history-list">
+          <div class="empty-state">Loading...</div>
+        </div>
+        <button class="load-more-btn" id="load-more-rep" style="display: none;">LOAD MORE</button>
       </div>
 
       <!-- Followers/Following Section -->
@@ -575,10 +588,15 @@
           document.getElementById('settings-link-section').style.display = 'none';
           document.getElementById('social-actions').style.display = 'flex';
           checkFollowMuteState(profile.alias);
+          // Load rep status (what rep current user gave to this user)
+          loadRepStatus(profile.alias);
         }
         
         // Load user badges
         loadUserBadges(profile.alias);
+        
+        // Load reputation history
+        loadRepHistory(profile.alias, 1);
       }
       
       function loadUserBadges(alias) {
@@ -685,6 +703,105 @@
           .catch(function(err) {
             Notify.show(err.message || 'CONNECTION ERROR', 'error');
           });
+      });
+
+      // Rep button state
+      var givenRep = 0; // -1, 0, or 1
+      var repPositiveBtn = document.getElementById('rep-positive-btn');
+      var repNegativeBtn = document.getElementById('rep-negative-btn');
+
+      function updateRepButtons() {
+        repPositiveBtn.classList.toggle('active', givenRep === 1);
+        repNegativeBtn.classList.toggle('active', givenRep === -1);
+      }
+
+      function giveRep(value) {
+        var alias = getAliasFromUrl() || profileAlias.textContent;
+        AuthState.apiRequest('/api/users/' + encodeURIComponent(alias) + '/rep', {
+          method: 'POST',
+          body: JSON.stringify({ value: value })
+        })
+          .then(function(data) {
+            if (data.success) {
+              if (data.action === 'removed') {
+                givenRep = 0;
+                Notify.show('REP REMOVED', 'info');
+              } else if (data.action === 'positive' || data.action === 'changed_to_positive') {
+                givenRep = 1;
+                Notify.show('+REP GIVEN', 'success');
+              } else if (data.action === 'negative' || data.action === 'changed_to_negative') {
+                givenRep = -1;
+                Notify.show('-REP GIVEN', 'info');
+              }
+              updateRepButtons();
+              // Update displayed reputation
+              var statRep = document.getElementById('stat-rep');
+              if (statRep) statRep.textContent = data.newReputation;
+              // Refresh rep history
+              loadRepHistory(alias, 1);
+            } else {
+              Notify.show(data.message || data.error || 'ERROR', 'error');
+            }
+          })
+          .catch(function(err) {
+            Notify.show(err.message || 'CONNECTION ERROR', 'error');
+          });
+      }
+
+      repPositiveBtn.addEventListener('click', function() { giveRep(1); });
+      repNegativeBtn.addEventListener('click', function() { giveRep(-1); });
+
+      // Load rep status for this user
+      function loadRepStatus(alias) {
+        AuthState.apiRequest('/api/users/' + encodeURIComponent(alias) + '/rep')
+          .then(function(data) {
+            if (data.success) {
+              givenRep = data.givenRep;
+              updateRepButtons();
+            }
+          })
+          .catch(function() {});
+      }
+
+      // Load rep history
+      var repHistoryPage = 1;
+      var repHistoryList = document.getElementById('rep-history-list');
+      var loadMoreRepBtn = document.getElementById('load-more-rep');
+
+      function loadRepHistory(alias, page) {
+        AuthState.apiRequest('/api/users/' + encodeURIComponent(alias) + '/rep/history?page=' + page)
+          .then(function(data) {
+            if (data.success) {
+              if (page === 1) {
+                repHistoryList.innerHTML = '';
+              }
+              if (data.entries.length === 0 && page === 1) {
+                repHistoryList.innerHTML = '<div class="empty-state">NO REPUTATION HISTORY</div>';
+                loadMoreRepBtn.style.display = 'none';
+                return;
+              }
+              data.entries.forEach(function(entry) {
+                var item = document.createElement('div');
+                item.className = 'rep-history-item ' + (entry.value === 1 ? 'rep-positive-item' : 'rep-negative-item');
+                item.innerHTML = 
+                  '<span class="rep-value">' + (entry.value === 1 ? '+1' : '-1') + '</span>' +
+                  '<a href="profile.html?u=' + encodeURIComponent(entry.fromAlias) + '" class="rep-from">' + escapeHtml(entry.fromAlias) + '</a>' +
+                  (entry.reason ? '<span class="rep-reason">"' + escapeHtml(entry.reason) + '"</span>' : '') +
+                  '<span class="rep-time">' + formatLastSeen(entry.createdAt) + '</span>';
+                repHistoryList.appendChild(item);
+              });
+              repHistoryPage = page;
+              loadMoreRepBtn.style.display = data.pagination.page < data.pagination.totalPages ? 'block' : 'none';
+            }
+          })
+          .catch(function() {
+            repHistoryList.innerHTML = '<div class="empty-state">FAILED TO LOAD</div>';
+          });
+      }
+
+      loadMoreRepBtn.addEventListener('click', function() {
+        var alias = getAliasFromUrl() || profileAlias.textContent;
+        loadRepHistory(alias, repHistoryPage + 1);
       });
 
       function fetchProfile(alias) {
