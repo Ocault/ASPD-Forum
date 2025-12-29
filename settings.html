@@ -310,6 +310,19 @@
       </div>
     </section>
     
+    <!-- Privacy Section -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">Privacy</h2>
+      
+      <div class="settings-toggle">
+        <div>
+          <div class="settings-toggle-label">Private Followers</div>
+          <div class="settings-toggle-desc">Hide your followers and following lists from other users</div>
+        </div>
+        <div id="toggle-followers-private" class="toggle-switch" data-setting="followers_private"></div>
+      </div>
+    </section>
+    
     <!-- Data Export Section -->
     <section class="settings-section">
       <h2 class="settings-section-title">Your Data (GDPR)</h2>
@@ -470,6 +483,7 @@
             updateToggle('toggle-replies', settings.notification_replies);
             updateToggle('toggle-mentions', settings.notification_mentions);
             updateToggle('toggle-messages', settings.notification_messages);
+            updateToggle('toggle-followers-private', settings.followers_private);
           }
         });
       

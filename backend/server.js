@@ -1586,7 +1586,7 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
   try {
     // Get user info
     const userResult = await db.query(
-      'SELECT id, alias, bio, avatar_config, signature, reputation, custom_title, is_admin, created_at FROM users WHERE alias = $1',
+      'SELECT id, alias, bio, avatar_config, signature, reputation, custom_title, is_admin, created_at, followers_private FROM users WHERE alias = $1',
       [alias]
     );
     
@@ -1629,6 +1629,24 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
     else if (postCount >= 50) rank = 'MEMBER';
     else if (postCount >= 10) rank = 'ACTIVE';
     
+    // Get followers count
+    const followersResult = await db.query(
+      'SELECT COUNT(*) FROM user_follows WHERE following_id = $1',
+      [user.id]
+    );
+    const followersCount = parseInt(followersResult.rows[0].count);
+    
+    // Get following count
+    const followingResult = await db.query(
+      'SELECT COUNT(*) FROM user_follows WHERE follower_id = $1',
+      [user.id]
+    );
+    const followingCount = parseInt(followingResult.rows[0].count);
+    
+    // Determine if viewer can see followers/following lists
+    const isOwnProfile = viewerId === user.id;
+    const canViewFollowers = isOwnProfile || !user.followers_private;
+    
     // Get recent posts (last 5)
     const recentPostsResult = await db.query(
       `SELECT e.id, e.content, e.created_at, t.id AS thread_id, t.title AS thread_title
@@ -1653,6 +1671,10 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
         rank: rank,
         isAdmin: user.is_admin || false,
         createdAt: user.created_at,
+        followersPrivate: user.followers_private || false,
+        followersCount: followersCount,
+        followingCount: followingCount,
+        canViewFollowers: canViewFollowers,
         stats: {
           posts: postCount,
           threads: threadCount
@@ -1732,7 +1754,7 @@ app.put('/api/profile', authMiddleware, async (req, res) => {
 app.get('/api/settings', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT email, email_verified, notification_replies, notification_mentions, notification_messages FROM users WHERE id = $1',
+      'SELECT email, email_verified, notification_replies, notification_mentions, notification_messages, followers_private FROM users WHERE id = $1',
       [req.user.userId]
     );
     
@@ -1748,7 +1770,7 @@ app.get('/api/settings', authMiddleware, async (req, res) => {
 
 // API: Update user settings
 app.put('/api/settings', authMiddleware, async (req, res) => {
-  const { email, notification_replies, notification_mentions, notification_messages } = req.body;
+  const { email, notification_replies, notification_mentions, notification_messages, followers_private } = req.body;
   const userId = req.user.userId;
   
   try {
@@ -1772,8 +1794,8 @@ app.put('/api/settings', authMiddleware, async (req, res) => {
       );
     }
     
-    // Update notification preferences
-    if (notification_replies !== undefined || notification_mentions !== undefined || notification_messages !== undefined) {
+    // Update notification preferences and privacy settings
+    if (notification_replies !== undefined || notification_mentions !== undefined || notification_messages !== undefined || followers_private !== undefined) {
       const updates = [];
       const values = [];
       let paramIndex = 1;
@@ -1790,6 +1812,10 @@ app.put('/api/settings', authMiddleware, async (req, res) => {
         updates.push(`notification_messages = $${paramIndex++}`);
         values.push(notification_messages);
       }
+      if (followers_private !== undefined) {
+        updates.push(`followers_private = $${paramIndex++}`);
+        values.push(followers_private);
+      }
       
       if (updates.length > 0) {
         values.push(userId);
@@ -1799,7 +1825,7 @@ app.put('/api/settings', authMiddleware, async (req, res) => {
     
     // Return updated settings
     const result = await db.query(
-      'SELECT email, email_verified, notification_replies, notification_mentions, notification_messages FROM users WHERE id = $1',
+      'SELECT email, email_verified, notification_replies, notification_mentions, notification_messages, followers_private FROM users WHERE id = $1',
       [userId]
     );
     
@@ -5542,6 +5568,87 @@ app.get('/api/my/following', authMiddleware, async (req, res) => {
   }
 });
 
+// Get followers list for a user
+app.get('/api/users/:alias/followers', authMiddleware, async (req, res) => {
+  const { alias } = req.params;
+  const viewerId = req.user.userId;
+
+  try {
+    const target = await db.query('SELECT id, followers_private FROM users WHERE alias = $1', [alias]);
+    if (target.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    const targetUser = target.rows[0];
+    const isOwnProfile = targetUser.id === viewerId;
+    
+    // Check privacy setting
+    if (targetUser.followers_private && !isOwnProfile) {
+      return res.json({ success: true, followers: [], isPrivate: true });
+    }
+    
+    const result = await db.query(
+      `SELECT u.alias, u.avatar_config, uf.created_at
+       FROM user_follows uf
+       JOIN users u ON u.id = uf.follower_id
+       WHERE uf.following_id = $1
+       ORDER BY uf.created_at DESC
+       LIMIT 100`,
+      [targetUser.id]
+    );
+    res.json({ success: true, followers: result.rows, isPrivate: false });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get following list for a user
+app.get('/api/users/:alias/following-list', authMiddleware, async (req, res) => {
+  const { alias } = req.params;
+  const viewerId = req.user.userId;
+
+  try {
+    const target = await db.query('SELECT id, followers_private FROM users WHERE alias = $1', [alias]);
+    if (target.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    const targetUser = target.rows[0];
+    const isOwnProfile = targetUser.id === viewerId;
+    
+    // Check privacy setting
+    if (targetUser.followers_private && !isOwnProfile) {
+      return res.json({ success: true, following: [], isPrivate: true });
+    }
+    
+    const result = await db.query(
+      `SELECT u.alias, u.avatar_config, uf.created_at
+       FROM user_follows uf
+       JOIN users u ON u.id = uf.following_id
+       WHERE uf.follower_id = $1
+       ORDER BY uf.created_at DESC
+       LIMIT 100`,
+      [targetUser.id]
+    );
+    res.json({ success: true, following: result.rows, isPrivate: false });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Toggle followers privacy setting
+app.post('/api/my/followers-privacy', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { isPrivate } = req.body;
+
+  try {
+    await db.query('UPDATE users SET followers_private = $1 WHERE id = $2', [!!isPrivate, userId]);
+    res.json({ success: true, followersPrivate: !!isPrivate });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // Get feed of posts from followed users
 app.get('/api/my/feed', authMiddleware, async (req, res) => {
   const userId = req.user.userId;
@@ -6933,6 +7040,7 @@ async function migrate() {
       
       -- Add reputation system columns
       ALTER TABLE users ADD COLUMN IF NOT EXISTS reputation INTEGER DEFAULT 0;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS followers_private BOOLEAN DEFAULT FALSE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS post_count INTEGER DEFAULT 0;
       
       -- Add user custom title (admin-assignable)

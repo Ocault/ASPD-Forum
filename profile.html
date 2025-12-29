@@ -6,6 +6,92 @@
   <title>ASPD Forum — Profile</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Followers/Following styles */
+    .stat-clickable {
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .stat-clickable:hover {
+      background: var(--bg-tertiary);
+    }
+    .followers-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-sm);
+    }
+    .follower-item {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-xs) var(--spacing-sm);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      text-decoration: none;
+      color: var(--text-secondary);
+      font-size: 0.5rem;
+      font-family: var(--font-mono);
+      transition: border-color 0.15s;
+    }
+    .follower-item:hover {
+      border-color: var(--accent-primary);
+      color: var(--text-primary);
+    }
+    .follower-item canvas {
+      width: 24px;
+      height: 24px;
+    }
+    .followers-privacy-notice {
+      color: var(--text-muted);
+      font-size: 0.5rem;
+      font-family: var(--font-mono);
+      padding: var(--spacing-sm);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      text-align: center;
+    }
+    .followers-tabs {
+      display: flex;
+      gap: var(--spacing-sm);
+      margin-bottom: var(--spacing-sm);
+    }
+    .followers-tab {
+      background: none;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      padding: var(--spacing-xs) var(--spacing-sm);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .followers-tab:hover {
+      border-color: var(--text-muted);
+    }
+    .followers-tab.active {
+      background: var(--bg-tertiary);
+      border-color: var(--accent-primary);
+      color: var(--text-primary);
+    }
+    .privacy-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--spacing-sm);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      margin-bottom: var(--spacing-sm);
+      font-size: 0.5rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+    .privacy-toggle-row label {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
 
@@ -62,6 +148,14 @@
             <span class="stat-value" id="stat-rep" aria-label="Reputation">0</span>
             <span class="stat-label">REP</span>
           </div>
+          <div class="stat-item stat-clickable" id="stat-followers-item" role="button" tabindex="0">
+            <span class="stat-value" id="stat-followers" aria-label="Followers">0</span>
+            <span class="stat-label">FOLLOWERS</span>
+          </div>
+          <div class="stat-item stat-clickable" id="stat-following-item" role="button" tabindex="0">
+            <span class="stat-value" id="stat-following" aria-label="Following">0</span>
+            <span class="stat-label">FOLLOWING</span>
+          </div>
         </div>
       </article>
 
@@ -86,6 +180,17 @@
         <h2 class="section-title">BADGES</h2>
         <div class="badges-container" id="badges-container">
           <div class="empty-state" id="badges-loading">Loading badges...</div>
+        </div>
+      </div>
+
+      <!-- Followers/Following Section -->
+      <div class="profile-section" id="followers-section" style="display: none;">
+        <h2 class="section-title" id="followers-section-title">FOLLOWERS</h2>
+        <div class="followers-privacy-notice" id="followers-privacy-notice" style="display: none;">
+          <span class="privacy-icon">🔒</span> This user's followers are private
+        </div>
+        <div class="followers-list" id="followers-list">
+          <div class="empty-state">Loading...</div>
         </div>
       </div>
 
@@ -331,6 +436,10 @@
         statPosts.textContent = profile.stats.posts;
         statThreads.textContent = profile.stats.threads;
         document.title = 'ASPD Forum — ' + profile.alias;
+        
+        // Update followers/following counts
+        document.getElementById('stat-followers').textContent = profile.followersCount || 0;
+        document.getElementById('stat-following').textContent = profile.followingCount || 0;
 
         // Display custom title OR rank (custom title replaces rank)
         var profileCustomTitle = document.getElementById('profile-custom-title');
@@ -914,6 +1023,117 @@
       
       // Theme toggle initialization
       Utils.initTheme();
+
+      // Followers/Following section handling
+      var currentFollowersTab = 'followers';
+      var followersSection = document.getElementById('followers-section');
+      var followersListEl = document.getElementById('followers-list');
+      var followersSectionTitle = document.getElementById('followers-section-title');
+      var followersPrivacyNotice = document.getElementById('followers-privacy-notice');
+
+      function showFollowersSection(tab) {
+        if (!currentProfile) return;
+        currentFollowersTab = tab || 'followers';
+        followersSection.style.display = 'block';
+        
+        // Build tabs HTML
+        var tabsHtml = '<div class="followers-tabs">' +
+          '<button class="followers-tab' + (currentFollowersTab === 'followers' ? ' active' : '') + '" data-tab="followers">FOLLOWERS (' + (currentProfile.followersCount || 0) + ')</button>' +
+          '<button class="followers-tab' + (currentFollowersTab === 'following' ? ' active' : '') + '" data-tab="following">FOLLOWING (' + (currentProfile.followingCount || 0) + ')</button>' +
+          '</div>';
+        
+        // Add privacy toggle for own profile
+        var privacyHtml = '';
+        if (isOwnProfile) {
+          privacyHtml = '<div class="privacy-toggle-row">' +
+            '<span>🔒 FOLLOWERS PRIVACY</span>' +
+            '<label><input type="checkbox" id="followers-privacy-toggle"' + (currentProfile.followersPrivate ? ' checked' : '') + '> Private</label>' +
+            '</div>';
+        }
+        
+        followersSectionTitle.innerHTML = tabsHtml + privacyHtml;
+        
+        // Add tab click handlers
+        followersSectionTitle.querySelectorAll('.followers-tab').forEach(function(tabBtn) {
+          tabBtn.addEventListener('click', function() {
+            showFollowersSection(this.getAttribute('data-tab'));
+          });
+        });
+        
+        // Add privacy toggle handler
+        var privacyToggle = document.getElementById('followers-privacy-toggle');
+        if (privacyToggle) {
+          privacyToggle.addEventListener('change', function() {
+            var isPrivate = this.checked;
+            AuthState.apiRequest('/api/my/followers-privacy', {
+              method: 'POST',
+              body: JSON.stringify({ isPrivate: isPrivate })
+            }).then(function(data) {
+              if (data.success) {
+                currentProfile.followersPrivate = isPrivate;
+                Notify.show(isPrivate ? 'Followers set to private' : 'Followers set to public', 'info');
+              }
+            });
+          });
+        }
+        
+        // Fetch the list
+        loadFollowersList(currentFollowersTab);
+      }
+
+      function loadFollowersList(type) {
+        if (!currentProfile) return;
+        var alias = currentProfile.alias;
+        var endpoint = type === 'followers' 
+          ? '/api/users/' + encodeURIComponent(alias) + '/followers'
+          : '/api/users/' + encodeURIComponent(alias) + '/following-list';
+        
+        followersListEl.innerHTML = '<div class="empty-state">Loading...</div>';
+        
+        AuthState.apiRequest(endpoint)
+          .then(function(data) {
+            if (data.success) {
+              if (data.isPrivate) {
+                followersPrivacyNotice.style.display = 'block';
+                followersListEl.innerHTML = '';
+                return;
+              }
+              followersPrivacyNotice.style.display = 'none';
+              
+              var list = type === 'followers' ? data.followers : data.following;
+              if (list && list.length > 0) {
+                followersListEl.innerHTML = list.map(function(u) {
+                  return '<a href="profile.html?alias=' + encodeURIComponent(u.alias) + '" class="follower-item">' +
+                    '<canvas class="follower-avatar" width="24" height="24" data-config=\'' + JSON.stringify(u.avatar_config || {}) + '\'></canvas>' +
+                    '<span>' + escapeHtml(u.alias) + '</span>' +
+                    '</a>';
+                }).join('');
+                
+                // Render avatars
+                followersListEl.querySelectorAll('.follower-avatar').forEach(function(canvas) {
+                  var config = JSON.parse(canvas.getAttribute('data-config') || '{}');
+                  AvatarRenderer.render(canvas, config.head !== undefined ? config : AvatarRenderer.DEFAULT_CONFIG);
+                });
+              } else {
+                followersListEl.innerHTML = '<div class="empty-state">No ' + type + ' yet</div>';
+              }
+            }
+          })
+          .catch(function() {
+            followersListEl.innerHTML = '<div class="empty-state">Failed to load</div>';
+          });
+      }
+
+      // Click handlers for followers/following stats
+      document.getElementById('stat-followers-item').addEventListener('click', function() {
+        showFollowersSection('followers');
+        followersSection.scrollIntoView({ behavior: 'smooth' });
+      });
+      
+      document.getElementById('stat-following-item').addEventListener('click', function() {
+        showFollowersSection('following');
+        followersSection.scrollIntoView({ behavior: 'smooth' });
+      });
 
       init();
     })();
