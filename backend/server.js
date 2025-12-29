@@ -3783,6 +3783,46 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
       // Silent fail - subscription notifications should not break posting
       console.error('[SUBSCRIPTION NOTIFICATION ERROR]', subErr.message);
     }
+    
+    // Notify thread OP (if not the poster and not already subscribed)
+    try {
+      const threadOpResult = await db.query(
+        'SELECT user_id, title FROM threads WHERE id = $1',
+        [threadDbId]
+      );
+      const threadOp = threadOpResult.rows[0];
+      
+      if (threadOp && threadOp.user_id && threadOp.user_id !== userId) {
+        // Check if OP is already subscribed (to avoid duplicate notification)
+        const alreadySubscribed = await db.query(
+          'SELECT 1 FROM thread_subscriptions WHERE thread_id = $1 AND user_id = $2',
+          [threadDbId, threadOp.user_id]
+        );
+        
+        if (alreadySubscribed.rows.length === 0) {
+          const notificationTitle = `New reply in your thread "${(threadOp.title || '').substring(0, 50)}"`;
+          const notificationPreview = `${entryAlias} posted: ${content.substring(0, 80)}${content.length > 80 ? '...' : ''}`;
+          const notificationLink = `thread.html?id=${threadDbId}#entry-${entryId}`;
+          
+          await db.query(
+            `INSERT INTO notifications (user_id, type, title, message, link, related_entry_id, related_user_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [threadOp.user_id, 'thread_reply', notificationTitle, notificationPreview, notificationLink, entryId, userId]
+          );
+          
+          notifyUserRealtime(threadOp.user_id, {
+            type: 'thread_reply',
+            title: notificationTitle,
+            message: notificationPreview,
+            link: notificationLink
+          });
+          
+          sendNotificationEmail(threadOp.user_id, 'thread_reply', notificationTitle, notificationPreview, notificationLink);
+        }
+      }
+    } catch (opErr) {
+      console.error('[THREAD OP NOTIFICATION ERROR]', opErr.message);
+    }
 
     // Broadcast new post to all users viewing this thread via WebSocket
     notifyNewPost(threadDbId, {
@@ -4052,6 +4092,27 @@ app.post('/api/admin/badges/award', authMiddleware, async (req, res) => {
       return res.json({ success: true, message: 'User already has this badge' });
     }
     
+    // Notify user of badge award
+    const badgeInfo = await db.query('SELECT name, description FROM badges WHERE id = $1', [badge_id]);
+    if (badgeInfo.rows.length > 0) {
+      const notificationTitle = 'Badge Awarded!';
+      const notificationMessage = `An admin awarded you the "${badgeInfo.rows[0].name}" badge!`;
+      
+      await db.query(
+        `INSERT INTO notifications (user_id, type, title, message, link)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [user.rows[0].id, 'badge', notificationTitle, notificationMessage, 'profile.html']
+      );
+      
+      notifyUserRealtime(user.rows[0].id, {
+        type: 'badge',
+        title: notificationTitle,
+        message: notificationMessage,
+        badgeName: badgeInfo.rows[0].name,
+        link: 'profile.html'
+      });
+    }
+    
     res.json({ success: true, message: 'Badge "' + badge.rows[0].name + '" awarded to ' + user.rows[0].alias });
   } catch (err) {
     console.error('Award badge error:', err);
@@ -4148,12 +4209,40 @@ async function checkAndAwardBadges(userId) {
     
     // Award badges
     for (const slug of badgesToAward) {
-      await db.query(
+      const result = await db.query(
         `INSERT INTO user_badges (user_id, badge_id)
          SELECT $1, id FROM badges WHERE slug = $2
-         ON CONFLICT (user_id, badge_id) DO NOTHING`,
+         ON CONFLICT (user_id, badge_id) DO NOTHING
+         RETURNING badge_id`,
         [userId, slug]
       );
+      
+      // If badge was newly awarded (not a duplicate), send notification
+      if (result.rows.length > 0) {
+        const badgeInfo = await db.query(
+          'SELECT name, description FROM badges WHERE slug = $1',
+          [slug]
+        );
+        if (badgeInfo.rows.length > 0) {
+          const badge = badgeInfo.rows[0];
+          const notificationTitle = 'New Badge Earned!';
+          const notificationMessage = `You earned the "${badge.name}" badge: ${badge.description}`;
+          
+          await db.query(
+            `INSERT INTO notifications (user_id, type, title, message, link)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [userId, 'badge', notificationTitle, notificationMessage, 'profile.html']
+          );
+          
+          notifyUserRealtime(userId, {
+            type: 'badge',
+            title: notificationTitle,
+            message: notificationMessage,
+            badgeName: badge.name,
+            link: 'profile.html'
+          });
+        }
+      }
     }
   } catch (err) {
     console.error('[BADGE CHECK ERROR]', err.message);
@@ -4528,10 +4617,19 @@ app.post('/api/admin/users/:id/warnings', authMiddleware, adminMiddleware, async
     // Create notification for user
     const userResult = await db.query('SELECT alias FROM users WHERE id = $1', [userId]);
     if (userResult.rows.length > 0) {
+      const notificationTitle = 'You have received a warning';
       await db.query(
         `INSERT INTO notifications (user_id, type, title, message) VALUES ($1, $2, $3, $4)`,
-        [userId, 'warning', 'You have received a warning', reason]
+        [userId, 'warning', notificationTitle, reason]
       );
+      
+      // Send real-time WebSocket notification
+      notifyUserRealtime(userId, {
+        type: 'warning',
+        title: notificationTitle,
+        message: reason,
+        urgent: true
+      });
     }
 
     await logAudit('issue_warning', 'user', userId, adminId, { reason });
@@ -4555,10 +4653,21 @@ app.post('/api/admin/users/:id/ban', authMiddleware, adminMiddleware, async (req
     );
 
     // Notify user
+    const notificationTitle = days ? 'You have been temporarily banned' : 'You have been banned';
+    const notificationMessage = reason || 'Contact admin for details';
     await db.query(
       `INSERT INTO notifications (user_id, type, title, message) VALUES ($1, $2, $3, $4)`,
-      [userId, 'ban', days ? 'You have been temporarily banned' : 'You have been banned', reason || 'Contact admin for details']
+      [userId, 'ban', notificationTitle, notificationMessage]
     );
+    
+    // Send real-time WebSocket notification
+    notifyUserRealtime(userId, {
+      type: 'ban',
+      title: notificationTitle,
+      message: notificationMessage,
+      urgent: true,
+      days: days || null
+    });
 
     await logAudit('ban_user', 'user', userId, adminId, { reason, days, expires_at: expiresAt });
     res.json({ success: true });
@@ -4577,6 +4686,21 @@ app.post('/api/admin/users/:id/unban', authMiddleware, adminMiddleware, async (r
       `UPDATE users SET is_banned = FALSE, ban_reason = NULL, ban_expires_at = NULL, banned_by = NULL WHERE id = $1`,
       [userId]
     );
+    
+    // Notify user they've been unbanned
+    const notificationTitle = 'Your ban has been lifted';
+    const notificationMessage = 'You can now access the forum again. Please follow the rules.';
+    await db.query(
+      `INSERT INTO notifications (user_id, type, title, message) VALUES ($1, $2, $3, $4)`,
+      [userId, 'unban', notificationTitle, notificationMessage]
+    );
+    
+    notifyUserRealtime(userId, {
+      type: 'unban',
+      title: notificationTitle,
+      message: notificationMessage
+    });
+    
     await logAudit('unban_user', 'user', userId, adminId, null);
     res.json({ success: true });
   } catch (err) {
@@ -4663,6 +4787,29 @@ app.post('/api/admin/users/:id/role', authMiddleware, adminMiddleware, async (re
       'UPDATE users SET role = $1, is_admin = $2 WHERE id = $3',
       [role, isAdmin, targetUserId]
     );
+    
+    // Notify user of role change
+    const roleLabels = {
+      'owner': 'Owner',
+      'admin': 'Admin',
+      'moderator': 'Moderator',
+      'user': 'User'
+    };
+    const isPromotion = ['admin', 'moderator', 'owner'].includes(role) && targetCurrentRole === 'user';
+    const notificationTitle = isPromotion ? 'You have been promoted!' : 'Your role has changed';
+    const notificationMessage = `Your role has been changed to ${roleLabels[role] || role}`;
+    
+    await db.query(
+      `INSERT INTO notifications (user_id, type, title, message) VALUES ($1, $2, $3, $4)`,
+      [targetUserId, 'role_change', notificationTitle, notificationMessage]
+    );
+    
+    notifyUserRealtime(targetUserId, {
+      type: 'role_change',
+      title: notificationTitle,
+      message: notificationMessage,
+      newRole: role
+    });
 
     await logAudit('change_role', 'user', targetUserId, adminId, { old_role: targetCurrentRole, new_role: role });
     res.json({ success: true, role });
@@ -5771,15 +5918,27 @@ app.post('/api/entries/:id/react', authMiddleware, voteLimiter, async (req, res)
           [entryId]
         );
         const threadId = threadResult.rows[0]?.id;
+        
+        const notificationTitle = `${reactorAlias} ${reaction_type === 'like' ? 'liked' : 'disliked'} your post`;
+        const notificationLink = threadId ? `thread.html?id=${threadId}#entry-${entryId}` : null;
 
         await db.query(
           `INSERT INTO notifications (user_id, type, title, message, link, related_entry_id, related_user_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [entryOwner, 'reaction', `${reactorAlias} reacted to your post`, 
+          [entryOwner, 'reaction', notificationTitle, 
            `${reaction_type.toUpperCase()} reaction`, 
-           threadId ? `thread.html?id=${threadId}` : null,
+           notificationLink,
            entryId, userId]
         );
+        
+        // Send real-time notification via WebSocket
+        notifyUserRealtime(entryOwner, {
+          type: 'reaction',
+          title: notificationTitle,
+          message: `${reaction_type.toUpperCase()} reaction`,
+          fromAlias: reactorAlias,
+          link: notificationLink
+        });
       }
 
       res.json({ success: true, action: 'added' });
@@ -6341,6 +6500,45 @@ app.post('/api/users/:alias/rep', authMiddleware, async (req, res) => {
 
     // Get updated rep
     const updatedRep = await db.query('SELECT reputation FROM users WHERE id = $1', [targetId]);
+    
+    // Create notification for positive/negative rep (not for removal)
+    if (action === 'positive' || action === 'changed_to_positive') {
+      const notificationTitle = 'Reputation Increased';
+      const notificationMessage = `${req.user.alias} gave you +rep${reason ? ': ' + reason.substring(0, 50) : ''}`;
+      
+      await db.query(
+        `INSERT INTO notifications (user_id, type, title, message, link, related_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [targetId, 'rep_positive', notificationTitle, notificationMessage, `profile.html?u=${req.user.alias}`, userId]
+      );
+      
+      notifyUserRealtime(targetId, {
+        type: 'rep_positive',
+        title: notificationTitle,
+        message: notificationMessage,
+        fromAlias: req.user.alias,
+        link: `profile.html?u=${req.user.alias}`,
+        newReputation: updatedRep.rows[0].reputation
+      });
+    } else if (action === 'negative' || action === 'changed_to_negative') {
+      const notificationTitle = 'Reputation Decreased';
+      const notificationMessage = `${req.user.alias} gave you -rep${reason ? ': ' + reason.substring(0, 50) : ''}`;
+      
+      await db.query(
+        `INSERT INTO notifications (user_id, type, title, message, link, related_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [targetId, 'rep_negative', notificationTitle, notificationMessage, `profile.html?u=${req.user.alias}`, userId]
+      );
+      
+      notifyUserRealtime(targetId, {
+        type: 'rep_negative',
+        title: notificationTitle,
+        message: notificationMessage,
+        fromAlias: req.user.alias,
+        link: `profile.html?u=${req.user.alias}`,
+        newReputation: updatedRep.rows[0].reputation
+      });
+    }
 
     res.json({
       success: true,
@@ -6825,6 +7023,15 @@ app.post('/api/messages', authMiddleware, messagesLimiter, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [recipientId, 'private_message', notificationTitle, notificationPreview, 'messages.html', senderId]
     );
+    
+    // Send real-time WebSocket notification
+    notifyUserRealtime(recipientId, {
+      type: 'private_message',
+      title: notificationTitle,
+      message: notificationPreview,
+      link: 'messages.html',
+      fromAlias: senderAlias
+    });
     
     // Send email notification (non-blocking)
     sendNotificationEmail(recipientId, 'private_message', notificationTitle, notificationPreview, 'messages.html');
