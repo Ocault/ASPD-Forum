@@ -515,14 +515,17 @@ ul {
 .room-node {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--spacing-sm);
   padding: var(--spacing-lg) var(--spacing-md);
   background-color: var(--bg-panel);
   border: 1px solid var(--border-color);
   text-decoration: none;
   overflow: hidden;
   transition: all 0.15s ease;
+  text-align: center;
 }
 
 .room-node::before {
@@ -558,20 +561,6 @@ ul {
   background-color: var(--bg-secondary);
   border-color: #404040;
   transform: scale(0.995);
-}
-
-.room-title {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.15em;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  transition: color 0.15s ease;
-  z-index: 1;
-}
-
-.room-node:hover .room-title {
-  color: var(--text-secondary);
 }
 
 /* Scanline Effect */
@@ -5093,18 +5082,35 @@ ul {
    ROOM CARD ENHANCEMENTS
 ======================================== */
 
+.room-node .room-title {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  z-index: 1;
+}
+
 .room-node .room-description {
+  font-family: var(--font-mono);
   font-size: 0.5rem;
   color: var(--text-muted);
-  margin-top: var(--spacing-xs);
   line-height: 1.4;
+  max-width: 90%;
+  opacity: 0.8;
 }
 
 .room-node .room-stats {
+  font-family: var(--font-mono);
   font-size: 0.4375rem;
   color: var(--text-muted);
-  margin-top: var(--spacing-xs);
-  opacity: 0.7;
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+}
+
+.room-node:hover .room-title {
+  color: var(--text-primary);
 }
 
 /* ========================================

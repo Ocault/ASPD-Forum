@@ -3528,7 +3528,13 @@ async function checkAndAwardBadges(userId) {
           JOIN entries e ON e.id = ev.entry_id 
           WHERE e.user_id = $1 
           GROUP BY ev.entry_id
-        ) AS votes) AS max_post_votes`,
+        ) AS votes) AS max_post_votes,
+        (SELECT EXISTS(
+          SELECT 1 FROM entries 
+          WHERE user_id = $1 AND is_deleted = FALSE 
+          AND EXTRACT(HOUR FROM created_at) >= 2 
+          AND EXTRACT(HOUR FROM created_at) < 5
+        )) AS has_night_post`,
       [userId]
     );
     
@@ -3560,7 +3566,7 @@ async function checkAndAwardBadges(userId) {
     if (reputation >= 100) badgesToAward.push('reputation-100');
     if (reputation >= 500) badgesToAward.push('reputation-500');
     
-    // Helpful badges
+    // Helpful badges (upvotes on a single post)
     if (maxPostVotes >= 10) badgesToAward.push('helpful');
     if (maxPostVotes >= 50) badgesToAward.push('very-helpful');
     
@@ -3570,12 +3576,24 @@ async function checkAndAwardBadges(userId) {
     // 2FA enabled
     if (s.totp_enabled) badgesToAward.push('two-factor');
     
+    // Night owl - posted between 2am and 5am
+    if (s.has_night_post) badgesToAward.push('night-owl');
+    
     // One year anniversary
     if (s.created_at) {
       const yearAgo = new Date();
       yearAgo.setFullYear(yearAgo.getFullYear() - 1);
       if (new Date(s.created_at) <= yearAgo) {
         badgesToAward.push('one-year');
+      }
+      
+      // Early adopter - joined in the first month of the forum
+      // Forum launch date - you can adjust this date
+      const forumLaunchDate = new Date('2025-01-01');
+      const firstMonthEnd = new Date(forumLaunchDate);
+      firstMonthEnd.setMonth(firstMonthEnd.getMonth() + 1);
+      if (new Date(s.created_at) <= firstMonthEnd) {
+        badgesToAward.push('early-adopter');
       }
     }
     
