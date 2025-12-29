@@ -29,141 +29,207 @@
   <link rel="icon" type="image/png" href="sigil.png">
   <link rel="apple-touch-icon" href="sigil.png">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="css/style.css?v=20251228">
+  <link rel="stylesheet" href="css/style.css?v=20251229">
   <style>
-    /* Minimalist 3D Intro */
+    /* Void Intro - Dark atmospheric reveal */
     .intro-screen {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: #0a0a0a;
+      background: #000;
       z-index: 9999;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      perspective: 1000px;
-    }
-    
-    .intro-screen.fade-out {
-      animation: introFadeOut 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    }
-    
-    @keyframes introFadeOut {
-      0% { opacity: 1; }
-      100% { opacity: 0; pointer-events: none; }
-    }
-    
-    /* 3D Cube */
-    .cube-container {
-      width: 80px;
-      height: 80px;
-      position: relative;
-      transform-style: preserve-3d;
-      animation: cubeRotate 8s linear infinite;
-    }
-    
-    @keyframes cubeRotate {
-      0% { transform: rotateX(-20deg) rotateY(0deg); }
-      100% { transform: rotateX(-20deg) rotateY(360deg); }
-    }
-    
-    .cube-face {
-      position: absolute;
-      width: 80px;
-      height: 80px;
-      border: 1px solid rgba(100, 100, 100, 0.3);
-      background: rgba(20, 20, 20, 0.4);
-      backdrop-filter: blur(2px);
-    }
-    
-    .cube-face.front  { transform: translateZ(40px); }
-    .cube-face.back   { transform: rotateY(180deg) translateZ(40px); }
-    .cube-face.right  { transform: rotateY(90deg) translateZ(40px); }
-    .cube-face.left   { transform: rotateY(-90deg) translateZ(40px); }
-    .cube-face.top    { transform: rotateX(90deg) translateZ(40px); }
-    .cube-face.bottom { transform: rotateX(-90deg) translateZ(40px); }
-    
-    /* Inner structure lines */
-    .cube-inner {
-      position: absolute;
-      width: 40px;
-      height: 40px;
-      top: 50%;
-      left: 50%;
-      transform-style: preserve-3d;
-      transform: translate(-50%, -50%);
-      animation: innerRotate 6s linear infinite reverse;
-    }
-    
-    @keyframes innerRotate {
-      0% { transform: translate(-50%, -50%) rotateX(0deg) rotateZ(0deg); }
-      100% { transform: translate(-50%, -50%) rotateX(360deg) rotateZ(360deg); }
-    }
-    
-    .cube-inner::before,
-    .cube-inner::after {
-      content: '';
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      border: 1px solid rgba(150, 150, 150, 0.2);
-    }
-    
-    .cube-inner::before {
-      transform: rotateX(45deg);
-    }
-    
-    .cube-inner::after {
-      transform: rotateY(45deg);
-    }
-    
-    /* Title */
-    .intro-title {
-      font-family: 'Consolas', 'Monaco', monospace;
-      font-size: 0.75rem;
-      font-weight: 400;
-      letter-spacing: 0.4em;
-      text-transform: uppercase;
-      color: #505050;
-      margin-top: 60px;
-      opacity: 0;
-      animation: titleFade 1s ease-out 0.5s forwards;
-    }
-    
-    @keyframes titleFade {
-      0% { opacity: 0; transform: translateY(10px); }
-      100% { opacity: 1; transform: translateY(0); }
-    }
-    
-    /* Subtle progress line */
-    .intro-progress {
-      position: absolute;
-      bottom: 80px;
-      width: 120px;
-      height: 1px;
-      background: #1a1a1a;
       overflow: hidden;
     }
     
-    .intro-progress-bar {
-      width: 0%;
-      height: 100%;
-      background: #404040;
-      animation: progressFill 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    .intro-screen.fade-out {
+      animation: voidOpen 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     }
     
-    @keyframes progressFill {
-      0% { width: 0%; }
-      100% { width: 100%; }
+    @keyframes voidOpen {
+      0% { 
+        opacity: 1;
+        clip-path: circle(100% at 50% 50%);
+      }
+      100% { 
+        opacity: 0;
+        clip-path: circle(0% at 50% 50%);
+      }
+    }
+    
+    /* Void effect - breathing darkness */
+    .void-container {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    /* Outer rings - slow pulse */
+    .void-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid rgba(60, 60, 60, 0);
+      animation: ringPulse 3s ease-in-out infinite;
+    }
+    
+    .void-ring:nth-child(1) {
+      width: 180px;
+      height: 180px;
+      animation-delay: 0s;
+    }
+    
+    .void-ring:nth-child(2) {
+      width: 140px;
+      height: 140px;
+      animation-delay: 0.5s;
+    }
+    
+    .void-ring:nth-child(3) {
+      width: 100px;
+      height: 100px;
+      animation-delay: 1s;
+    }
+    
+    @keyframes ringPulse {
+      0%, 100% { 
+        border-color: rgba(50, 50, 50, 0);
+        transform: scale(1);
+      }
+      50% { 
+        border-color: rgba(80, 80, 80, 0.4);
+        transform: scale(1.05);
+      }
+    }
+    
+    /* Center void - the abyss */
+    .void-center {
+      width: 60px;
+      height: 60px;
+      background: radial-gradient(circle, #000 0%, #0a0a0a 50%, transparent 70%);
+      border-radius: 50%;
+      position: relative;
+      animation: voidBreathe 4s ease-in-out infinite;
+    }
+    
+    .void-center::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      background: #1a1a1a;
+      border-radius: 50%;
+      box-shadow: 0 0 30px 15px rgba(30, 30, 30, 0.8);
+      animation: corePulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes voidBreathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    
+    @keyframes corePulse {
+      0%, 100% { 
+        opacity: 0.3;
+        box-shadow: 0 0 30px 15px rgba(30, 30, 30, 0.5);
+      }
+      50% { 
+        opacity: 0.8;
+        box-shadow: 0 0 50px 25px rgba(40, 40, 40, 0.6);
+      }
+    }
+    
+    /* Floating particles - drawn into void */
+    .void-particles {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    
+    .particle {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: rgba(100, 100, 100, 0.5);
+      border-radius: 50%;
+    }
+    
+    .particle:nth-child(1) { top: 20%; left: 30%; animation: drift 8s linear infinite; }
+    .particle:nth-child(2) { top: 70%; left: 20%; animation: drift 6s linear infinite reverse; animation-delay: -2s; }
+    .particle:nth-child(3) { top: 40%; left: 75%; animation: drift 7s linear infinite; animation-delay: -1s; }
+    .particle:nth-child(4) { top: 80%; left: 60%; animation: drift 9s linear infinite reverse; animation-delay: -3s; }
+    .particle:nth-child(5) { top: 15%; left: 65%; animation: drift 5s linear infinite; animation-delay: -4s; }
+    .particle:nth-child(6) { top: 60%; left: 85%; animation: drift 10s linear infinite reverse; }
+    
+    @keyframes drift {
+      0%, 100% { 
+        transform: translate(0, 0) scale(1);
+        opacity: 0;
+      }
+      10% { opacity: 0.6; }
+      50% { 
+        transform: translate(-20px, -30px) scale(0.5);
+        opacity: 0.3;
+      }
+      90% { opacity: 0.6; }
+    }
+    
+    /* Title - emerges from void */
+    .intro-title {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.6rem;
+      font-weight: 400;
+      letter-spacing: 0.5em;
+      text-transform: uppercase;
+      color: #303030;
+      margin-top: 50px;
+      opacity: 0;
+      animation: textEmerge 2s ease-out 0.8s forwards;
+    }
+    
+    @keyframes textEmerge {
+      0% { 
+        opacity: 0; 
+        letter-spacing: 0.8em;
+        color: #000;
+      }
+      100% { 
+        opacity: 1; 
+        letter-spacing: 0.5em;
+        color: #404040;
+      }
+    }
+    
+    /* Subtle line */
+    .intro-line {
+      position: absolute;
+      bottom: 100px;
+      width: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #2a2a2a, transparent);
+      animation: lineExpand 2s ease-out 0.5s forwards;
+    }
+    
+    @keyframes lineExpand {
+      0% { width: 0; opacity: 0; }
+      100% { width: 80px; opacity: 1; }
     }
     
     /* Landing page */
     .landing {
       opacity: 0;
-      transition: opacity 0.8s ease-out;
+      transition: opacity 1s ease-out;
     }
     
     .landing.visible {
@@ -175,19 +241,22 @@
 
   <!-- Intro Screen -->
   <div class="intro-screen" id="intro-screen" aria-hidden="true">
-    <div class="cube-container">
-      <div class="cube-face front"></div>
-      <div class="cube-face back"></div>
-      <div class="cube-face right"></div>
-      <div class="cube-face left"></div>
-      <div class="cube-face top"></div>
-      <div class="cube-face bottom"></div>
-      <div class="cube-inner"></div>
+    <div class="void-particles">
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+    </div>
+    <div class="void-container">
+      <div class="void-ring"></div>
+      <div class="void-ring"></div>
+      <div class="void-ring"></div>
+      <div class="void-center"></div>
     </div>
     <div class="intro-title">ASPD</div>
-    <div class="intro-progress">
-      <div class="intro-progress-bar"></div>
-    </div>
+    <div class="intro-line"></div>
   </div>
 
   <!-- Skip to main content -->
@@ -234,8 +303,8 @@
         
         setTimeout(function() {
           introScreen.style.display = 'none';
-        }, 1200);
-      }, 2800);
+        }, 1500);
+      }, 3200);
     })();
   </script>
 </body>
