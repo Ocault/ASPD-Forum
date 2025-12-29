@@ -1410,12 +1410,21 @@
 
         if (tab === 'entries') {
           if (userData && userData.recent_entries) {
+            var targetRole = userData.role || (userData.is_admin ? 'admin' : 'user');
+            var myRole = AuthState.getRole();
+            var canDeleteTargetPosts = (targetRole === 'owner' && myRole === 'owner') || 
+                                        (targetRole === 'admin' && (myRole === 'owner')) ||
+                                        (targetRole !== 'owner' && targetRole !== 'admin');
+            
             content.innerHTML = '<table class="admin-table"><thead><tr><th>ID</th><th>CONTENT</th><th>IP HASH</th><th>DATE</th><th>ACTIONS</th></tr></thead><tbody>' +
               userData.recent_entries.map(function(e) {
-                return '<tr><td>' + e.id + '</td><td>' + (e.content || '').substring(0, 50) + '</td><td style="font-size: 0.4375rem;">' + (e.ip_hash || '-') + '</td><td>' + formatDate(e.created_at) + '</td><td><button class="btn-delete-entry" data-entry-id="' + e.id + '" style="font-size: 0.4375rem; padding: 2px 6px; background: var(--error-color); color: #fff; border: none; cursor: pointer;">DELETE</button></td></tr>';
+                var deleteBtn = canDeleteTargetPosts 
+                  ? '<button class="btn-delete-entry" data-entry-id="' + e.id + '" style="font-size: 0.4375rem; padding: 2px 6px; background: var(--error-color); color: #fff; border: none; cursor: pointer;">DELETE</button>'
+                  : '<span style="font-size: 0.4375rem; color: var(--text-muted);">-</span>';
+                return '<tr><td>' + e.id + '</td><td>' + escapeHtml((e.content || '').substring(0, 50)) + '</td><td style="font-size: 0.4375rem;">' + (e.ip_hash || '-') + '</td><td>' + formatDate(e.created_at) + '</td><td>' + deleteBtn + '</td></tr>';
               }).join('') + '</tbody></table>';
             
-            // Add delete handlers
+            // Add delete handlers (only if buttons exist)
             content.querySelectorAll('.btn-delete-entry').forEach(function(btn) {
               btn.addEventListener('click', function() {
                 var entryId = this.dataset.entryId;
@@ -1426,7 +1435,7 @@
                         Notify.show('Post deleted', 'info');
                         viewUser(currentUserId);
                       } else {
-                        Notify.show(data.error || 'Failed to delete', 'error');
+                        Notify.show(data.message || data.error || 'Failed to delete', 'error');
                       }
                     })
                     .catch(function(err) {
