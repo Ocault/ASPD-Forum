@@ -1985,7 +1985,7 @@ ul {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 2000;
 }
 
 .edit-modal {
@@ -2381,7 +2381,7 @@ ul {
 .profile-avatar-section .avatar-large,
 .profile-avatar-section .profile-avatar-img {
   position: relative;
-  z-index: 2;
+  z-index: 5;
 }
 
 .avatar-large {
@@ -2659,7 +2659,7 @@ ul {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 2000;
 }
 
 .edit-profile-modal {
@@ -2668,6 +2668,8 @@ ul {
   padding: var(--spacing-lg);
   width: 90%;
   max-width: 500px;
+  max-height: 85vh;
+  overflow-y: auto;
 }
 
 .modal-title {
@@ -3896,7 +3898,7 @@ ul {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 500;
+  z-index: 2000;
 }
 
 .compose-modal {
