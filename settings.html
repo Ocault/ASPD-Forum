@@ -300,6 +300,21 @@
         </div>
         <div id="toggle-messages" class="toggle-switch active" data-setting="notification_messages"></div>
       </div>
+      
+      <div class="settings-toggle" id="push-toggle-container" style="display: none;">
+        <div>
+          <div class="settings-toggle-label">Push Notifications</div>
+          <div class="settings-toggle-desc">Receive browser push notifications even when the forum is closed</div>
+        </div>
+        <div id="toggle-push" class="toggle-switch" data-setting="push"></div>
+      </div>
+    </section>
+    
+    <!-- Data Export Section -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">Your Data (GDPR)</h2>
+      <p class="settings-toggle-desc" style="margin-bottom: 1rem;">Download a copy of all your data including your profile, posts, messages, and activity log.</p>
+      <button id="export-data-btn" class="settings-btn">Download My Data</button>
     </section>
     
     <!-- Password Section -->
@@ -555,6 +570,117 @@
           modal.classList.remove('active');
         }
       });
+      
+      // GDPR Data Export
+      document.getElementById('export-data-btn').addEventListener('click', function() {
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'PREPARING...';
+        
+        fetch(AuthState.API_BASE + '/api/settings/export-data', { headers: headers })
+          .then(function(res) {
+            if (!res.ok) throw new Error('Export failed');
+            return res.blob();
+          })
+          .then(function(blob) {
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'aspd-forum-data-' + Date.now() + '.json';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            Notify.show('DATA EXPORTED', 'success');
+          })
+          .catch(function() {
+            Notify.show('EXPORT FAILED', 'error');
+          })
+          .finally(function() {
+            btn.disabled = false;
+            btn.textContent = 'DOWNLOAD MY DATA';
+          });
+      });
+      
+      // Push Notifications
+      var pushToggleContainer = document.getElementById('push-toggle-container');
+      var pushToggle = document.getElementById('toggle-push');
+      var pushSubscription = null;
+      
+      // Check if push is supported and configured
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        fetch(AuthState.API_BASE + '/api/push/vapid-key')
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data.success && data.publicKey) {
+              pushToggleContainer.style.display = 'flex';
+              
+              // Check current subscription
+              navigator.serviceWorker.ready.then(function(reg) {
+                reg.pushManager.getSubscription().then(function(sub) {
+                  if (sub) {
+                    pushSubscription = sub;
+                    pushToggle.classList.add('active');
+                  }
+                });
+              });
+              
+              // Handle toggle
+              pushToggle.addEventListener('click', function() {
+                var isActive = pushToggle.classList.contains('active');
+                
+                if (isActive) {
+                  // Unsubscribe
+                  if (pushSubscription) {
+                    pushSubscription.unsubscribe().then(function() {
+                      fetch(AuthState.API_BASE + '/api/push/subscribe', {
+                        method: 'DELETE',
+                        headers: headers,
+                        body: JSON.stringify({ endpoint: pushSubscription.endpoint })
+                      });
+                      pushSubscription = null;
+                      pushToggle.classList.remove('active');
+                      Notify.show('PUSH DISABLED', 'info');
+                    });
+                  }
+                } else {
+                  // Subscribe
+                  navigator.serviceWorker.ready.then(function(reg) {
+                    reg.pushManager.subscribe({
+                      userVisibleOnly: true,
+                      applicationServerKey: urlBase64ToUint8Array(data.publicKey)
+                    }).then(function(sub) {
+                      pushSubscription = sub;
+                      
+                      fetch(AuthState.API_BASE + '/api/push/subscribe', {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({ subscription: sub.toJSON() })
+                      }).then(function() {
+                        pushToggle.classList.add('active');
+                        Notify.show('PUSH ENABLED', 'success');
+                      });
+                    }).catch(function(err) {
+                      Notify.show('PUSH PERMISSION DENIED', 'error');
+                    });
+                  });
+                }
+              });
+            }
+          });
+      }
+      
+      // Helper function for VAPID key conversion
+      function urlBase64ToUint8Array(base64String) {
+        var padding = '='.repeat((4 - base64String.length % 4) % 4);
+        var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        var rawData = window.atob(base64);
+        var outputArray = new Uint8Array(rawData.length);
+        for (var i = 0; i < rawData.length; ++i) {
+          outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+      }
     })();
   </script>
 

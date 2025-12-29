@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const sanitizeHtml = require('sanitize-html');
 const path = require('path');
+const fs = require('fs');
 const db = require('./db');
 
 // Optional 2FA dependencies - gracefully degrade if not installed
@@ -20,6 +21,67 @@ try {
   console.log('[2FA] speakeasy and qrcode loaded successfully');
 } catch (err) {
   console.log('[2FA] speakeasy/qrcode not installed - 2FA features disabled');
+}
+
+// Optional web-push for push notifications
+let webpush = null;
+try {
+  webpush = require('web-push');
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT || 'mailto:admin@aspdforum.com',
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+    console.log('[PUSH] Web push configured successfully');
+  } else {
+    console.log('[PUSH] VAPID keys not configured - push notifications disabled');
+    webpush = null;
+  }
+} catch (err) {
+  console.log('[PUSH] web-push not installed - push notifications disabled');
+}
+
+// Optional multer for file uploads
+let multer = null;
+let upload = null;
+try {
+  multer = require('multer');
+  // Configure multer for image uploads
+  const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      const uploadDir = path.join(__dirname, '..', 'uploads');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + crypto.randomBytes(8).toString('hex');
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, uniqueSuffix + ext);
+    }
+  });
+  
+  const fileFilter = function (req, file, cb) {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.'), false);
+    }
+  };
+  
+  upload = multer({
+    storage: storage,
+    fileFilter: fileFilter,
+    limits: {
+      fileSize: 5 * 1024 * 1024 // 5MB max
+    }
+  });
+  console.log('[UPLOAD] Multer configured for image uploads');
+} catch (err) {
+  console.log('[UPLOAD] multer not installed - image uploads disabled');
 }
 
 const app = express();
@@ -79,7 +141,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:"],
+      imgSrc: ["'self'", "data:", "blob:", "/uploads/"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
@@ -101,6 +163,9 @@ app.use(helmet({
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   xssFilter: true
 }));
+
+// Serve uploaded images
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // Email transporter configuration - using Resend HTTP API instead of SMTP
 // (Railway blocks outbound SMTP ports)
@@ -2593,6 +2658,8 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     // Fetch reactions for all entries
     const entryIds = entriesResult.rows.map(e => e.id);
     let reactionsMap = {};
+    let votesMap = {};
+    let userVotesMap = {};
     
     if (entryIds.length > 0) {
       const reactionsResult = await db.query(
@@ -2609,9 +2676,36 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
         }
         reactionsMap[row.entry_id][row.reaction_type] = parseInt(row.count);
       });
+      
+      // Fetch vote scores for entries
+      const votesResult = await db.query(
+        `SELECT entry_id, COALESCE(SUM(vote_value), 0) as score
+         FROM entry_votes
+         WHERE entry_id = ANY($1)
+         GROUP BY entry_id`,
+        [entryIds]
+      );
+      
+      votesResult.rows.forEach(row => {
+        votesMap[row.entry_id] = parseInt(row.score);
+      });
+      
+      // Fetch current user's votes
+      if (userId) {
+        const userVotesResult = await db.query(
+          `SELECT entry_id, vote_value
+           FROM entry_votes
+           WHERE entry_id = ANY($1) AND user_id = $2`,
+          [entryIds, userId]
+        );
+        
+        userVotesResult.rows.forEach(row => {
+          userVotesMap[row.entry_id] = row.vote_value;
+        });
+      }
     }
     
-    // Attach reactions and rank to entries
+    // Attach reactions, votes, and rank to entries
     const entriesWithReactions = entriesResult.rows.map(entry => {
       const postCount = parseInt(entry.post_count) || 0;
       let rank = 'NEWCOMER';
@@ -2624,7 +2718,9 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
       return {
         ...entry,
         rank: rank,
-        reactions: reactionsMap[entry.id] || {}
+        reactions: reactionsMap[entry.id] || {},
+        score: votesMap[entry.id] || 0,
+        userVote: userVotesMap[entry.id] || 0
       };
     });
     
@@ -5355,6 +5451,358 @@ app.get('/api/admin/post-audit', authMiddleware, adminMiddleware, async (req, re
   }
 });
 
+// ========================================
+// IMAGE UPLOADS
+// ========================================
+
+// Upload image endpoint
+app.post('/api/upload/image', authMiddleware, (req, res, next) => {
+  if (!upload) {
+    return res.status(503).json({ success: false, error: 'uploads_not_available', message: 'Image uploads are not configured on this server' });
+  }
+  
+  upload.single('image')(req, res, function(err) {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, error: 'file_too_large', message: 'File size must be less than 5MB' });
+      }
+      return res.status(400).json({ success: false, error: 'upload_failed', message: err.message });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'no_file', message: 'No file uploaded' });
+    }
+    
+    const imageUrl = `/uploads/${req.file.filename}`;
+    res.json({ success: true, url: imageUrl });
+  });
+});
+
+// ========================================
+// GDPR DATA EXPORT
+// ========================================
+
+app.get('/api/settings/export-data', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    // Fetch all user data
+    const userResult = await db.query(
+      `SELECT alias, bio, email, email_verified, notification_replies, notification_mentions, 
+              notification_messages, reputation, post_count, created_at, last_seen_at, signature
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    const userData = userResult.rows[0];
+    
+    // Fetch all posts by user
+    const postsResult = await db.query(
+      `SELECT e.content, e.created_at, e.edited_at, t.title AS thread_title, r.title AS room_title
+       FROM entries e
+       JOIN threads t ON t.id = e.thread_id
+       JOIN rooms r ON r.id = t.room_id
+       WHERE e.user_id = $1 AND e.is_deleted = FALSE
+       ORDER BY e.created_at DESC`,
+      [userId]
+    );
+    
+    // Fetch threads created by user
+    const threadsResult = await db.query(
+      `SELECT t.title, t.created_at, r.title AS room_title
+       FROM threads t
+       JOIN rooms r ON r.id = t.room_id
+       WHERE t.user_id = $1
+       ORDER BY t.created_at DESC`,
+      [userId]
+    );
+    
+    // Fetch private messages (sent)
+    const sentMessagesResult = await db.query(
+      `SELECT pm.subject, pm.content, pm.created_at, u.alias AS recipient
+       FROM private_messages pm
+       JOIN users u ON u.id = pm.recipient_id
+       WHERE pm.sender_id = $1 AND pm.deleted_by_sender = FALSE
+       ORDER BY pm.created_at DESC`,
+      [userId]
+    );
+    
+    // Fetch private messages (received)
+    const receivedMessagesResult = await db.query(
+      `SELECT pm.subject, pm.content, pm.created_at, u.alias AS sender
+       FROM private_messages pm
+       JOIN users u ON u.id = pm.sender_id
+       WHERE pm.recipient_id = $1 AND pm.deleted_by_recipient = FALSE
+       ORDER BY pm.created_at DESC`,
+      [userId]
+    );
+    
+    // Fetch activity log
+    const activityResult = await db.query(
+      `SELECT action_type, target_type, target_title, created_at
+       FROM activity_feed
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+    
+    // Compile export data
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      profile: {
+        alias: userData.alias,
+        bio: userData.bio,
+        email: userData.email,
+        email_verified: userData.email_verified,
+        signature: userData.signature,
+        reputation: userData.reputation,
+        post_count: userData.post_count,
+        created_at: userData.created_at,
+        last_seen_at: userData.last_seen_at
+      },
+      settings: {
+        notification_replies: userData.notification_replies,
+        notification_mentions: userData.notification_mentions,
+        notification_messages: userData.notification_messages
+      },
+      posts: postsResult.rows.map(p => ({
+        content: p.content,
+        thread: p.thread_title,
+        room: p.room_title,
+        created_at: p.created_at,
+        edited_at: p.edited_at
+      })),
+      threads_created: threadsResult.rows.map(t => ({
+        title: t.title,
+        room: t.room_title,
+        created_at: t.created_at
+      })),
+      messages: {
+        sent: sentMessagesResult.rows.map(m => ({
+          to: m.recipient,
+          subject: m.subject,
+          content: m.content,
+          sent_at: m.created_at
+        })),
+        received: receivedMessagesResult.rows.map(m => ({
+          from: m.sender,
+          subject: m.subject,
+          content: m.content,
+          received_at: m.created_at
+        }))
+      },
+      activity_log: activityResult.rows.map(a => ({
+        action: a.action_type,
+        target_type: a.target_type,
+        target: a.target_title,
+        at: a.created_at
+      }))
+    };
+    
+    // Set headers for file download
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="aspd-forum-data-${userData.alias}-${Date.now()}.json"`);
+    res.json(exportData);
+  } catch (err) {
+    console.error('[EXPORT DATA ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// PUSH NOTIFICATIONS
+// ========================================
+
+// Get VAPID public key
+app.get('/api/push/vapid-key', (req, res) => {
+  if (!webpush || !process.env.VAPID_PUBLIC_KEY) {
+    return res.json({ success: false, error: 'push_not_configured' });
+  }
+  res.json({ success: true, publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+// Subscribe to push notifications
+app.post('/api/push/subscribe', authMiddleware, async (req, res) => {
+  if (!webpush) {
+    return res.status(503).json({ success: false, error: 'push_not_configured' });
+  }
+  
+  const { subscription } = req.body;
+  const userId = req.user.userId;
+  
+  if (!subscription || !subscription.endpoint) {
+    return res.status(400).json({ success: false, error: 'invalid_subscription' });
+  }
+  
+  try {
+    // Store subscription (upsert)
+    await db.query(
+      `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, endpoint) DO UPDATE SET p256dh = $3, auth = $4`,
+      [userId, subscription.endpoint, subscription.keys?.p256dh, subscription.keys?.auth]
+    );
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[PUSH SUBSCRIBE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Unsubscribe from push notifications
+app.delete('/api/push/subscribe', authMiddleware, async (req, res) => {
+  const { endpoint } = req.body;
+  const userId = req.user.userId;
+  
+  try {
+    await db.query(
+      'DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2',
+      [userId, endpoint]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Helper: Send push notification to a user
+async function sendPushNotification(userId, title, body, url) {
+  if (!webpush) return;
+  
+  try {
+    const subs = await db.query(
+      'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1',
+      [userId]
+    );
+    
+    const payload = JSON.stringify({ title, body, url });
+    
+    for (const sub of subs.rows) {
+      const pushSubscription = {
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.p256dh, auth: sub.auth }
+      };
+      
+      try {
+        await webpush.sendNotification(pushSubscription, payload);
+      } catch (err) {
+        // Remove invalid subscription
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          await db.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [sub.endpoint]);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[PUSH SEND ERROR]', err.message);
+  }
+}
+
+// ========================================
+// REPUTATION SYSTEM
+// ========================================
+
+// Upvote/downvote an entry
+app.post('/api/entries/:entryId/vote', authMiddleware, async (req, res) => {
+  const { entryId } = req.params;
+  const { vote } = req.body; // 1 for upvote, -1 for downvote, 0 to remove
+  const userId = req.user.userId;
+  
+  if (![1, -1, 0].includes(vote)) {
+    return res.status(400).json({ success: false, error: 'invalid_vote' });
+  }
+  
+  try {
+    // Get entry info
+    const entryResult = await db.query(
+      'SELECT user_id FROM entries WHERE id = $1 AND is_deleted = FALSE',
+      [entryId]
+    );
+    
+    if (entryResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'entry_not_found' });
+    }
+    
+    const entryUserId = entryResult.rows[0].user_id;
+    
+    // Can't vote on your own posts
+    if (entryUserId === userId) {
+      return res.status(400).json({ success: false, error: 'cannot_vote_own_post' });
+    }
+    
+    // Get current vote if exists
+    const existingVote = await db.query(
+      'SELECT vote_value FROM entry_votes WHERE entry_id = $1 AND user_id = $2',
+      [entryId, userId]
+    );
+    
+    const oldVote = existingVote.rows.length > 0 ? existingVote.rows[0].vote_value : 0;
+    
+    if (vote === 0) {
+      // Remove vote
+      await db.query('DELETE FROM entry_votes WHERE entry_id = $1 AND user_id = $2', [entryId, userId]);
+    } else {
+      // Upsert vote
+      await db.query(
+        `INSERT INTO entry_votes (entry_id, user_id, vote_value)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (entry_id, user_id) DO UPDATE SET vote_value = $3`,
+        [entryId, userId, vote]
+      );
+    }
+    
+    // Update entry author's reputation
+    const reputationChange = vote - oldVote;
+    if (reputationChange !== 0 && entryUserId) {
+      await db.query(
+        'UPDATE users SET reputation = GREATEST(0, reputation + $1) WHERE id = $2',
+        [reputationChange, entryUserId]
+      );
+    }
+    
+    // Get new score for entry
+    const scoreResult = await db.query(
+      'SELECT COALESCE(SUM(vote_value), 0) AS score FROM entry_votes WHERE entry_id = $1',
+      [entryId]
+    );
+    
+    res.json({ success: true, score: parseInt(scoreResult.rows[0].score), userVote: vote });
+  } catch (err) {
+    console.error('[VOTE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get vote status for an entry
+app.get('/api/entries/:entryId/vote', authMiddleware, async (req, res) => {
+  const { entryId } = req.params;
+  const userId = req.user.userId;
+  
+  try {
+    const voteResult = await db.query(
+      'SELECT vote_value FROM entry_votes WHERE entry_id = $1 AND user_id = $2',
+      [entryId, userId]
+    );
+    
+    const scoreResult = await db.query(
+      'SELECT COALESCE(SUM(vote_value), 0) AS score FROM entry_votes WHERE entry_id = $1',
+      [entryId]
+    );
+    
+    res.json({
+      success: true,
+      score: parseInt(scoreResult.rows[0].score),
+      userVote: voteResult.rows.length > 0 ? voteResult.rows[0].vote_value : 0
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // Auto-migrate database tables on startup
 async function migrate() {
   try {
@@ -5716,6 +6164,30 @@ async function migrate() {
       -- 2FA secrets
       ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE;
+      
+      -- Push notification subscriptions
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL,
+        p256dh TEXT,
+        auth TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, endpoint)
+      );
+      CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+      
+      -- Entry votes for reputation system
+      CREATE TABLE IF NOT EXISTS entry_votes (
+        id SERIAL PRIMARY KEY,
+        entry_id INTEGER REFERENCES entries(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        vote_value INTEGER NOT NULL CHECK (vote_value IN (-1, 1)),
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(entry_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_entry_votes_entry ON entry_votes(entry_id);
+      CREATE INDEX IF NOT EXISTS idx_entry_votes_user ON entry_votes(user_id);
       
       -- Insert default tags
       INSERT INTO tags (name, color) VALUES 

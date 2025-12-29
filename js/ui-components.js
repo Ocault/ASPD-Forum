@@ -377,17 +377,17 @@ const UIComponents = (function() {
       formattedContent = formattedContent.replace(/^@\w+ said:\n&gt;[\s\S]*?\n\n/, '');
     }
     
-    // Reactions row
-    const reactions = entry.reactions || {};
-    const reactionsHtml = `
-          <div class="entry-reactions" data-entry-id="${id}">
-            <button class="reaction-btn" data-reaction="like" title="Like">
-              <span class="reaction-icon">+</span>
-              <span class="reaction-count">${reactions.like || 0}</span>
+    // Reactions row - replaced with vote system
+    const score = entry.score || 0;
+    const userVote = entry.userVote || 0;
+    const votesHtml = `
+          <div class="entry-votes" data-entry-id="${id}">
+            <button class="vote-btn vote-up${userVote === 1 ? ' voted' : ''}" data-vote="1" title="Upvote">
+              <span class="vote-icon">▲</span>
             </button>
-            <button class="reaction-btn" data-reaction="dislike" title="Dislike">
-              <span class="reaction-icon">-</span>
-              <span class="reaction-count">${reactions.dislike || 0}</span>
+            <span class="vote-score${score > 0 ? ' positive' : (score < 0 ? ' negative' : '')}">${score}</span>
+            <button class="vote-btn vote-down${userVote === -1 ? ' voted' : ''}" data-vote="-1" title="Downvote">
+              <span class="vote-icon">▼</span>
             </button>
           </div>`;
     
@@ -431,7 +431,7 @@ const UIComponents = (function() {
           <div class="entry-content">
             <p>${formattedContent}</p>
           </div>
-          ${reactionsHtml}
+          ${votesHtml}
           ${entry.signature ? `<div class="entry-signature">— ${entry.signature}</div>` : ''}
         </div>
       </div>`;

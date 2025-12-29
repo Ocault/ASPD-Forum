@@ -93,10 +93,19 @@
           <button type="button" class="md-btn" data-md="quote" title="Quote (> text)" aria-label="Quote">&gt;</button>
           <button type="button" class="md-btn" data-md="list" title="List (- item)" aria-label="List">☰</button>
           <button type="button" class="md-btn" data-md="h1" title="Heading (#)" aria-label="Heading">H</button>
+          <button type="button" class="md-btn" data-md="image" title="Upload Image" aria-label="Upload image">📷</button>
+          <input type="file" id="image-upload" accept="image/jpeg,image/png,image/gif,image/webp" style="display: none;">
+          <button type="button" class="md-btn md-preview-btn" id="preview-toggle" title="Toggle Preview" aria-label="Toggle preview">👁</button>
           <span class="markdown-help" aria-hidden="true">MARKDOWN SUPPORTED</span>
         </div>
-        <label for="reply-content" class="sr-only">Your reply</label>
-        <textarea id="reply-content" class="reply-textarea" placeholder="ENTER YOUR RESPONSE... (Markdown supported: **bold**, *italic*, `code`, > quote)" rows="3" required aria-label="Write your reply"></textarea>
+        <div class="reply-editor-container">
+          <label for="reply-content" class="sr-only">Your reply</label>
+          <textarea id="reply-content" class="reply-textarea" placeholder="ENTER YOUR RESPONSE... (Markdown supported: **bold**, *italic*, `code`, > quote)" rows="3" required aria-label="Write your reply"></textarea>
+          <div id="reply-preview" class="reply-preview" style="display: none;">
+            <div class="preview-label">PREVIEW</div>
+            <div class="preview-content" id="preview-content"></div>
+          </div>
+        </div>
         <button type="submit" class="reply-submit" aria-label="Submit reply">TRANSMIT</button>
       </form>
     </section>
@@ -357,13 +366,13 @@
           });
         });
 
-        // Bind reaction button events
-        entriesContainer.querySelectorAll('.reaction-btn').forEach(function(btn) {
+        // Bind vote button events
+        entriesContainer.querySelectorAll('.vote-btn').forEach(function(btn) {
           btn.addEventListener('click', function() {
-            var reactionsEl = btn.closest('.entry-reactions');
-            var entryId = reactionsEl.dataset.entryId;
-            var reactionType = btn.dataset.reaction;
-            toggleReaction(entryId, reactionType, btn);
+            var votesEl = btn.closest('.entry-votes');
+            var entryId = votesEl.dataset.entryId;
+            var voteValue = parseInt(btn.dataset.vote);
+            handleVote(entryId, voteValue, btn);
           });
         });
 
@@ -566,14 +575,102 @@
             case 'h1':
               replacement = '## ' + (selected || 'heading');
               break;
+            case 'image':
+              document.getElementById('image-upload').click();
+              return;
           }
           
-          textarea.value = text.substring(0, start) + replacement + text.substring(end);
-          textarea.focus();
-          var newPos = start + replacement.length + cursorOffset;
-          textarea.setSelectionRange(newPos, newPos);
+          if (replacement) {
+            textarea.value = text.substring(0, start) + replacement + text.substring(end);
+            textarea.focus();
+            var newPos = start + replacement.length + cursorOffset;
+            textarea.setSelectionRange(newPos, newPos);
+            updatePreview();
+          }
         });
       });
+
+      // Image upload handler
+      document.getElementById('image-upload').addEventListener('change', function(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        
+        var formData = new FormData();
+        formData.append('image', file);
+        
+        Notify.show('UPLOADING IMAGE...', 'info');
+        
+        fetch(AuthState.API_BASE + '/api/upload/image', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + AuthState.getToken()
+          },
+          body: formData
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success) {
+            var textarea = document.getElementById('reply-content');
+            var imageMarkdown = '![image](' + data.url + ')';
+            var pos = textarea.selectionStart;
+            var text = textarea.value;
+            textarea.value = text.substring(0, pos) + imageMarkdown + text.substring(pos);
+            textarea.focus();
+            Notify.show('IMAGE UPLOADED', 'success');
+            updatePreview();
+          } else {
+            Notify.show(data.message || 'UPLOAD FAILED', 'error');
+          }
+        })
+        .catch(function(err) {
+          Notify.show('UPLOAD FAILED', 'error');
+        });
+        
+        // Reset file input
+        e.target.value = '';
+      });
+
+      // Preview toggle
+      var previewVisible = false;
+      var previewToggle = document.getElementById('preview-toggle');
+      var replyPreview = document.getElementById('reply-preview');
+      var previewContent = document.getElementById('preview-content');
+      var replyTextarea = document.getElementById('reply-content');
+
+      previewToggle.addEventListener('click', function() {
+        previewVisible = !previewVisible;
+        if (previewVisible) {
+          updatePreview();
+          replyPreview.style.display = 'block';
+          previewToggle.classList.add('active');
+        } else {
+          replyPreview.style.display = 'none';
+          previewToggle.classList.remove('active');
+        }
+      });
+
+      function updatePreview() {
+        if (!previewVisible) return;
+        var content = replyTextarea.value;
+        // Simple markdown parsing for preview
+        var html = content;
+        html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+        html = html.replace(/`(.+?)`/g, '<code>$1</code>');
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+        html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+        html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+        html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+        html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;">');
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+        html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+        html = html.replace(/\n/g, '<br>');
+        previewContent.innerHTML = html || '<em style="color:#555">Start typing to see preview...</em>';
+      }
+
+      replyTextarea.addEventListener('input', updatePreview);
 
       // Jump to first unread
       var jumpUnreadBtn = document.getElementById('jump-unread-btn');
@@ -686,26 +783,36 @@
         });
       }
 
-      // Toggle reaction on entry
-      function toggleReaction(entryId, reactionType, btnEl) {
+      // Handle vote on entry
+      function handleVote(entryId, voteValue, btnEl) {
+        var votesEl = btnEl.closest('.entry-votes');
+        var scoreEl = votesEl.querySelector('.vote-score');
+        var upBtn = votesEl.querySelector('.vote-up');
+        var downBtn = votesEl.querySelector('.vote-down');
+        
+        // Determine if we're toggling off
+        var currentVote = upBtn.classList.contains('voted') ? 1 : (downBtn.classList.contains('voted') ? -1 : 0);
+        var newVote = (currentVote === voteValue) ? 0 : voteValue;
+        
         btnEl.disabled = true;
         
-        AuthState.apiRequest('/api/entries/' + entryId + '/react', {
+        AuthState.apiRequest('/api/entries/' + entryId + '/vote', {
           method: 'POST',
-          body: JSON.stringify({ reaction_type: reactionType })
+          body: JSON.stringify({ vote: newVote })
         })
         .then(function(data) {
           if (data.success) {
-            var countEl = btnEl.querySelector('.reaction-count');
-            var currentCount = parseInt(countEl.textContent) || 0;
+            // Update score
+            scoreEl.textContent = data.score;
+            scoreEl.classList.remove('positive', 'negative');
+            if (data.score > 0) scoreEl.classList.add('positive');
+            else if (data.score < 0) scoreEl.classList.add('negative');
             
-            if (data.action === 'added') {
-              countEl.textContent = currentCount + 1;
-              btnEl.classList.add('reaction-active');
-            } else {
-              countEl.textContent = Math.max(0, currentCount - 1);
-              btnEl.classList.remove('reaction-active');
-            }
+            // Update buttons
+            upBtn.classList.remove('voted');
+            downBtn.classList.remove('voted');
+            if (data.userVote === 1) upBtn.classList.add('voted');
+            else if (data.userVote === -1) downBtn.classList.add('voted');
           }
         })
         .catch(function(err) {
