@@ -659,8 +659,9 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
   }
 
   try {
+    // First get basic user info
     const result = await db.query(
-      'SELECT id, alias, password_hash, is_admin, totp_enabled, totp_secret FROM users WHERE alias = $1',
+      'SELECT id, alias, password_hash, is_admin FROM users WHERE alias = $1',
       [alias]
     );
 
@@ -678,7 +679,25 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
     }
 
     // Check if 2FA is enabled (only if speakeasy is available)
-    if (user.totp_enabled && speakeasy) {
+    // Query separately to handle case where columns don't exist yet
+    let totp_enabled = false;
+    let totp_secret = null;
+    if (speakeasy) {
+      try {
+        const totpResult = await db.query(
+          'SELECT totp_enabled, totp_secret FROM users WHERE id = $1',
+          [user.id]
+        );
+        if (totpResult.rows.length > 0) {
+          totp_enabled = totpResult.rows[0].totp_enabled || false;
+          totp_secret = totpResult.rows[0].totp_secret;
+        }
+      } catch (e) {
+        // Columns might not exist yet, ignore
+      }
+    }
+    
+    if (totp_enabled && speakeasy) {
       if (!totpCode) {
         // Return special status to indicate 2FA is required
         return res.status(200).json({ success: false, requires2fa: true, message: 'Two-factor authentication required' });
@@ -686,7 +705,7 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
       
       // Verify TOTP code
       const verified = speakeasy.totp.verify({
-        secret: user.totp_secret,
+        secret: totp_secret,
         encoding: 'base32',
         token: totpCode,
         window: 1
