@@ -24,6 +24,7 @@
         <a href="forum.html" class="room-back" aria-label="Back to all rooms">← FORUMS</a>
         <span class="room-divider" aria-hidden="true">/</span>
         <span class="room-name" data-bind="room-name">NODE.000</span>
+        <span class="room-status-badges" id="room-status-badges"></span>
       </nav>
       <nav class="header-right" aria-label="User navigation">
         <span class="room-signal-count" data-bind="signal-count" aria-live="polite"><span id="signal-count">0</span> SIGNALS</span>
@@ -84,24 +85,6 @@
             <label class="poll-toggle-label">
               <input type="checkbox" id="add-poll-checkbox" aria-controls="poll-create-section"> Add a poll to this thread
             </label>
-          </div>
-          
-          <!-- Soundscape Selector -->
-          <div class="soundscape-selector">
-            <label for="thread-soundscape" class="soundscape-label">[♪] AMBIENT</label>
-            <select id="thread-soundscape" class="soundscape-select" aria-label="Thread ambient soundscape">
-              <option value="">NONE</option>
-              <option value="rain">Rain</option>
-              <option value="cafe">Café</option>
-              <option value="forest">Forest</option>
-              <option value="ocean">Ocean</option>
-              <option value="fire">Fire</option>
-              <option value="wind">Wind</option>
-              <option value="thunder">Thunder</option>
-              <option value="night">Night</option>
-              <option value="static">Static</option>
-              <option value="void">Void</option>
-            </select>
           </div>
           
           <!-- Poll Creation Form (hidden by default) -->
@@ -261,6 +244,19 @@
         roomNameEl.textContent = nodeIndex;
         nodeIdEl.textContent = nodeIndex;
         document.title = 'ASPD Forum — ' + (roomMeta.title || 'Room');
+        
+        // Update room status badges
+        var badgesEl = document.getElementById('room-status-badges');
+        if (badgesEl) {
+          var badges = '';
+          if (roomMeta.isLocked) {
+            badges += '<span class="room-status-badge room-status--locked" title="Room is locked - new threads disabled">LOCKED</span>';
+          }
+          if (roomMeta.slowModeSeconds && roomMeta.slowModeSeconds > 0) {
+            badges += '<span class="room-status-badge room-status--slow" title="Slow mode: ' + roomMeta.slowModeSeconds + ' seconds between posts">SLOW:' + roomMeta.slowModeSeconds + 's</span>';
+          }
+          badgesEl.innerHTML = badges;
+        }
       }
 
       var userIsAdmin = AuthState.isAdmin();
@@ -622,18 +618,13 @@
         submitBtn.disabled = true;
         submitBtn.textContent = 'CREATING...';
 
-        // Get soundscape selection
-        var soundscapeSelect = document.getElementById('thread-soundscape');
-        var soundscape = soundscapeSelect ? soundscapeSelect.value : '';
-
         AuthState.apiRequest('/api/threads', {
           method: 'POST',
           body: JSON.stringify({
             roomId: currentRoomId,
             title: title,
             content: content,
-            tags: selectedTags,
-            soundscape: soundscape || null
+            tags: selectedTags
           })
         })
         .then(function(data) {

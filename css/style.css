@@ -6116,6 +6116,13 @@ ul {
    ROOM CARD ENHANCEMENTS
 ======================================== */
 
+.room-node .room-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 1;
+}
+
 .room-node .room-title {
   font-family: var(--font-mono);
   font-size: 0.625rem;
@@ -6124,6 +6131,35 @@ ul {
   color: var(--text-secondary);
   text-transform: uppercase;
   z-index: 1;
+}
+
+.room-node .room-badges {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.room-badge {
+  font-family: var(--font-mono);
+  font-size: 0.375rem;
+  padding: 1px 3px;
+  border-radius: 2px;
+  opacity: 0.8;
+}
+
+.room-badge--locked {
+  color: var(--error-color, #e74c3c);
+}
+
+.room-badge--slow {
+  color: var(--warning-color, #f39c12);
+}
+
+.room-node--locked {
+  border-color: rgba(231, 76, 60, 0.3);
+}
+
+.room-node--locked:hover {
+  border-color: rgba(231, 76, 60, 0.5);
 }
 
 .room-node .room-description {
@@ -6145,6 +6181,34 @@ ul {
 
 .room-node:hover .room-title {
   color: var(--text-primary);
+}
+
+/* Room status badges in header */
+.room-status-badges {
+  display: inline-flex;
+  gap: 0.5rem;
+  margin-left: 0.5rem;
+}
+
+.room-status-badge {
+  font-family: var(--font-mono);
+  font-size: 0.4375rem;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border: 1px solid;
+  opacity: 0.9;
+}
+
+.room-status--locked {
+  color: var(--error-color, #e74c3c);
+  border-color: rgba(231, 76, 60, 0.4);
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.room-status--slow {
+  color: var(--warning-color, #f39c12);
+  border-color: rgba(243, 156, 18, 0.4);
+  background: rgba(243, 156, 18, 0.1);
 }
 
 /* ========================================

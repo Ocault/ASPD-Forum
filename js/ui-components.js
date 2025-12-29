@@ -157,6 +157,8 @@ const UIComponents = (function() {
    * @param {string} room.href - Room URL
    * @param {string} room.description - Room description
    * @param {number} room.thread_count - Number of threads
+   * @param {boolean} room.is_locked - Whether room is locked
+   * @param {number} room.slow_mode_seconds - Slow mode interval in seconds
    * @returns {string} HTML string
    */
   function roomNode(room) {
@@ -165,10 +167,20 @@ const UIComponents = (function() {
     const href = room.href || '#';
     const description = room.description || '';
     const threadCount = room.thread_count || 0;
+    const isLocked = room.is_locked || false;
+    const slowMode = room.slow_mode_seconds || 0;
+    
+    // Build status badges
+    let badges = '';
+    if (isLocked) badges += '<span class="room-badge room-badge--locked" title="Room is locked">🔒</span>';
+    if (slowMode > 0) badges += `<span class="room-badge room-badge--slow" title="Slow mode: ${slowMode}s">⏱</span>`;
     
     return `
-      <a href="${href}" class="room-node" data-room-id="${id}">
-        <span class="room-title">${title}</span>
+      <a href="${href}" class="room-node${isLocked ? ' room-node--locked' : ''}${slowMode > 0 ? ' room-node--slow' : ''}" data-room-id="${id}">
+        <div class="room-header">
+          <span class="room-title">${title}</span>
+          ${badges ? `<span class="room-badges">${badges}</span>` : ''}
+        </div>
         ${description ? `<span class="room-description">${description}</span>` : ''}
         <span class="room-stats">${threadCount} THREADS</span>
         <div class="scanline"></div>

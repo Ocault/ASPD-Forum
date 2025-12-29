@@ -235,6 +235,8 @@
                   title: room.title,
                   description: room.description || '',
                   thread_count: room.thread_count || 0,
+                  is_locked: room.is_locked || false,
+                  slow_mode_seconds: room.slow_mode_seconds || 0,
                   href: 'room.html?id=' + room.id
                 };
               });

@@ -1135,7 +1135,7 @@ async function getCachedRooms() {
   }
   try {
     const result = await db.query(
-      `SELECT slug AS id, title, description,
+      `SELECT slug AS id, title, description, is_locked, slow_mode_seconds,
               (SELECT COUNT(*) FROM threads WHERE room_id = rooms.id) as thread_count
        FROM rooms ORDER BY display_order, id`
     );
@@ -3500,7 +3500,7 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
   
   try {
     const roomResult = await db.query(
-      'SELECT id, slug, title FROM rooms WHERE slug = $1',
+      'SELECT id, slug, title, description, is_locked, slow_mode_seconds FROM rooms WHERE slug = $1',
       [roomSlug]
     );
     
@@ -3564,7 +3564,13 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
     
     res.json({
       success: true,
-      room: { id: room.slug, title: room.title },
+      room: { 
+        id: room.slug, 
+        title: room.title,
+        description: room.description || null,
+        isLocked: room.is_locked || false,
+        slowModeSeconds: room.slow_mode_seconds || null
+      },
       threads: threadsResult.rows,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
@@ -7851,10 +7857,39 @@ app.delete('/api/admin/threads/:id', authMiddleware, adminMiddleware, async (req
 
     const thread = threadResult.rows[0];
 
-    // Delete all entries in the thread first
+    // Delete all related records first (foreign key constraints)
+    // Delete reactions on entries in this thread
+    await db.query(`
+      DELETE FROM reactions WHERE entry_id IN (SELECT id FROM entries WHERE thread_id = $1)
+    `, [thread.id]);
+    
+    // Delete entry votes
+    await db.query(`
+      DELETE FROM entry_votes WHERE entry_id IN (SELECT id FROM entries WHERE thread_id = $1)
+    `, [thread.id]);
+    
+    // Delete thread subscriptions
+    await db.query('DELETE FROM thread_subscriptions WHERE thread_id = $1', [thread.id]);
+    
+    // Delete thread read tracking
+    await db.query('DELETE FROM thread_reads WHERE thread_id = $1', [thread.id]);
+    
+    // Delete poll votes, options, and poll itself
+    await db.query(`
+      DELETE FROM poll_votes WHERE poll_id IN (SELECT id FROM polls WHERE thread_id = $1)
+    `, [thread.id]);
+    await db.query(`
+      DELETE FROM poll_options WHERE poll_id IN (SELECT id FROM polls WHERE thread_id = $1)
+    `, [thread.id]);
+    await db.query('DELETE FROM polls WHERE thread_id = $1', [thread.id]);
+    
+    // Delete thread tags
+    await db.query('DELETE FROM thread_tags WHERE thread_id = $1', [thread.id]);
+
+    // Delete all entries in the thread
     await db.query('DELETE FROM entries WHERE thread_id = $1', [thread.id]);
 
-    // Delete the thread
+    // Finally delete the thread itself
     await db.query('DELETE FROM threads WHERE id = $1', [thread.id]);
 
     await logAudit(
@@ -7865,10 +7900,11 @@ app.delete('/api/admin/threads/:id', authMiddleware, adminMiddleware, async (req
       { title: thread.title }
     );
 
+    console.log('[DELETE THREAD] Successfully deleted thread:', thread.id, thread.title);
     res.json({ success: true, message: 'Thread deleted' });
   } catch (err) {
-    console.error('[DELETE THREAD ERROR]', err.message);
-    res.status(500).json({ success: false, error: 'server_error' });
+    console.error('[DELETE THREAD ERROR]', err.message, err.stack);
+    res.status(500).json({ success: false, error: 'server_error', details: err.message });
   }
 });
 
