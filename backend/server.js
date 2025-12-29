@@ -423,19 +423,81 @@ function getClientIp(req) {
   return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
 }
 
-// Admin middleware - requires is_admin = true
+// Role hierarchy: owner > admin > moderator > user
+// owner: Full control, can manage admins
+// admin: Full moderation, can manage moderators, can ban users
+// moderator: Can moderate content (delete posts, handle reports), cannot ban users or access sensitive settings
+const ROLE_LEVELS = {
+  'user': 0,
+  'moderator': 1,
+  'admin': 2,
+  'owner': 3
+};
+
+// Get user's effective role
+async function getUserRole(userId) {
+  const result = await db.query(
+    'SELECT role, is_admin FROM users WHERE id = $1',
+    [userId]
+  );
+  if (result.rows.length === 0) return 'user';
+  const user = result.rows[0];
+  // Backward compatibility: if role not set but is_admin is true, treat as admin
+  if (user.role) return user.role;
+  if (user.is_admin) return 'admin';
+  return 'user';
+}
+
+// Check if user has at least the required role level
+function hasRoleLevel(userRole, requiredRole) {
+  return (ROLE_LEVELS[userRole] || 0) >= (ROLE_LEVELS[requiredRole] || 0);
+}
+
+// Moderator middleware - requires moderator, admin, or owner
+async function modMiddleware(req, res, next) {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  try {
+    const role = await getUserRole(req.user.userId);
+    if (!hasRoleLevel(role, 'moderator')) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    req.userRole = role;
+    next();
+  } catch (err) {
+    return res.status(500).json({ error: 'server_error' });
+  }
+}
+
+// Admin middleware - requires admin or owner (for user management, bans, etc.)
 async function adminMiddleware(req, res, next) {
   if (!req.user || !req.user.userId) {
     return res.status(401).json({ error: 'unauthorized' });
   }
   try {
-    const result = await db.query(
-      'SELECT is_admin FROM users WHERE id = $1',
-      [req.user.userId]
-    );
-    if (result.rows.length === 0 || !result.rows[0].is_admin) {
+    const role = await getUserRole(req.user.userId);
+    if (!hasRoleLevel(role, 'admin')) {
       return res.status(403).json({ error: 'forbidden' });
     }
+    req.userRole = role;
+    next();
+  } catch (err) {
+    return res.status(500).json({ error: 'server_error' });
+  }
+}
+
+// Owner middleware - requires owner (for managing admins, critical settings)
+async function ownerMiddleware(req, res, next) {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  try {
+    const role = await getUserRole(req.user.userId);
+    if (role !== 'owner') {
+      return res.status(403).json({ error: 'forbidden', message: 'Owner access required' });
+    }
+    req.userRole = role;
     next();
   } catch (err) {
     return res.status(500).json({ error: 'server_error' });
@@ -823,7 +885,7 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
   try {
     // First get basic user info
     const result = await db.query(
-      'SELECT id, alias, password_hash, is_admin FROM users WHERE alias = $1',
+      'SELECT id, alias, password_hash, is_admin, role FROM users WHERE alias = $1',
       [alias]
     );
 
@@ -894,15 +956,20 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
     // Successful login - clear failed attempts
     clearFailedLogin(ipHash);
 
+    // Determine effective role
+    const userRole = user.role || (user.is_admin ? 'admin' : 'user');
+    const isAdminOrHigher = userRole === 'admin' || userRole === 'owner';
+    const isModOrHigher = isAdminOrHigher || userRole === 'moderator';
+
     const token = jwt.sign(
-      { userId: user.id, alias: user.alias, isAdmin: user.is_admin || false },
+      { userId: user.id, alias: user.alias, isAdmin: isAdminOrHigher, role: userRole },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES }
     );
 
     // Issue refresh token (longer lived)
     const refreshToken = jwt.sign(
-      { userId: user.id, alias: user.alias, isAdmin: user.is_admin || false, type: 'refresh' },
+      { userId: user.id, alias: user.alias, isAdmin: isAdminOrHigher, role: userRole, type: 'refresh' },
       JWT_SECRET,
       { expiresIn: JWT_REFRESH_EXPIRES }
     );
@@ -915,7 +982,7 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
       [user.id, refreshTokenHash, refreshExpiry]
     );
 
-    res.json({ success: true, token, refreshToken, isAdmin: user.is_admin || false });
+    res.json({ success: true, token, refreshToken, isAdmin: isAdminOrHigher, role: userRole, isMod: isModOrHigher });
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
   }
@@ -3709,8 +3776,8 @@ const REPORT_SEVERITY = {
   'other': 20
 };
 
-// Admin: Get reports (sorted by severity priority)
-app.get('/api/admin/reports', authMiddleware, adminMiddleware, async (req, res) => {
+// Mod+: Get reports (sorted by severity priority)
+app.get('/api/admin/reports', authMiddleware, modMiddleware, async (req, res) => {
   const status = req.query.status || 'pending';
   const sortBy = req.query.sort || 'priority'; // 'priority' or 'date'
   const page = parseInt(req.query.page) || 1;
@@ -3774,8 +3841,8 @@ app.get('/api/admin/reports', authMiddleware, adminMiddleware, async (req, res) 
   }
 });
 
-// Admin: Resolve report
-app.put('/api/admin/reports/:id', authMiddleware, adminMiddleware, async (req, res) => {
+// Mod+: Resolve report
+app.put('/api/admin/reports/:id', authMiddleware, modMiddleware, async (req, res) => {
   const reportId = parseInt(req.params.id);
   const { status, action } = req.body;
   const adminId = req.user.userId;
@@ -4103,13 +4170,70 @@ app.post('/api/admin/users/:id/shadow-ban', authMiddleware, adminMiddleware, asy
   }
 });
 
-// Admin: Get user details for moderation
-app.get('/api/admin/users/:id', authMiddleware, adminMiddleware, async (req, res) => {
+// Owner/Admin: Set user role (owner can set admin, admin can set moderator)
+app.post('/api/admin/users/:id/role', authMiddleware, adminMiddleware, async (req, res) => {
+  const targetUserId = parseInt(req.params.id);
+  const { role } = req.body;
+  const adminId = req.user.userId;
+  const adminRole = req.userRole;
+
+  // Validate role
+  if (!['user', 'moderator', 'admin'].includes(role)) {
+    return res.status(400).json({ success: false, error: 'invalid_role' });
+  }
+
+  try {
+    // Get target user's current role
+    const targetResult = await db.query('SELECT role FROM users WHERE id = $1', [targetUserId]);
+    if (targetResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    const targetCurrentRole = targetResult.rows[0].role || 'user';
+
+    // Permission checks:
+    // - Only owner can promote/demote admins
+    // - Admins can promote/demote moderators
+    // - Can't change your own role
+    // - Can't modify someone of equal or higher rank (unless owner)
+    
+    if (targetUserId === adminId) {
+      return res.status(403).json({ success: false, error: 'cannot_change_own_role' });
+    }
+
+    if (role === 'admin' && adminRole !== 'owner') {
+      return res.status(403).json({ success: false, error: 'only_owner_can_set_admin' });
+    }
+
+    if (targetCurrentRole === 'admin' && adminRole !== 'owner') {
+      return res.status(403).json({ success: false, error: 'only_owner_can_modify_admin' });
+    }
+
+    if (targetCurrentRole === 'owner') {
+      return res.status(403).json({ success: false, error: 'cannot_modify_owner' });
+    }
+
+    // Update role (also sync is_admin for backward compatibility)
+    const isAdmin = role === 'admin' || role === 'owner';
+    await db.query(
+      'UPDATE users SET role = $1, is_admin = $2 WHERE id = $3',
+      [role, isAdmin, targetUserId]
+    );
+
+    await logAudit('change_role', 'user', targetUserId, adminId, { old_role: targetCurrentRole, new_role: role });
+    res.json({ success: true, role });
+  } catch (err) {
+    console.error('[SET ROLE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Get user details for moderation (mods can view, but limited info)
+app.get('/api/admin/users/:id', authMiddleware, modMiddleware, async (req, res) => {
   const userId = parseInt(req.params.id);
 
   try {
     const userResult = await db.query(
-      `SELECT id, alias, bio, is_admin, is_banned, ban_reason, ban_expires_at, is_shadow_banned, created_at
+      `SELECT id, alias, bio, is_admin, role, is_banned, ban_reason, ban_expires_at, is_shadow_banned, created_at
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -4157,13 +4281,13 @@ app.get('/api/admin/users/:id', authMiddleware, adminMiddleware, async (req, res
 });
 
 // Admin: Search users
-app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
+app.get('/api/admin/users', authMiddleware, modMiddleware, async (req, res) => {
   const search = req.query.search || '';
   const filter = req.query.filter || 'all'; // all, banned, warned
 
   try {
     let query = `
-      SELECT u.id, u.alias, u.is_admin, u.is_banned, u.ban_expires_at, u.created_at,
+      SELECT u.id, u.alias, u.is_admin, u.role, u.is_banned, u.is_shadow_banned, u.ban_expires_at, u.created_at,
              (SELECT COUNT(*) FROM warnings WHERE user_id = u.id) AS warning_count
       FROM users u
       WHERE 1=1
@@ -5861,7 +5985,7 @@ app.get('/thread/:id', authMiddleware, (req, res) => {
 // ========================================
 
 // Admin: Get all shadow-banned posts
-app.get('/api/admin/entries/shadow-banned', authMiddleware, adminMiddleware, async (req, res) => {
+app.get('/api/admin/entries/shadow-banned', authMiddleware, modMiddleware, async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = Math.min(parseInt(req.query.limit) || 50, 100);
   const offset = (page - 1) * limit;
@@ -5893,7 +6017,7 @@ app.get('/api/admin/entries/shadow-banned', authMiddleware, adminMiddleware, asy
 });
 
 // Admin: Update entry shadow_banned status
-app.patch('/api/admin/entries/:id', authMiddleware, adminMiddleware, async (req, res) => {
+app.patch('/api/admin/entries/:id', authMiddleware, modMiddleware, async (req, res) => {
   const entryId = parseInt(req.params.id);
   const { shadow_banned } = req.body;
 
@@ -6493,11 +6617,13 @@ async function migrate() {
         bio TEXT,
         avatar_config JSONB,
         is_admin BOOLEAN DEFAULT FALSE,
+        role VARCHAR(20) DEFAULT 'user',
         is_shadow_banned BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT NOW()
       );
       
       -- Add columns if they don't exist
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_config JSONB;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255);
@@ -6977,10 +7103,17 @@ async function migrate() {
         
         -- Other
         ('media', 'Media & Representation', 'ASPD in movies, TV, books - accurate or not', 40),
+        ('technology', 'Technology', 'Tech, programming, internet culture, and digital life', 41),
         ('off-topic', 'Off-Topic', 'Everything else', 99)
       ON CONFLICT (slug) DO UPDATE SET 
         description = EXCLUDED.description,
         display_order = EXCLUDED.display_order;
+      
+      -- Set first admin as owner (if no owner exists)
+      -- You can also manually run: UPDATE users SET role = 'owner' WHERE alias = 'YOUR_USERNAME';
+      UPDATE users SET role = 'owner' 
+      WHERE id = (SELECT id FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1)
+      AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'owner');
     `);
     console.log('[MIGRATE] Database tables ready');
   } catch (err) {

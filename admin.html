@@ -241,6 +241,18 @@
       background: #234;
       color: #8ac;
     }
+    .badge--owner {
+      background: #432;
+      color: #da8;
+    }
+    .badge--mod {
+      background: #243;
+      color: #8c8;
+    }
+    .badge--shadow {
+      background: #333;
+      color: #888;
+    }
     /* Activity graphs */
     .graph-container {
       display: grid;
@@ -495,6 +507,7 @@
               <span class="user-detail-alias" id="detail-alias"></span>
               <button class="admin-btn" id="close-detail">CLOSE</button>
             </div>
+            <div id="role-controls"></div>
             <div class="admin-form-row">
               <button class="admin-btn" id="btn-warn">WARN</button>
               <button class="admin-btn" id="btn-ban">BAN</button>
@@ -735,10 +748,25 @@
 
       if (!AuthState.gateProtected()) return;
 
-      // Check if admin
-      if (!AuthState.isAdmin()) {
+      // Check if mod or higher (mods can access admin panel with limited features)
+      if (!AuthState.isMod()) {
         window.location.href = 'forum.html';
         return;
+      }
+
+      var userRole = AuthState.getRole();
+      var isAdmin = userRole === 'admin' || userRole === 'owner';
+      var isOwner = userRole === 'owner';
+
+      // Hide admin-only sections for moderators
+      if (!isAdmin) {
+        // Mods can only see: Reports, limited user viewing
+        document.querySelectorAll('.admin-nav-btn').forEach(function(btn) {
+          var section = btn.dataset.section;
+          if (['rooms', 'announcements', 'filters', 'audit', 'settings', 'ip-bans'].includes(section)) {
+            btn.style.display = 'none';
+          }
+        });
       }
 
       var currentSection = 'dashboard';
@@ -952,8 +980,12 @@
               var list = document.getElementById('users-list');
               list.innerHTML = data.users.map(function(u) {
                 var badges = '';
-                if (u.is_admin) badges += '<span class="badge badge--admin">ADMIN</span> ';
+                var role = u.role || (u.is_admin ? 'admin' : 'user');
+                if (role === 'owner') badges += '<span class="badge badge--owner">OWNER</span> ';
+                else if (role === 'admin') badges += '<span class="badge badge--admin">ADMIN</span> ';
+                else if (role === 'moderator') badges += '<span class="badge badge--mod">MOD</span> ';
                 if (u.is_banned) badges += '<span class="badge badge--banned">BANNED</span> ';
+                if (u.is_shadow_banned) badges += '<span class="badge badge--shadow">SHADOW</span> ';
                 return '<tr>' +
                   '<td>' + u.id + '</td>' +
                   '<td>' + u.alias + '</td>' +
@@ -988,12 +1020,53 @@
               currentUserAlias = data.user.alias;
               var panel = document.getElementById('user-detail-panel');
               panel.classList.add('active');
-              document.getElementById('detail-alias').textContent = data.user.alias + ' (#' + data.user.id + ')';
               
-              // Show/hide ban buttons
-              document.getElementById('btn-unban').style.display = data.user.is_banned ? 'inline-block' : 'none';
-              document.getElementById('btn-ban').style.display = data.user.is_banned ? 'none' : 'inline-block';
-              document.getElementById('btn-temp-ban').style.display = data.user.is_banned ? 'none' : 'inline-block';
+              var userRole = data.user.role || (data.user.is_admin ? 'admin' : 'user');
+              var roleBadge = '';
+              if (userRole === 'owner') roleBadge = ' <span class="badge badge--owner">OWNER</span>';
+              else if (userRole === 'admin') roleBadge = ' <span class="badge badge--admin">ADMIN</span>';
+              else if (userRole === 'moderator') roleBadge = ' <span class="badge badge--mod">MOD</span>';
+              
+              document.getElementById('detail-alias').innerHTML = data.user.alias + ' (#' + data.user.id + ')' + roleBadge;
+              
+              // Show/hide ban buttons (mods can't ban)
+              var canBan = AuthState.getRole() === 'admin' || AuthState.getRole() === 'owner';
+              document.getElementById('btn-unban').style.display = (canBan && data.user.is_banned) ? 'inline-block' : 'none';
+              document.getElementById('btn-ban').style.display = (canBan && !data.user.is_banned) ? 'inline-block' : 'none';
+              document.getElementById('btn-temp-ban').style.display = (canBan && !data.user.is_banned) ? 'inline-block' : 'none';
+              
+              // Show role buttons for admins/owners only
+              var roleControls = document.getElementById('role-controls');
+              if (roleControls) {
+                if (canBan && userRole !== 'owner') {
+                  roleControls.style.display = 'block';
+                  roleControls.innerHTML = '<div style="margin-top: var(--spacing-sm); font-size: 0.4375rem; color: var(--text-muted);">ROLE: ' +
+                    '<select id="role-select" style="background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-color); padding: 2px 4px; font-size: 0.4375rem;">' +
+                    '<option value="user"' + (userRole === 'user' ? ' selected' : '') + '>User</option>' +
+                    '<option value="moderator"' + (userRole === 'moderator' ? ' selected' : '') + '>Moderator</option>' +
+                    (AuthState.getRole() === 'owner' ? '<option value="admin"' + (userRole === 'admin' ? ' selected' : '') + '>Admin</option>' : '') +
+                    '</select> ' +
+                    '<button id="btn-set-role" class="admin-btn" style="font-size: 0.4375rem; padding: 2px 6px;">SET</button></div>';
+                  
+                  document.getElementById('btn-set-role').addEventListener('click', function() {
+                    var newRole = document.getElementById('role-select').value;
+                    AuthState.apiRequest('/api/admin/users/' + currentUserId + '/role', {
+                      method: 'POST',
+                      body: JSON.stringify({ role: newRole })
+                    }).then(function(resp) {
+                      if (resp.success) {
+                        Notify.show('Role updated to ' + newRole, 'info');
+                        viewUser(currentUserId);
+                        loadUsers();
+                      } else {
+                        Notify.show(resp.error || 'Failed to update role', 'error');
+                      }
+                    });
+                  });
+                } else {
+                  roleControls.style.display = 'none';
+                }
+              }
 
               loadUserTab('entries', data.user);
             }
@@ -1014,10 +1087,31 @@
 
         if (tab === 'entries') {
           if (userData && userData.recent_entries) {
-            content.innerHTML = '<table class="admin-table"><thead><tr><th>ID</th><th>CONTENT</th><th>IP HASH</th><th>DATE</th></tr></thead><tbody>' +
+            content.innerHTML = '<table class="admin-table"><thead><tr><th>ID</th><th>CONTENT</th><th>IP HASH</th><th>DATE</th><th>ACTIONS</th></tr></thead><tbody>' +
               userData.recent_entries.map(function(e) {
-                return '<tr><td>' + e.id + '</td><td>' + (e.content || '').substring(0, 50) + '</td><td style="font-size: 0.4375rem;">' + (e.ip_hash || '-') + '</td><td>' + formatDate(e.created_at) + '</td></tr>';
+                return '<tr><td>' + e.id + '</td><td>' + (e.content || '').substring(0, 50) + '</td><td style="font-size: 0.4375rem;">' + (e.ip_hash || '-') + '</td><td>' + formatDate(e.created_at) + '</td><td><button class="btn-delete-entry" data-entry-id="' + e.id + '" style="font-size: 0.4375rem; padding: 2px 6px; background: var(--error-color); color: #fff; border: none; cursor: pointer;">DELETE</button></td></tr>';
               }).join('') + '</tbody></table>';
+            
+            // Add delete handlers
+            content.querySelectorAll('.btn-delete-entry').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                var entryId = this.dataset.entryId;
+                if (confirm('Delete this post permanently?')) {
+                  AuthState.apiRequest('/api/entries/' + entryId, { method: 'DELETE' })
+                    .then(function(data) {
+                      if (data.success) {
+                        Notify.show('Post deleted', 'info');
+                        viewUser(currentUserId);
+                      } else {
+                        Notify.show(data.error || 'Failed to delete', 'error');
+                      }
+                    })
+                    .catch(function(err) {
+                      Notify.show('Error deleting post', 'error');
+                    });
+                }
+              });
+            });
           } else {
             AuthState.apiRequest('/api/admin/users/' + currentUserId)
               .then(function(data) {

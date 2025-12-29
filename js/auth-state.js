@@ -107,16 +107,36 @@ var AuthState = (function() {
   }
 
   /**
+   * Get user role (owner, admin, moderator, user)
+   * @returns {string}
+   */
+  function getRole() {
+    var state = get();
+    return state.role || (state.isAdmin ? 'admin' : 'user');
+  }
+
+  /**
+   * Check if user is moderator or higher
+   * @returns {boolean}
+   */
+  function isMod() {
+    var role = getRole();
+    return role === 'moderator' || role === 'admin' || role === 'owner';
+  }
+
+  /**
    * Login - set authenticated state
    * @param {string} alias - User alias
    * @param {boolean} isAdmin - Whether user is admin
+   * @param {string} role - User role
    */
-  function login(alias, isAdmin) {
+  function login(alias, isAdmin, role) {
     set({
       authenticated: true,
       alias: alias,
       avatarSet: true, // Assume existing users have avatar
-      isAdmin: isAdmin || false
+      isAdmin: isAdmin || false,
+      role: role || (isAdmin ? 'admin' : 'user')
     });
   }
 
@@ -393,6 +413,8 @@ var AuthState = (function() {
     hasAvatar: hasAvatar,
     getAlias: getAlias,
     isAdmin: isAdmin,
+    getRole: getRole,
+    isMod: isMod,
     login: login,
     register: register,
     setAvatar: setAvatar,

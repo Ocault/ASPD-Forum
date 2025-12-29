@@ -125,7 +125,7 @@
             if (data.refreshToken) {
               AuthState.setRefreshToken(data.refreshToken);
             }
-            AuthState.login(alias, data.isAdmin);
+            AuthState.login(alias, data.isAdmin, data.role);
             window.location.href = 'forum.html?notify=' + encodeURIComponent('AUTH.OK') + '&notify_type=info';
           } else {
             throw new Error(data.error || 'LOGIN FAILED');
