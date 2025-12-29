@@ -6,25 +6,51 @@
   <meta name="theme-color" content="#0a0a0a">
   
   <!-- SEO -->
-  <title>ASPD Forum — Community for Antisocial Personality Disorder</title>
-  <meta name="description" content="A private discussion forum for individuals with Antisocial Personality Disorder. Connect, share experiences, and engage in honest conversation.">
-  <meta name="keywords" content="ASPD, antisocial personality disorder, forum, community, mental health, discussion">
+  <title>ASPD Forum — Anonymous Community for Antisocial Personality Disorder</title>
+  <meta name="description" content="The first anonymous forum built specifically for people with Antisocial Personality Disorder. No judgment, no stigma. Share experiences, discuss coping strategies, and connect with others who understand.">
+  <meta name="keywords" content="ASPD, antisocial personality disorder, forum, community, mental health, discussion, anonymous, sociopathy, cluster B, personality disorder support">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://www.aspdforum.com/">
   
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://www.aspdforum.com/">
-  <meta property="og:title" content="ASPD Forum">
-  <meta property="og:description" content="A private discussion forum for individuals with Antisocial Personality Disorder.">
+  <meta property="og:title" content="ASPD Forum — Anonymous Community">
+  <meta property="og:description" content="The first anonymous forum built specifically for people with Antisocial Personality Disorder. No judgment, no stigma.">
   <meta property="og:image" content="https://www.aspdforum.com/sigil.png">
   <meta property="og:site_name" content="ASPD Forum">
   
   <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="ASPD Forum">
-  <meta name="twitter:description" content="A private discussion forum for individuals with Antisocial Personality Disorder.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="ASPD Forum — Anonymous Community">
+  <meta name="twitter:description" content="The first anonymous forum built specifically for people with Antisocial Personality Disorder. No judgment, no stigma.">
   <meta name="twitter:image" content="https://www.aspdforum.com/sigil.png">
+  
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "ASPD Forum",
+    "url": "https://www.aspdforum.com/",
+    "description": "Anonymous community forum for individuals with Antisocial Personality Disorder",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://www.aspdforum.com/search.html?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "ASPD Forum",
+    "url": "https://www.aspdforum.com/",
+    "logo": "https://www.aspdforum.com/sigil.png",
+    "description": "A private, anonymous discussion community for individuals with Antisocial Personality Disorder."
+  }
+  </script>
   
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" href="sigil.png">
@@ -52,16 +78,9 @@
     }
     
     @keyframes introExit {
-      0% { 
-        opacity: 1;
-      }
-      40% {
-        opacity: 1;
-      }
-      100% { 
-        opacity: 0;
-        visibility: hidden;
-      }
+      0% { opacity: 1; }
+      40% { opacity: 1; }
+      100% { opacity: 0; visibility: hidden; }
     }
     
     .intro-screen.fade-out .void-container,
@@ -76,7 +95,7 @@
       100% { opacity: 0; transform: scale(0.95); }
     }
     
-    /* Void effect - breathing darkness */
+    /* Void effect */
     .void-container {
       position: relative;
       width: 200px;
@@ -86,7 +105,6 @@
       align-items: center;
     }
     
-    /* Outer rings - slow pulse */
     .void-ring {
       position: absolute;
       border-radius: 50%;
@@ -94,36 +112,15 @@
       animation: ringPulse 3s ease-in-out infinite;
     }
     
-    .void-ring:nth-child(1) {
-      width: 180px;
-      height: 180px;
-      animation-delay: 0s;
-    }
-    
-    .void-ring:nth-child(2) {
-      width: 140px;
-      height: 140px;
-      animation-delay: 0.5s;
-    }
-    
-    .void-ring:nth-child(3) {
-      width: 100px;
-      height: 100px;
-      animation-delay: 1s;
-    }
+    .void-ring:nth-child(1) { width: 180px; height: 180px; animation-delay: 0s; }
+    .void-ring:nth-child(2) { width: 140px; height: 140px; animation-delay: 0.5s; }
+    .void-ring:nth-child(3) { width: 100px; height: 100px; animation-delay: 1s; }
     
     @keyframes ringPulse {
-      0%, 100% { 
-        border-color: rgba(50, 50, 50, 0);
-        transform: scale(1);
-      }
-      50% { 
-        border-color: rgba(80, 80, 80, 0.4);
-        transform: scale(1.05);
-      }
+      0%, 100% { border-color: rgba(50, 50, 50, 0); transform: scale(1); }
+      50% { border-color: rgba(80, 80, 80, 0.4); transform: scale(1.05); }
     }
     
-    /* Center void - the abyss */
     .void-center {
       width: 60px;
       height: 60px;
@@ -153,17 +150,10 @@
     }
     
     @keyframes corePulse {
-      0%, 100% { 
-        opacity: 0.3;
-        box-shadow: 0 0 30px 15px rgba(30, 30, 30, 0.5);
-      }
-      50% { 
-        opacity: 0.8;
-        box-shadow: 0 0 50px 25px rgba(40, 40, 40, 0.6);
-      }
+      0%, 100% { opacity: 0.3; box-shadow: 0 0 30px 15px rgba(30, 30, 30, 0.5); }
+      50% { opacity: 0.8; box-shadow: 0 0 50px 25px rgba(40, 40, 40, 0.6); }
     }
     
-    /* Floating particles - drawn into void */
     .void-particles {
       position: absolute;
       width: 100%;
@@ -187,19 +177,12 @@
     .particle:nth-child(6) { top: 60%; left: 85%; animation: drift 10s linear infinite reverse; }
     
     @keyframes drift {
-      0%, 100% { 
-        transform: translate(0, 0) scale(1);
-        opacity: 0;
-      }
+      0%, 100% { transform: translate(0, 0) scale(1); opacity: 0; }
       10% { opacity: 0.6; }
-      50% { 
-        transform: translate(-20px, -30px) scale(0.5);
-        opacity: 0.3;
-      }
+      50% { transform: translate(-20px, -30px) scale(0.5); opacity: 0.3; }
       90% { opacity: 0.6; }
     }
     
-    /* Title - emerges from void */
     .intro-title {
       font-family: 'Consolas', 'Monaco', monospace;
       font-size: 0.6rem;
@@ -213,19 +196,10 @@
     }
     
     @keyframes textEmerge {
-      0% { 
-        opacity: 0; 
-        letter-spacing: 0.8em;
-        color: #000;
-      }
-      100% { 
-        opacity: 1; 
-        letter-spacing: 0.5em;
-        color: #404040;
-      }
+      0% { opacity: 0; letter-spacing: 0.8em; color: #000; }
+      100% { opacity: 1; letter-spacing: 0.5em; color: #404040; }
     }
     
-    /* Subtle line */
     .intro-line {
       position: absolute;
       bottom: 100px;
@@ -239,15 +213,329 @@
       0% { width: 0; opacity: 0; }
       100% { width: 80px; opacity: 1; }
     }
-    
-    /* Landing page */
-    .landing {
+
+    /* NEW LANDING PAGE STYLES */
+    .landing-page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
       opacity: 0;
       transition: opacity 1s ease-out;
     }
     
-    .landing.visible {
+    .landing-page.visible {
       opacity: 1;
+    }
+    
+    /* Hero Section */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 40px 20px;
+      position: relative;
+    }
+    
+    .hero-content {
+      max-width: 600px;
+    }
+    
+    .hero-badge {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      letter-spacing: 0.2em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      padding: 6px 12px;
+      border: 1px solid var(--border-color);
+      display: inline-block;
+      margin-bottom: 30px;
+    }
+    
+    .hero-title {
+      font-family: var(--font-mono);
+      font-size: clamp(2rem, 8vw, 3.5rem);
+      font-weight: 300;
+      letter-spacing: 0.3em;
+      color: var(--text-primary);
+      margin: 0 0 20px 0;
+      text-transform: uppercase;
+    }
+    
+    .hero-tagline {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      color: var(--text-secondary);
+      margin: 0 0 15px 0;
+      line-height: 1.6;
+    }
+    
+    .hero-description {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin: 0 0 40px 0;
+      line-height: 1.8;
+      max-width: 450px;
+    }
+    
+    .hero-cta {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    
+    .cta-primary {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 12px 30px;
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      text-decoration: none;
+      border: 1px solid var(--text-primary);
+      transition: all 0.2s ease;
+    }
+    
+    .cta-primary:hover {
+      background: transparent;
+      color: var(--text-primary);
+    }
+    
+    .cta-secondary {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 12px 30px;
+      background: transparent;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border: 1px solid var(--border-color);
+      transition: all 0.2s ease;
+    }
+    
+    .cta-secondary:hover {
+      border-color: var(--text-secondary);
+      color: var(--text-primary);
+    }
+    
+    .scroll-indicator {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      letter-spacing: 0.2em;
+      color: var(--text-muted);
+      opacity: 0.5;
+      animation: scrollPulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes scrollPulse {
+      0%, 100% { opacity: 0.3; transform: translateX(-50%) translateY(0); }
+      50% { opacity: 0.6; transform: translateX(-50%) translateY(5px); }
+    }
+    
+    /* Features Section */
+    .features {
+      padding: 80px 20px;
+      background: rgba(15, 15, 15, 0.5);
+      border-top: 1px solid var(--border-color);
+    }
+    
+    .features-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+    
+    .features-title {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      margin: 0 0 10px 0;
+    }
+    
+    .features-subtitle {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+    
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 30px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    
+    .feature-card {
+      padding: 25px;
+      border: 1px solid var(--border-color);
+      background: rgba(20, 20, 20, 0.5);
+    }
+    
+    .feature-icon {
+      font-size: 1.2rem;
+      margin-bottom: 15px;
+      opacity: 0.7;
+    }
+    
+    .feature-title {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      margin: 0 0 10px 0;
+    }
+    
+    .feature-desc {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      letter-spacing: 0.03em;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin: 0;
+    }
+    
+    /* Topics Section */
+    .topics {
+      padding: 80px 20px;
+      border-top: 1px solid var(--border-color);
+    }
+    
+    .topics-header {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+    
+    .topics-title {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      margin: 0 0 10px 0;
+    }
+    
+    .topics-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    
+    .topic-tag {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      padding: 8px 15px;
+      border: 1px solid var(--border-color);
+      background: transparent;
+    }
+    
+    /* CTA Section */
+    .final-cta {
+      padding: 100px 20px;
+      text-align: center;
+      border-top: 1px solid var(--border-color);
+      background: rgba(15, 15, 15, 0.5);
+    }
+    
+    .final-cta-title {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      letter-spacing: 0.15em;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      margin: 0 0 15px 0;
+    }
+    
+    .final-cta-desc {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin: 0 0 30px 0;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+      line-height: 1.7;
+    }
+    
+    /* Footer */
+    .landing-footer {
+      padding: 30px 20px;
+      text-align: center;
+      border-top: 1px solid var(--border-color);
+    }
+    
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .footer-link {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      text-decoration: none;
+      text-transform: uppercase;
+    }
+    
+    .footer-link:hover {
+      color: var(--text-secondary);
+    }
+    
+    .footer-copy {
+      font-family: var(--font-mono);
+      font-size: 0.45rem;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      opacity: 0.5;
+    }
+    
+    /* Mobile adjustments */
+    @media (max-width: 600px) {
+      .hero {
+        padding: 60px 20px;
+      }
+      
+      .hero-cta {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .cta-primary, .cta-secondary {
+        width: 100%;
+        max-width: 250px;
+        text-align: center;
+      }
+      
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -279,16 +567,105 @@
   <!-- Noise Overlay -->
   <div class="noise" aria-hidden="true"></div>
 
-  <!-- Landing Content -->
-  <main class="landing" data-page="index" role="main" id="main-content">
-    <div class="landing-content">
-      <h1 class="landing-title" data-bind="site-title">ASPD</h1>
-      <p class="landing-desc" data-bind="site-description">A space for discussion.</p>
-      <a href="login.html" class="enter-btn" data-action="enter" role="button" aria-label="Enter the forum">ENTER</a>
-    </div>
+  <!-- Landing Page -->
+  <main class="landing-page" id="main-content" role="main">
+    
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-content">
+        <span class="hero-badge">The First of Its Kind</span>
+        <h1 class="hero-title">ASPD Forum</h1>
+        <p class="hero-tagline">A space where you don't have to explain yourself.</p>
+        <p class="hero-description">
+          The only anonymous community built specifically for individuals with Antisocial Personality Disorder. 
+          No judgment. No stigma. Just honest discussion with people who actually understand.
+        </p>
+        <div class="hero-cta">
+          <a href="register.html" class="cta-primary">Join Free</a>
+          <a href="login.html" class="cta-secondary">Sign In</a>
+        </div>
+      </div>
+      <span class="scroll-indicator">↓ SCROLL</span>
+    </section>
+    
+    <!-- Features Section -->
+    <section class="features">
+      <div class="features-header">
+        <h2 class="features-title">Built Different</h2>
+        <p class="features-subtitle">Features designed for privacy and authentic conversation</p>
+      </div>
+      <div class="features-grid">
+        <article class="feature-card">
+          <div class="feature-icon">👤</div>
+          <h3 class="feature-title">Anonymous by Design</h3>
+          <p class="feature-desc">No real names required. Create any alias you want. Your identity stays separate from the outside world.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon">👻</div>
+          <h3 class="feature-title">Ghost Mode</h3>
+          <p class="feature-desc">Post with a randomly generated identity. Even your alias is hidden. Say what you really think.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon">🔒</div>
+          <h3 class="feature-title">No Data Harvesting</h3>
+          <p class="feature-desc">We don't sell your data. No ads. No tracking across sites. Your conversations stay here.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3 class="feature-title">Real-Time</h3>
+          <p class="feature-desc">Live notifications, instant updates. See who's viewing threads. Connect in real-time.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon">🛡️</div>
+          <h3 class="feature-title">Peer Moderated</h3>
+          <p class="feature-desc">Community-driven moderation by people who understand ASPD. No neurotypical judgment.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon">📱</div>
+          <h3 class="feature-title">Works Everywhere</h3>
+          <p class="feature-desc">Desktop, tablet, phone. No app download required. Access from any device, anywhere.</p>
+        </article>
+      </div>
+    </section>
+    
+    <!-- Topics Section -->
+    <section class="topics">
+      <div class="topics-header">
+        <h2 class="topics-title">Discussion Rooms</h2>
+      </div>
+      <div class="topics-grid">
+        <span class="topic-tag">General Discussion</span>
+        <span class="topic-tag">Relationships</span>
+        <span class="topic-tag">Work & Career</span>
+        <span class="topic-tag">Coping Strategies</span>
+        <span class="topic-tag">Diagnosis</span>
+        <span class="topic-tag">Self-Awareness</span>
+        <span class="topic-tag">Stories</span>
+        <span class="topic-tag">Confessions</span>
+        <span class="topic-tag">Questions</span>
+        <span class="topic-tag">Off-Topic</span>
+      </div>
+    </section>
+    
+    <!-- Final CTA -->
+    <section class="final-cta">
+      <h2 class="final-cta-title">Ready?</h2>
+      <p class="final-cta-desc">
+        Registration takes 30 seconds. No email verification required. 
+        Start participating immediately.
+      </p>
+      <a href="register.html" class="cta-primary">Create Account</a>
+    </section>
+    
+    <!-- Footer -->
     <footer class="landing-footer" role="contentinfo">
-      <span data-bind="version">v1.0</span>
+      <nav class="footer-links">
+        <a href="privacy.html" class="footer-link">Privacy</a>
+        <a href="terms.html" class="footer-link">Terms</a>
+      </nav>
+      <p class="footer-copy">© 2025 ASPD Forum</p>
     </footer>
+    
   </main>
 
   <script>
@@ -302,7 +679,7 @@
       var introScreen = document.getElementById('intro-screen');
       var landing = document.getElementById('main-content');
       
-      // Skip intro if already seen this session (check both old and new keys)
+      // Skip intro if already seen this session
       if (sessionStorage.getItem('intro_seen') || sessionStorage.getItem('boot_complete')) {
         introScreen.style.display = 'none';
         landing.classList.add('visible');
@@ -314,7 +691,6 @@
         sessionStorage.setItem('intro_seen', '1');
         introScreen.classList.add('fade-out');
         
-        // Delay landing reveal until intro elements have faded
         setTimeout(function() {
           landing.classList.add('visible');
         }, 600);
