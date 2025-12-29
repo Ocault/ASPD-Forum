@@ -3586,7 +3586,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     // Support both numeric ID and slug lookup
     const isNumeric = /^\d+$/.test(threadId);
     const threadResult = await db.query(
-      `SELECT t.id, t.title, t.slow_mode_interval, t.is_locked, t.is_pinned, r.slug AS room_slug
+      `SELECT t.id, t.title, t.slow_mode_interval, t.is_locked, t.is_pinned, t.soundscape, r.slug AS room_slug
        FROM threads t
        JOIN rooms r ON r.id = t.room_id
        WHERE ${isNumeric ? 't.id = $1' : 't.slug = $1'}`,
@@ -3848,14 +3848,20 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// Valid soundscape options
+const VALID_SOUNDSCAPES = ['rain', 'cafe', 'forest', 'ocean', 'fire', 'wind', 'thunder', 'night', 'static', 'void'];
+
 // Create new thread
 app.post('/api/threads', authMiddleware, ipBanMiddleware, userBanMiddleware, threadsLimiter, async (req, res) => {
-  const { roomId, title, content, tags } = req.body;
+  const { roomId, title, content, tags, soundscape } = req.body;
   const userId = req.user.userId;
 
   if (!roomId || !title || !content) {
     return res.status(400).json({ success: false, error: 'missing_fields' });
   }
+  
+  // Validate soundscape if provided
+  const validSoundscape = soundscape && VALID_SOUNDSCAPES.includes(soundscape) ? soundscape : null;
 
   try {
     // Get room id from slug
@@ -3869,10 +3875,10 @@ app.post('/api/threads', authMiddleware, ipBanMiddleware, userBanMiddleware, thr
     const filteredTitle = sanitizeContent(await filterContent(title));
     const filteredContent = sanitizeContent(await filterContent(content));
 
-    // Create thread
+    // Create thread with optional soundscape
     const threadResult = await db.query(
-      'INSERT INTO threads (room_id, title, user_id) VALUES ($1, $2, $3) RETURNING id',
-      [roomDbId, filteredTitle, userId]
+      'INSERT INTO threads (room_id, title, user_id, soundscape) VALUES ($1, $2, $3, $4) RETURNING id',
+      [roomDbId, filteredTitle, userId, validSoundscape]
     );
     const threadId = threadResult.rows[0].id;
 
@@ -4323,11 +4329,22 @@ app.delete('/api/entries/:id', authMiddleware, async (req, res) => {
 // POST REVISION HISTORY
 // ========================================
 
-// Get revision history for a post
+// Get revision history for a post (accessible to all authenticated users)
 app.get('/api/entries/:id/revisions', authMiddleware, async (req, res) => {
   const entryId = parseInt(req.params.id);
+  const userId = req.user?.userId;
   
   try {
+    // Check if user is staff (owner, admin, moderator)
+    let isStaff = false;
+    if (userId) {
+      const staffCheck = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+      if (staffCheck.rows.length > 0) {
+        const role = staffCheck.rows[0].role;
+        isStaff = role === 'owner' || role === 'admin' || role === 'moderator';
+      }
+    }
+    
     const result = await db.query(
       `SELECT pr.id, pr.content, pr.revision_number, pr.created_at,
               u.alias AS edited_by_alias
@@ -4345,7 +4362,7 @@ app.get('/api/entries/:id/revisions', authMiddleware, async (req, res) => {
         content: r.content,
         revisionNumber: r.revision_number,
         editedAt: r.created_at,
-        editedBy: r.edited_by_alias
+        editedBy: isStaff ? r.edited_by_alias : null // Only staff can see who edited
       }))
     });
   } catch (err) {
@@ -8393,6 +8410,7 @@ async function migrate() {
       -- Add columns if they don't exist
       ALTER TABLE threads ADD COLUMN IF NOT EXISTS slug VARCHAR(100);
       ALTER TABLE threads ADD COLUMN IF NOT EXISTS slow_mode_interval INTEGER DEFAULT 0;
+      ALTER TABLE threads ADD COLUMN IF NOT EXISTS soundscape VARCHAR(50) DEFAULT NULL;
       
       CREATE TABLE IF NOT EXISTS entries (
         id SERIAL PRIMARY KEY,

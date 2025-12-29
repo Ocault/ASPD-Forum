@@ -58,6 +58,23 @@
       <div class="presence-typing" id="presence-typing" aria-live="polite" style="display: none;"></div>
     </div>
 
+    <!-- Soundscape Player -->
+    <div class="soundscape-player" id="soundscape-player" style="display: none;" role="region" aria-label="Ambient sound player">
+      <div class="soundscape-info">
+        <span class="soundscape-icon">[♪]</span>
+        <span class="soundscape-name" id="soundscape-name">RAIN</span>
+      </div>
+      <div class="soundscape-controls">
+        <button class="soundscape-toggle" id="soundscape-toggle" title="Play/Pause ambient sound" aria-label="Toggle ambient sound">
+          <span class="play-icon">▶</span>
+          <span class="pause-icon" style="display: none;">⏸</span>
+        </button>
+        <input type="range" class="soundscape-volume" id="soundscape-volume" min="0" max="100" value="30" title="Volume" aria-label="Ambient sound volume">
+        <button class="soundscape-mute" id="soundscape-mute" title="Mute" aria-label="Mute ambient sound">[M]</button>
+      </div>
+      <audio id="soundscape-audio" loop preload="none"></audio>
+    </div>
+
     <!-- Filter Bar -->
     <div class="filter-bar" role="search">
       <label for="search-input" class="sr-only">Search entries in this thread</label>
@@ -511,7 +528,151 @@
         updateSlowModeIndicator(signalMeta.slowModeInterval);
         updateThreadBadges(signalMeta);
         updateAdminControls(signalMeta);
+        initSoundscape(signalMeta.soundscape);
       }
+
+      // ============================================
+      // SOUNDSCAPE PLAYER
+      // ============================================
+      var soundscapePlayer = document.getElementById('soundscape-player');
+      var soundscapeName = document.getElementById('soundscape-name');
+      var soundscapeToggle = document.getElementById('soundscape-toggle');
+      var soundscapeVolume = document.getElementById('soundscape-volume');
+      var soundscapeMute = document.getElementById('soundscape-mute');
+      var soundscapeAudio = document.getElementById('soundscape-audio');
+      var playIcon = soundscapeToggle.querySelector('.play-icon');
+      var pauseIcon = soundscapeToggle.querySelector('.pause-icon');
+      var isSoundscapePlaying = false;
+      var isSoundscapeMuted = false;
+      var currentSoundscape = null;
+
+      // Soundscape audio sources (using free ambient sound URLs as fallbacks)
+      var soundscapeSources = {
+        rain: '/audio/rain.mp3',
+        cafe: '/audio/cafe.mp3',
+        forest: '/audio/forest.mp3',
+        ocean: '/audio/ocean.mp3',
+        fire: '/audio/fire.mp3',
+        wind: '/audio/wind.mp3',
+        thunder: '/audio/thunder.mp3',
+        night: '/audio/night.mp3',
+        static: '/audio/static.mp3',
+        void: '/audio/void.mp3'
+      };
+
+      var soundscapeLabels = {
+        rain: 'RAIN',
+        cafe: 'CAFÉ',
+        forest: 'FOREST',
+        ocean: 'OCEAN',
+        fire: 'FIRE',
+        wind: 'WIND',
+        thunder: 'THUNDER',
+        night: 'NIGHT',
+        static: 'STATIC',
+        void: 'VOID'
+      };
+
+      function initSoundscape(soundscapeType) {
+        if (!soundscapeType || !soundscapeSources[soundscapeType]) {
+          soundscapePlayer.style.display = 'none';
+          currentSoundscape = null;
+          return;
+        }
+
+        currentSoundscape = soundscapeType;
+        soundscapeName.textContent = soundscapeLabels[soundscapeType] || soundscapeType.toUpperCase();
+        soundscapeAudio.src = soundscapeSources[soundscapeType];
+        soundscapePlayer.style.display = 'flex';
+
+        // Load saved volume preference
+        var savedVolume = localStorage.getItem('soundscape-volume');
+        if (savedVolume !== null) {
+          soundscapeVolume.value = savedVolume;
+          soundscapeAudio.volume = savedVolume / 100;
+        } else {
+          soundscapeAudio.volume = 0.3; // Default 30%
+        }
+
+        // Check if user prefers autoplay (remember their choice)
+        var autoplayPref = localStorage.getItem('soundscape-autoplay');
+        if (autoplayPref === 'true') {
+          // Try to autoplay (may be blocked by browser)
+          soundscapeAudio.play().then(function() {
+            isSoundscapePlaying = true;
+            playIcon.style.display = 'none';
+            pauseIcon.style.display = 'inline';
+          }).catch(function() {
+            // Autoplay blocked, user needs to click
+            isSoundscapePlaying = false;
+          });
+        }
+      }
+
+      // Toggle play/pause
+      soundscapeToggle.addEventListener('click', function() {
+        if (isSoundscapePlaying) {
+          soundscapeAudio.pause();
+          isSoundscapePlaying = false;
+          playIcon.style.display = 'inline';
+          pauseIcon.style.display = 'none';
+          localStorage.setItem('soundscape-autoplay', 'false');
+        } else {
+          soundscapeAudio.play().then(function() {
+            isSoundscapePlaying = true;
+            playIcon.style.display = 'none';
+            pauseIcon.style.display = 'inline';
+            localStorage.setItem('soundscape-autoplay', 'true');
+          }).catch(function(err) {
+            console.error('[SOUNDSCAPE] Playback failed:', err);
+            Notify.show('AUDIO PLAYBACK FAILED', 'error');
+          });
+        }
+      });
+
+      // Volume control
+      soundscapeVolume.addEventListener('input', function() {
+        var volume = this.value / 100;
+        soundscapeAudio.volume = volume;
+        localStorage.setItem('soundscape-volume', this.value);
+        if (volume === 0) {
+          isSoundscapeMuted = true;
+          soundscapeMute.textContent = '[X]';
+        } else {
+          isSoundscapeMuted = false;
+          soundscapeMute.textContent = '[M]';
+        }
+      });
+
+      // Mute toggle
+      soundscapeMute.addEventListener('click', function() {
+        if (isSoundscapeMuted) {
+          var savedVol = localStorage.getItem('soundscape-volume') || 30;
+          soundscapeAudio.volume = savedVol / 100;
+          soundscapeVolume.value = savedVol;
+          isSoundscapeMuted = false;
+          soundscapeMute.textContent = '[M]';
+        } else {
+          soundscapeAudio.volume = 0;
+          soundscapeVolume.value = 0;
+          isSoundscapeMuted = true;
+          soundscapeMute.textContent = '[X]';
+        }
+      });
+
+      // Audio error handling
+      soundscapeAudio.addEventListener('error', function() {
+        console.error('[SOUNDSCAPE] Failed to load audio');
+        soundscapePlayer.style.display = 'none';
+      });
+
+      // Cleanup on page unload
+      window.addEventListener('beforeunload', function() {
+        if (soundscapeAudio) {
+          soundscapeAudio.pause();
+          soundscapeAudio.src = '';
+        }
+      });
 
       function updateThreadBadges(threadData) {
         var badgesEl = document.getElementById('thread-badges');
@@ -673,6 +834,7 @@
         
         AuthState.apiRequest('/api/entries/' + entryId + '/revisions')
           .then(function(data) {
+            console.log('[REVISIONS]', data);
             if (data.success && data.revisions && data.revisions.length > 0) {
               revisionList.innerHTML = data.revisions.map(function(rev) {
                 var date = new Date(rev.editedAt);
@@ -681,6 +843,7 @@
                   '<div class="revision-header">' +
                     '<span class="revision-number">Revision #' + rev.revisionNumber + '</span>' +
                     '<span class="revision-date">' + dateStr + '</span>' +
+                    (rev.editedBy ? '<span class="revision-author">by ' + Utils.escapeHtml(rev.editedBy) + '</span>' : '') +
                   '</div>' +
                   '<div class="revision-content">' + Utils.escapeHtml(rev.content) + '</div>' +
                 '</div>';
@@ -689,7 +852,8 @@
               revisionList.innerHTML = '<div class="empty-state">NO EDIT HISTORY FOUND</div>';
             }
           })
-          .catch(function() {
+          .catch(function(err) {
+            console.error('[REVISIONS ERROR]', err);
             revisionList.innerHTML = '<div class="empty-state">FAILED TO LOAD HISTORY</div>';
           });
         
