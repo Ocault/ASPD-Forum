@@ -1080,6 +1080,199 @@ app.post('/api/settings/recovery-codes', authMiddleware, async (req, res) => {
   }
 });
 
+// ========================================
+// TWO-FACTOR AUTHENTICATION ENDPOINTS
+// ========================================
+
+// Check 2FA status
+app.get('/api/auth/2fa-status', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  
+  if (!speakeasy) {
+    return res.status(503).json({ success: false, error: '2fa_not_available' });
+  }
+  
+  try {
+    const result = await db.query(
+      'SELECT totp_enabled FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    res.json({ success: true, enabled: result.rows[0].totp_enabled || false });
+  } catch (err) {
+    logger.error('2FA_STATUS', err.message, { reqId: req.reqId, userId });
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Setup 2FA - generate secret and QR code
+app.post('/api/auth/setup-2fa', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const userAlias = req.user.alias;
+  
+  if (!speakeasy || !qrcode) {
+    return res.status(503).json({ success: false, error: '2fa_not_available' });
+  }
+  
+  try {
+    // Generate secret
+    const secret = speakeasy.generateSecret({
+      name: `ASPD Forum (${userAlias})`,
+      length: 20
+    });
+    
+    // Generate QR code
+    const qrCodeDataUrl = await new Promise((resolve, reject) => {
+      qrcode.toDataURL(secret.otpauth_url, (err, url) => {
+        if (err) reject(err);
+        else resolve(url);
+      });
+    });
+    
+    res.json({
+      success: true,
+      secret: secret.base32,
+      qrCode: qrCodeDataUrl
+    });
+  } catch (err) {
+    logger.error('SETUP_2FA', err.message, { reqId: req.reqId, userId });
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Enable 2FA - verify code and save secret
+app.post('/api/auth/enable-2fa', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { secret, code } = req.body;
+  
+  if (!speakeasy) {
+    return res.status(503).json({ success: false, error: '2fa_not_available' });
+  }
+  
+  if (!secret || !code) {
+    return res.status(400).json({ success: false, error: 'missing_parameters' });
+  }
+  
+  try {
+    // Verify the code first
+    const verified = speakeasy.totp.verify({
+      secret: secret,
+      encoding: 'base32',
+      token: code,
+      window: 1
+    });
+    
+    if (!verified) {
+      return res.status(400).json({ success: false, error: 'invalid_code' });
+    }
+    
+    // Save the secret and enable 2FA
+    await db.query(
+      'UPDATE users SET totp_enabled = TRUE, totp_secret = $1 WHERE id = $2',
+      [secret, userId]
+    );
+    
+    // Generate recovery codes
+    const recoveryCodes = [];
+    await db.query('DELETE FROM recovery_codes WHERE user_id = $1', [userId]);
+    
+    for (let i = 0; i < 10; i++) {
+      const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+      recoveryCodes.push(code);
+      const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+      await db.query(
+        'INSERT INTO recovery_codes (user_id, code_hash) VALUES ($1, $2)',
+        [userId, codeHash]
+      );
+    }
+    
+    logAudit(userId, 'enable_2fa', { method: 'totp' });
+    res.json({ success: true, recoveryCodes: recoveryCodes });
+  } catch (err) {
+    logger.error('ENABLE_2FA', err.message, { reqId: req.reqId, userId });
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Disable 2FA
+app.post('/api/auth/disable-2fa', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    await db.query(
+      'UPDATE users SET totp_enabled = FALSE, totp_secret = NULL WHERE id = $1',
+      [userId]
+    );
+    
+    // Delete recovery codes
+    await db.query('DELETE FROM recovery_codes WHERE user_id = $1', [userId]);
+    
+    logAudit(userId, 'disable_2fa', {});
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('DISABLE_2FA', err.message, { reqId: req.reqId, userId });
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Regenerate recovery codes
+app.post('/api/auth/regenerate-recovery-codes', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    // Check if 2FA is enabled
+    const userResult = await db.query(
+      'SELECT totp_enabled FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (!userResult.rows[0]?.totp_enabled) {
+      return res.status(400).json({ success: false, error: '2fa_not_enabled' });
+    }
+    
+    // Delete old codes and generate new ones
+    await db.query('DELETE FROM recovery_codes WHERE user_id = $1', [userId]);
+    
+    const recoveryCodes = [];
+    for (let i = 0; i < 10; i++) {
+      const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+      recoveryCodes.push(code);
+      const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+      await db.query(
+        'INSERT INTO recovery_codes (user_id, code_hash) VALUES ($1, $2)',
+        [userId, codeHash]
+      );
+    }
+    
+    logAudit(userId, 'regenerate_recovery_codes', {});
+    res.json({ success: true, recoveryCodes: recoveryCodes });
+  } catch (err) {
+    logger.error('REGEN_RECOVERY', err.message, { reqId: req.reqId, userId });
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get recovery codes count (don't expose actual codes)
+app.get('/api/auth/recovery-codes', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    const result = await db.query(
+      'SELECT COUNT(*) as count FROM recovery_codes WHERE user_id = $1 AND used = FALSE',
+      [userId]
+    );
+    
+    res.json({ success: true, count: parseInt(result.rows[0].count) });
+  } catch (err) {
+    logger.error('GET_RECOVERY_COUNT', err.message, { reqId: req.reqId, userId });
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // Refresh token endpoint - get new access token using refresh token
 app.post('/api/auth/refresh', async (req, res) => {
   const { refreshToken } = req.body;

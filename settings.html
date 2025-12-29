@@ -335,6 +335,54 @@
       <button id="change-pass-btn" class="settings-btn">Change Password</button>
     </section>
     
+    <!-- Two-Factor Authentication Section -->
+    <section class="settings-section" id="twofa-section">
+      <h2 class="settings-section-title">Two-Factor Authentication</h2>
+      
+      <!-- 2FA Status Display -->
+      <div id="twofa-status">
+        <p class="settings-toggle-desc" style="margin-bottom: 1rem;">
+          Add an extra layer of security to your account by requiring a code from your authenticator app when logging in.
+        </p>
+        <div id="twofa-disabled-view">
+          <p class="settings-status unverified" style="margin-bottom: 1rem;">2FA is currently disabled</p>
+          <button id="enable-2fa-btn" class="settings-btn">Enable 2FA</button>
+        </div>
+        <div id="twofa-enabled-view" style="display: none;">
+          <p class="settings-status verified" style="margin-bottom: 1rem;">2FA is enabled ✓</p>
+          <button id="disable-2fa-btn" class="settings-btn danger">Disable 2FA</button>
+        </div>
+      </div>
+      
+      <!-- 2FA Setup Modal (hidden by default) -->
+      <div id="twofa-setup" style="display: none;">
+        <p class="settings-toggle-desc" style="margin-bottom: 1rem;">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)</p>
+        <div style="text-align: center; margin: 1.5rem 0; padding: 1rem; background: #fff; display: inline-block;">
+          <img id="twofa-qr" alt="2FA QR Code" style="max-width: 200px;">
+        </div>
+        <div class="settings-field" style="margin-top: 1rem;">
+          <label class="settings-label">Manual Entry Code</label>
+          <input type="text" id="twofa-secret" class="settings-input" readonly style="font-size: 0.9rem; letter-spacing: 0.1em;">
+        </div>
+        <div class="settings-field" style="margin-top: 1rem;">
+          <label class="settings-label" for="twofa-verify-code">Enter code from app to verify</label>
+          <input type="text" id="twofa-verify-code" class="settings-input" placeholder="6-digit code" maxlength="6" inputmode="numeric">
+        </div>
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+          <button id="verify-2fa-btn" class="settings-btn">Verify & Enable</button>
+          <button id="cancel-2fa-btn" class="settings-btn">Cancel</button>
+        </div>
+      </div>
+      
+      <!-- Recovery Codes Display -->
+      <div id="recovery-codes-section" style="display: none; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #1a1a1a;">
+        <h3 style="font-size: 0.75rem; color: #505050; margin-bottom: 0.5rem; letter-spacing: 0.1em;">RECOVERY CODES</h3>
+        <p class="settings-toggle-desc" style="margin-bottom: 1rem;">Save these codes in a safe place. Each code can only be used once.</p>
+        <div id="recovery-codes-list" style="background: #0d0d0d; border: 1px solid #1a1a1a; padding: 1rem; font-family: monospace; font-size: 0.8rem; color: #606060; line-height: 1.8;"></div>
+        <button id="regenerate-codes-btn" class="settings-btn" style="margin-top: 1rem;">Regenerate Codes</button>
+      </div>
+    </section>
+    
     <!-- Danger Zone -->
     <section class="settings-section delete-section">
       <h2 class="settings-section-title" style="color: #604040;">Danger Zone</h2>
@@ -680,6 +728,206 @@
           outputArray[i] = rawData.charCodeAt(i);
         }
         return outputArray;
+      }
+      
+      // ========================================
+      // TWO-FACTOR AUTHENTICATION
+      // ========================================
+      
+      var twofaDisabledView = document.getElementById('twofa-disabled-view');
+      var twofaEnabledView = document.getElementById('twofa-enabled-view');
+      var twofaSetup = document.getElementById('twofa-setup');
+      var recoveryCodes = document.getElementById('recovery-codes-section');
+      var tempSecret = null;
+      
+      // Check 2FA status on load
+      fetch(AuthState.API_BASE + '/api/auth/2fa-status', { headers: headers })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success) {
+            if (data.enabled) {
+              twofaDisabledView.style.display = 'none';
+              twofaEnabledView.style.display = 'block';
+              // Show recovery codes section for viewing
+              recoveryCodes.style.display = 'block';
+              loadRecoveryCodes();
+            }
+          }
+        })
+        .catch(function() {
+          // 2FA not available on this server
+          document.getElementById('twofa-section').style.display = 'none';
+        });
+      
+      // Enable 2FA button - start setup
+      document.getElementById('enable-2fa-btn').addEventListener('click', function() {
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'GENERATING...';
+        
+        fetch(AuthState.API_BASE + '/api/auth/setup-2fa', {
+          method: 'POST',
+          headers: headers
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          btn.disabled = false;
+          btn.textContent = 'ENABLE 2FA';
+          
+          if (data.success) {
+            tempSecret = data.secret;
+            document.getElementById('twofa-qr').src = data.qrCode;
+            document.getElementById('twofa-secret').value = data.secret;
+            twofaDisabledView.style.display = 'none';
+            twofaSetup.style.display = 'block';
+          } else {
+            Notify.show(data.error || '2FA SETUP FAILED', 'error');
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'ENABLE 2FA';
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      });
+      
+      // Cancel 2FA setup
+      document.getElementById('cancel-2fa-btn').addEventListener('click', function() {
+        tempSecret = null;
+        twofaSetup.style.display = 'none';
+        twofaDisabledView.style.display = 'block';
+        document.getElementById('twofa-verify-code').value = '';
+      });
+      
+      // Verify and enable 2FA
+      document.getElementById('verify-2fa-btn').addEventListener('click', function() {
+        var btn = this;
+        var code = document.getElementById('twofa-verify-code').value.trim();
+        
+        if (!code || code.length !== 6) {
+          Notify.show('ENTER 6-DIGIT CODE', 'error');
+          return;
+        }
+        
+        btn.disabled = true;
+        btn.textContent = 'VERIFYING...';
+        
+        fetch(AuthState.API_BASE + '/api/auth/enable-2fa', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({ secret: tempSecret, code: code })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          btn.disabled = false;
+          btn.textContent = 'VERIFY & ENABLE';
+          
+          if (data.success) {
+            Notify.show('2FA ENABLED', 'success');
+            tempSecret = null;
+            twofaSetup.style.display = 'none';
+            twofaEnabledView.style.display = 'block';
+            recoveryCodes.style.display = 'block';
+            
+            // Show recovery codes
+            if (data.recoveryCodes) {
+              displayRecoveryCodes(data.recoveryCodes);
+            }
+          } else {
+            Notify.show(data.error || 'INVALID CODE', 'error');
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'VERIFY & ENABLE';
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      });
+      
+      // Disable 2FA
+      document.getElementById('disable-2fa-btn').addEventListener('click', function() {
+        if (!confirm('Are you sure you want to disable 2FA? This will make your account less secure.')) {
+          return;
+        }
+        
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'DISABLING...';
+        
+        fetch(AuthState.API_BASE + '/api/auth/disable-2fa', {
+          method: 'POST',
+          headers: headers
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          btn.disabled = false;
+          btn.textContent = 'DISABLE 2FA';
+          
+          if (data.success) {
+            Notify.show('2FA DISABLED', 'info');
+            twofaEnabledView.style.display = 'none';
+            twofaDisabledView.style.display = 'block';
+            recoveryCodes.style.display = 'none';
+          } else {
+            Notify.show(data.error || 'FAILED', 'error');
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'DISABLE 2FA';
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      });
+      
+      // Regenerate recovery codes
+      document.getElementById('regenerate-codes-btn').addEventListener('click', function() {
+        if (!confirm('This will invalidate all existing recovery codes. Continue?')) {
+          return;
+        }
+        
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'GENERATING...';
+        
+        fetch(AuthState.API_BASE + '/api/auth/regenerate-recovery-codes', {
+          method: 'POST',
+          headers: headers
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          btn.disabled = false;
+          btn.textContent = 'REGENERATE CODES';
+          
+          if (data.success && data.recoveryCodes) {
+            Notify.show('NEW CODES GENERATED', 'success');
+            displayRecoveryCodes(data.recoveryCodes);
+          } else {
+            Notify.show(data.error || 'FAILED', 'error');
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'REGENERATE CODES';
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      });
+      
+      function displayRecoveryCodes(codes) {
+        var list = document.getElementById('recovery-codes-list');
+        list.innerHTML = codes.map(function(code) {
+          return '<div style="margin: 0.25rem 0;">' + code + '</div>';
+        }).join('');
+      }
+      
+      function loadRecoveryCodes() {
+        fetch(AuthState.API_BASE + '/api/auth/recovery-codes', { headers: headers })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data.success && data.count !== undefined) {
+              var list = document.getElementById('recovery-codes-list');
+              list.innerHTML = '<p style="color: #505050;">' + data.count + ' recovery codes remaining</p>';
+            }
+          });
       }
     })();
   </script>
