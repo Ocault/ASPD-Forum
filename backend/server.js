@@ -14,10 +14,10 @@ const db = require('./db');
 
 // Optional 2FA dependencies - gracefully degrade if not installed
 let speakeasy = null;
-let QRCode = null;
+let qrcode = null;
 try {
   speakeasy = require('speakeasy');
-  QRCode = require('qrcode');
+  qrcode = require('qrcode');
   console.log('[2FA] speakeasy and qrcode loaded successfully');
 } catch (err) {
   console.log('[2FA] speakeasy/qrcode not installed - 2FA features disabled');
