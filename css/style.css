@@ -22,6 +22,8 @@
   /* Accent - cold grey only */
   --border-color: #252525;
   --border-hover: #353535;
+  --accent-primary: #505050;
+  --accent-primary-rgb: 80, 80, 80;
   
   /* Typography */
   --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
@@ -54,6 +56,11 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
+}
+
+/* Force accent color to grey on all inputs */
+input, select, textarea {
+  accent-color: var(--accent-primary);
 }
 
 /* Centered Sigil Background */

@@ -114,27 +114,6 @@
         </div>
         <div class="reply-actions">
           <div class="reply-options">
-            <div class="mood-selector" id="mood-selector">
-              <span class="mood-label">MOOD</span>
-              <div class="mood-options">
-                <label class="mood-option" title="Angry">
-                  <input type="radio" name="post-mood" value="angry">
-                  <span class="mood-icon mood-angry">!</span>
-                </label>
-                <label class="mood-option" title="Anxious">
-                  <input type="radio" name="post-mood" value="anxious">
-                  <span class="mood-icon mood-anxious">~</span>
-                </label>
-                <label class="mood-option" title="Neutral">
-                  <input type="radio" name="post-mood" value="neutral" checked>
-                  <span class="mood-icon mood-neutral">-</span>
-                </label>
-                <label class="mood-option" title="Good">
-                  <input type="radio" name="post-mood" value="good">
-                  <span class="mood-icon mood-good">+</span>
-                </label>
-              </div>
-            </div>
             <label class="ghost-toggle" id="ghost-toggle-container" title="Post without revealing your identity">
               <input type="checkbox" id="ghost-mode-toggle">
               <span class="ghost-toggle-icon">[?]</span>
@@ -1652,10 +1631,6 @@
         var content = replyContent.value.trim();
         if (!content) return;
         
-        // Get selected mood
-        var selectedMood = document.querySelector('input[name="post-mood"]:checked');
-        var mood = selectedMood ? selectedMood.value : 'neutral';
-        
         // Get vault level
         var vaultLevel = vaultModeToggle.checked ? vaultLevelSelect.value : null;
         
@@ -1677,7 +1652,6 @@
             threadId: parseInt(currentSignalId),
             content: content,
             isGhost: isGhostMode,
-            mood: mood,
             vaultLevel: vaultLevel
           })
         })
@@ -1692,8 +1666,6 @@
             vaultToggleContainer.classList.remove('active');
             vaultLevelSelect.disabled = true;
             vaultLevelSelect.value = '';
-            // Reset mood to neutral
-            document.querySelector('input[name="post-mood"][value="neutral"]').checked = true;
             replyContent.placeholder = 'ENTER YOUR RESPONSE... (Markdown supported: **bold**, *italic*, `code`, > quote)';
             Notify.show(isGhostMode ? 'ANONYMOUS ENTRY RECORDED' : 'ENTRY RECORDED', 'info');
             // Reload entries

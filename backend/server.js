@@ -3929,7 +3929,7 @@ const entriesLimiter = rateLimit({
 
 // API: Create entry (authenticated posting)
 app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, entriesLimiter, async (req, res) => {
-  const { threadId, thread_id, content, alias, avatar_config, isGhost, mood, vaultLevel } = req.body;
+  const { threadId, thread_id, content, alias, avatar_config, isGhost, vaultLevel } = req.body;
   const userId = req.user.userId;
   const userAlias = req.user.alias;
   
@@ -3938,12 +3938,6 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
 
   if (!threadIdentifier || !content) {
     return res.status(400).json({ success: false, error: 'missing_fields' });
-  }
-  
-  // Validate mood (required)
-  const validMoods = ['angry', 'anxious', 'neutral', 'good'];
-  if (!mood || !validMoods.includes(mood)) {
-    return res.status(400).json({ success: false, error: 'invalid_mood', message: 'Please select your current mood before posting' });
   }
   
   // Validate vault level (optional: null = public, number = minimum reputation required)
@@ -4024,10 +4018,10 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
     const ghostAlias = useGhostMode ? `GHOST-${crypto.randomBytes(2).toString('hex').toUpperCase()}` : null;
 
     const insertResult = await db.query(
-      `INSERT INTO entries (thread_id, content, alias, avatar_config, user_id, ip_hash, shadow_banned, is_ghost, ghost_alias, mood, vault_level)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING id, thread_id AS "threadId", content, alias, avatar_config AS "avatarConfig", created_at AS "createdAt", user_id, is_ghost, ghost_alias, mood, vault_level`,
-      [threadDbId, filteredContent, entryAlias, avatar_config || null, userId, ipHash, isShadowBanned, useGhostMode, ghostAlias, mood, parsedVaultLevel]
+      `INSERT INTO entries (thread_id, content, alias, avatar_config, user_id, ip_hash, shadow_banned, is_ghost, ghost_alias, vault_level)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, thread_id AS "threadId", content, alias, avatar_config AS "avatarConfig", created_at AS "createdAt", user_id, is_ghost, ghost_alias, vault_level`,
+      [threadDbId, filteredContent, entryAlias, avatar_config || null, userId, ipHash, isShadowBanned, useGhostMode, ghostAlias, parsedVaultLevel]
     );
     
     // For the response, use ghost alias if in ghost mode

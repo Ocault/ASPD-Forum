@@ -258,7 +258,6 @@ const UIComponents = (function() {
     const editedAt = entry.edited_at ? new Date(entry.edited_at) : null;
     const isGhost = entry.is_ghost === true;
     const ghostModVisible = entry.ghost_mode_visible === true; // Mods can see real identity
-    const mood = entry.mood || null;
     const vaultLevel = entry.vault_level || null;
     const vaultLocked = entry.vault_locked === true;
     const vaultRequired = entry.vault_required || null;
@@ -280,11 +279,6 @@ const UIComponents = (function() {
     if (vaultLocked) entryClass += ' vault-locked';
     if (vaultLevel) entryClass += ' vault-post';
     const identityClass = isAnonymous ? 'entry-alias' : 'entry-system-label';
-    
-    // Mood indicator
-    const moodIcons = { angry: '!', anxious: '~', neutral: '-', good: '+' };
-    const moodTitles = { angry: 'Mood: Angry', anxious: 'Mood: Anxious', neutral: 'Mood: Neutral', good: 'Mood: Good' };
-    const moodHtml = mood ? `<span class="mood-indicator mood-${mood}" title="${moodTitles[mood] || mood}">${moodIcons[mood] || '-'}</span>` : '';
     
     // Vault indicator
     const vaultHtml = vaultLevel ? `<span class="vault-indicator" title="Vault post: ${vaultLevel}+ reputation required">[V]</span>` : '';
@@ -478,7 +472,7 @@ const UIComponents = (function() {
         <div class="entry-body">
           <div class="entry-header">
             <span class="${identityClass}">${identityLabel}</span>
-            ${moodHtml}${vaultHtml}
+            ${vaultHtml}
             <span class="entry-time">${timeStr}${editedStr}</span>
             ${actionsHtml}
           </div>
