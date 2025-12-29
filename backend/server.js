@@ -8958,7 +8958,7 @@ migrate().then(() => {
   // Initialize WebSocket server
   initWebSocket(server);
   
-  server.listen(PORT, () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log('[SERVER] HTTP + WebSocket server on port ' + PORT);
     
     // Run cleanup on startup and every hour
@@ -8971,4 +8971,7 @@ migrate().then(() => {
       setInterval(updateAllEpithets, 6 * 60 * 60 * 1000);
     }, 60000); // Start 1 minute after boot
   });
+}).catch(err => {
+  console.error('[FATAL] Failed to start server:', err);
+  process.exit(1);
 });
