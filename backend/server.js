@@ -115,13 +115,60 @@ function sanitizeContent(content) {
 }
 
 // Middleware
+const allowedOrigins = [
+  'https://www.aspdforum.com',
+  'https://aspdforum.com'
+];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: function(origin, callback) {
+    // Allow requests with no origin (same-origin, mobile apps, curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    return callback(new Error('CORS not allowed'), false);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true
 }));
 
 app.use(express.json({ limit: '2mb' }));
+
+// CSRF Protection - validate Origin header for state-changing requests
+const ALLOWED_ORIGINS = [
+  'https://www.aspdforum.com',
+  'https://aspdforum.com',
+  process.env.CORS_ORIGIN
+].filter(Boolean);
+
+app.use((req, res, next) => {
+  // Skip for GET, HEAD, OPTIONS (safe methods)
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+  
+  const origin = req.get('Origin');
+  const referer = req.get('Referer');
+  
+  // In production, require valid Origin or Referer
+  if (process.env.NODE_ENV === 'production') {
+    if (!origin && !referer) {
+      // Allow requests from same origin (no Origin header means same-origin in some cases)
+      return next();
+    }
+    
+    const requestOrigin = origin || (referer ? new URL(referer).origin : null);
+    
+    if (requestOrigin && !ALLOWED_ORIGINS.includes(requestOrigin)) {
+      console.warn('[CSRF] Blocked request from:', requestOrigin);
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+  }
+  
+  next();
+});
 
 // Serve static frontend files from parent directory
 app.use(express.static(path.join(__dirname, '..')));
