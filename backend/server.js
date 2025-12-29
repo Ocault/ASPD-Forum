@@ -490,29 +490,41 @@ app.post('/api/auth/forgot-password', authRateLimiter, async (req, res) => {
       email,
       'Password Reset — ASPD Forum',
       `
-        <div style="font-family: 'Courier New', monospace; background: #0a0a0a; max-width: 480px; margin: 0 auto;">
-          <div style="border: 1px solid #1a1a1a; padding: 40px;">
-            <!-- Header -->
-            <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #151515;">
-              <div style="font-size: 11px; letter-spacing: 0.3em; color: #303030; text-transform: uppercase;">ASPD FORUM</div>
+        <div style="font-family: 'Courier New', monospace; background: #050505; max-width: 480px; margin: 0 auto;">
+          <div style="border: 1px solid #111111; padding: 40px;">
+            <!-- Sigil Header -->
+            <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #0d0d0d;">
+              <div style="display: inline-block; width: 48px; height: 48px; margin-bottom: 16px; position: relative;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" style="width: 48px; height: 48px; opacity: 0.15;">
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="#ffffff" stroke-width="1"/>
+                  <circle cx="50" cy="50" r="6" fill="#ffffff"/>
+                  <circle cx="50" cy="50" r="18" fill="none" stroke="#ffffff" stroke-width="0.5"/>
+                  <circle cx="50" cy="50" r="30" fill="none" stroke="#ffffff" stroke-width="0.5"/>
+                  <line x1="50" y1="5" x2="50" y2="20" stroke="#ffffff" stroke-width="1"/>
+                  <line x1="50" y1="80" x2="50" y2="95" stroke="#ffffff" stroke-width="1"/>
+                  <line x1="5" y1="50" x2="20" y2="50" stroke="#ffffff" stroke-width="1"/>
+                  <line x1="80" y1="50" x2="95" y2="50" stroke="#ffffff" stroke-width="1"/>
+                </svg>
+              </div>
+              <div style="font-size: 10px; letter-spacing: 0.4em; color: #1a1a1a; text-transform: uppercase;">ASPD FORUM</div>
             </div>
             
             <!-- Content -->
-            <div style="color: #404040; font-size: 13px; line-height: 1.7;">
-              <p style="margin: 0 0 16px 0;">Hello <span style="color: #505050;">${user.alias}</span>,</p>
+            <div style="color: #2a2a2a; font-size: 12px; line-height: 1.8;">
+              <p style="margin: 0 0 16px 0;">Hello <span style="color: #3a3a3a;">${user.alias}</span>,</p>
               <p style="margin: 0 0 24px 0;">A password reset was requested for your account.</p>
               
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${resetUrl}" style="display: inline-block; padding: 14px 32px; background: #0a0a0a; color: #505050; text-decoration: none; border: 1px solid #252525; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;">RESET PASSWORD</a>
+                <a href="${resetUrl}" style="display: inline-block; padding: 12px 28px; background: #0a0a0a; color: #3a3a3a; text-decoration: none; border: 1px solid #1a1a1a; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;">RESET PASSWORD</a>
               </div>
               
-              <p style="margin: 24px 0 0 0; font-size: 11px; color: #252525;">This link expires in 1 hour.</p>
-              <p style="margin: 8px 0 0 0; font-size: 11px; color: #252525;">If you didn't request this, ignore this email.</p>
+              <p style="margin: 24px 0 0 0; font-size: 10px; color: #1a1a1a;">This link expires in 1 hour.</p>
+              <p style="margin: 6px 0 0 0; font-size: 10px; color: #1a1a1a;">If you didn't request this, ignore this email.</p>
             </div>
             
             <!-- Footer -->
-            <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #151515; text-align: center;">
-              <div style="font-size: 10px; letter-spacing: 0.2em; color: #1a1a1a;">ASPDFORUM.COM</div>
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #0d0d0d; text-align: center;">
+              <div style="font-size: 9px; letter-spacing: 0.3em; color: #151515;">ASPDFORUM.COM</div>
             </div>
           </div>
         </div>
@@ -1006,28 +1018,40 @@ app.post('/api/settings/verify-email', authMiddleware, async (req, res) => {
       email,
       'Verify Email — ASPD Forum',
       `
-        <div style="font-family: 'Courier New', monospace; background: #0a0a0a; max-width: 480px; margin: 0 auto;">
-          <div style="border: 1px solid #1a1a1a; padding: 40px;">
-            <!-- Header -->
-            <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #151515;">
-              <div style="font-size: 11px; letter-spacing: 0.3em; color: #303030; text-transform: uppercase;">ASPD FORUM</div>
+        <div style="font-family: 'Courier New', monospace; background: #050505; max-width: 480px; margin: 0 auto;">
+          <div style="border: 1px solid #111111; padding: 40px;">
+            <!-- Sigil Header -->
+            <div style="text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #0d0d0d;">
+              <div style="display: inline-block; width: 48px; height: 48px; margin-bottom: 16px; position: relative;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" style="width: 48px; height: 48px; opacity: 0.15;">
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="#ffffff" stroke-width="1"/>
+                  <circle cx="50" cy="50" r="6" fill="#ffffff"/>
+                  <circle cx="50" cy="50" r="18" fill="none" stroke="#ffffff" stroke-width="0.5"/>
+                  <circle cx="50" cy="50" r="30" fill="none" stroke="#ffffff" stroke-width="0.5"/>
+                  <line x1="50" y1="5" x2="50" y2="20" stroke="#ffffff" stroke-width="1"/>
+                  <line x1="50" y1="80" x2="50" y2="95" stroke="#ffffff" stroke-width="1"/>
+                  <line x1="5" y1="50" x2="20" y2="50" stroke="#ffffff" stroke-width="1"/>
+                  <line x1="80" y1="50" x2="95" y2="50" stroke="#ffffff" stroke-width="1"/>
+                </svg>
+              </div>
+              <div style="font-size: 10px; letter-spacing: 0.4em; color: #1a1a1a; text-transform: uppercase;">ASPD FORUM</div>
             </div>
             
             <!-- Content -->
-            <div style="color: #404040; font-size: 13px; line-height: 1.7;">
+            <div style="color: #2a2a2a; font-size: 12px; line-height: 1.8;">
               <p style="margin: 0 0 24px 0;">Verify your email address to enable password recovery and notifications.</p>
               
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${verifyUrl}" style="display: inline-block; padding: 14px 32px; background: #0a0a0a; color: #505050; text-decoration: none; border: 1px solid #252525; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;">VERIFY EMAIL</a>
+                <a href="${verifyUrl}" style="display: inline-block; padding: 12px 28px; background: #0a0a0a; color: #3a3a3a; text-decoration: none; border: 1px solid #1a1a1a; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;">VERIFY EMAIL</a>
               </div>
               
-              <p style="margin: 24px 0 0 0; font-size: 11px; color: #252525;">This link expires in 24 hours.</p>
-              <p style="margin: 8px 0 0 0; font-size: 11px; color: #252525;">If you didn't request this, ignore this email.</p>
+              <p style="margin: 24px 0 0 0; font-size: 10px; color: #1a1a1a;">This link expires in 24 hours.</p>
+              <p style="margin: 6px 0 0 0; font-size: 10px; color: #1a1a1a;">If you didn't request this, ignore this email.</p>
             </div>
             
             <!-- Footer -->
-            <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #151515; text-align: center;">
-              <div style="font-size: 10px; letter-spacing: 0.2em; color: #1a1a1a;">ASPDFORUM.COM</div>
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #0d0d0d; text-align: center;">
+              <div style="font-size: 9px; letter-spacing: 0.3em; color: #151515;">ASPDFORUM.COM</div>
             </div>
           </div>
         </div>
