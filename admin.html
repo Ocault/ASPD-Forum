@@ -215,6 +215,15 @@
       color: #c44;
       border-color: #c44;
     }
+    .user-alias-link {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    .user-alias-link:hover {
+      color: var(--text-primary);
+      text-decoration: underline;
+    }
     .admin-form {
       background: var(--bg-secondary);
       border: 1px solid var(--border-color);
@@ -1272,7 +1281,7 @@
                 if (u.is_shadow_banned) badges += '<span class="badge badge--shadow">SHADOW</span> ';
                 return '<tr>' +
                   '<td>' + u.id + '</td>' +
-                  '<td>' + u.alias + '</td>' +
+                  '<td><a href="profile.html?u=' + encodeURIComponent(u.alias) + '" class="user-alias-link" target="_blank">' + escapeHtml(u.alias) + '</a></td>' +
                   '<td>' + badges + '</td>' +
                   '<td>' + u.warning_count + '</td>' +
                   '<td>' + formatDate(u.created_at) + '</td>' +
@@ -1311,7 +1320,7 @@
               else if (userRole === 'admin') roleBadge = ' <span class="badge badge--admin">ADMIN</span>';
               else if (userRole === 'moderator') roleBadge = ' <span class="badge badge--mod">MOD</span>';
               
-              document.getElementById('detail-alias').innerHTML = data.user.alias + ' (#' + data.user.id + ')' + roleBadge;
+              document.getElementById('detail-alias').innerHTML = '<a href="profile.html?u=' + encodeURIComponent(data.user.alias) + '" class="user-alias-link" target="_blank">' + escapeHtml(data.user.alias) + '</a> (#' + data.user.id + ')' + roleBadge;
               
               // Display last known IP if available
               var ipDisplay = document.getElementById('user-ip-display');
