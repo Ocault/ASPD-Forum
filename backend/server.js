@@ -3837,7 +3837,8 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
         roomId: thread.room_slug,
         slowModeInterval: thread.slow_mode_interval || null,
         isLocked: thread.is_locked || false,
-        isPinned: thread.is_pinned || false
+        isPinned: thread.is_pinned || false,
+        soundscape: thread.soundscape || null
       },
       entries: entriesWithReactions,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }

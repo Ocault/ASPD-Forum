@@ -630,9 +630,12 @@
       }
 
       function initSoundscape(soundscapeType) {
+        console.log('[SOUNDSCAPE] Initializing with type:', soundscapeType);
+        
         if (!soundscapeType || !soundscapeSources[soundscapeType]) {
           soundscapePlayer.style.display = 'none';
           currentSoundscape = null;
+          console.log('[SOUNDSCAPE] No valid soundscape, hiding player');
           return;
         }
 
@@ -641,10 +644,16 @@
         
         // Set source for both audio elements
         var src = soundscapeSources[soundscapeType];
+        console.log('[SOUNDSCAPE] Loading audio from:', src);
+        console.log('[SOUNDSCAPE] Full URL will be:', window.location.origin + src);
         audioA.src = src;
         audioB.src = src;
         activeAudio = audioA;
         inactiveAudio = audioB;
+        
+        // Attempt to load the audio
+        audioA.load();
+        console.log('[SOUNDSCAPE] Audio element created, loading...');
         
         soundscapePlayer.style.display = 'flex';
 
@@ -744,9 +753,19 @@
       });
 
       // Audio error handling
-      audioA.addEventListener('error', function() {
-        console.error('[SOUNDSCAPE] Failed to load audio');
+      audioA.addEventListener('error', function(e) {
+        console.error('[SOUNDSCAPE] Failed to load audio A:', audioA.src, e);
+        Notify.show('AMBIENT AUDIO UNAVAILABLE', 'error');
         soundscapePlayer.style.display = 'none';
+      });
+      
+      audioB.addEventListener('error', function(e) {
+        console.error('[SOUNDSCAPE] Failed to load audio B:', audioB.src, e);
+      });
+      
+      // Audio loaded successfully
+      audioA.addEventListener('canplaythrough', function() {
+        console.log('[SOUNDSCAPE] Audio A ready to play');
       });
 
       // Cleanup on page unload
