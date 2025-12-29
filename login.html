@@ -47,6 +47,13 @@
           <input type="password" id="pass" name="pass" class="auth-input" required autocomplete="current-password" placeholder="Your password">
         </div>
         
+        <!-- 2FA Code Field (hidden until required) -->
+        <div class="auth-field" id="totp-field" style="display: none;">
+          <label class="auth-label" for="totp-code">2FA CODE</label>
+          <input type="text" id="totp-code" name="totp-code" class="auth-input" autocomplete="one-time-code" placeholder="6-digit code or recovery code" maxlength="20" inputmode="numeric">
+          <p class="auth-hint" style="font-size: 0.6rem; color: #505050; margin-top: 0.25rem;">Enter code from your authenticator app</p>
+        </div>
+        
         <button type="submit" class="auth-btn" aria-label="Sign in to your account">LOGIN</button>
       </form>
       
@@ -73,18 +80,29 @@
       'use strict';
       Notify.checkUrlNotify();
       var form = document.getElementById('login-form');
+      var totpField = document.getElementById('totp-field');
+      var totpInput = document.getElementById('totp-code');
+      var requires2FA = false;
+
       form.addEventListener('submit', function(e) {
         e.preventDefault();
         var alias = document.getElementById('alias').value;
         var password = document.getElementById('pass').value;
+        var totpCode = totpInput ? totpInput.value.trim() : '';
+
+        // Build login payload - include totpCode if 2FA is required
+        var payload = { alias: alias, password: password };
+        if (requires2FA && totpCode) {
+          payload.totpCode = totpCode;
+        }
 
         fetch(AuthState.API_BASE + '/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ alias: alias, password: password })
+          body: JSON.stringify(payload)
         })
         .then(function(res) {
-          if (!res.ok) {
+          if (!res.ok && res.status !== 200) {
             return res.text().then(function(txt) {
               try { var j = JSON.parse(txt); throw new Error(j.error || 'LOGIN ERROR ' + res.status); }
               catch(e) { throw new Error('SERVER ERROR ' + res.status + ': ' + (txt || 'NO RESPONSE')); }
@@ -93,6 +111,15 @@
           return res.json();
         })
         .then(function(data) {
+          // Check if 2FA is required
+          if (data.requires2fa) {
+            requires2FA = true;
+            totpField.style.display = 'block';
+            totpInput.focus();
+            Notify.show('ENTER 2FA CODE', 'info');
+            return;
+          }
+          
           if (data.success && data.token) {
             AuthState.setToken(data.token);
             if (data.refreshToken) {

@@ -3066,7 +3066,7 @@ app.delete('/api/entries/:id', authMiddleware, async (req, res) => {
     );
 
     // Audit log
-    await logAuditAction('delete_entry', 'entry', entryId, userId, { reason: isAdmin ? 'admin_delete' : 'owner_delete' });
+    await logAudit('delete_entry', 'entry', entryId, userId, { reason: isAdmin ? 'admin_delete' : 'owner_delete' });
 
     res.json({ success: true });
   } catch (err) {
@@ -3195,10 +3195,10 @@ app.put('/api/admin/reports/:id', authMiddleware, adminMiddleware, async (req, r
         'UPDATE entries SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = $1 WHERE id = $2',
         [adminId, entryId]
       );
-      await logAuditAction('delete_entry', 'entry', entryId, adminId, { reason: 'report_action' });
+      await logAudit('delete_entry', 'entry', entryId, adminId, { reason: 'report_action' });
     }
 
-    await logAuditAction('resolve_report', 'report', reportId, adminId, { status, action });
+    await logAudit('resolve_report', 'report', reportId, adminId, { status, action });
 
     res.json({ success: true });
   } catch (err) {
@@ -5461,7 +5461,7 @@ app.post('/api/upload/image', authMiddleware, (req, res, next) => {
     return res.status(503).json({ success: false, error: 'uploads_not_available', message: 'Image uploads are not configured on this server' });
   }
   
-  upload.single('image')(req, res, function(err) {
+  upload.single('image')(req, res, async function(err) {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({ success: false, error: 'file_too_large', message: 'File size must be less than 5MB' });
@@ -5471,6 +5471,27 @@ app.post('/api/upload/image', authMiddleware, (req, res, next) => {
     
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'no_file', message: 'No file uploaded' });
+    }
+    
+    // Validate magic bytes to ensure it's a real image
+    const filePath = req.file.path;
+    try {
+      const buffer = fs.readFileSync(filePath);
+      const bytes = buffer.slice(0, 12);
+      
+      const isJpeg = bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF;
+      const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
+      const isGif = bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
+      const isWebp = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+      
+      if (!isJpeg && !isPng && !isGif && !isWebp) {
+        fs.unlinkSync(filePath); // Delete suspicious file
+        return res.status(400).json({ success: false, error: 'invalid_image', message: 'File does not appear to be a valid image' });
+      }
+    } catch (readErr) {
+      logger.error('UPLOAD', 'Failed to validate image: ' + readErr.message);
+      fs.unlinkSync(filePath);
+      return res.status(500).json({ success: false, error: 'validation_failed', message: 'Failed to validate image' });
     }
     
     const imageUrl = `/uploads/${req.file.filename}`;
@@ -5909,6 +5930,17 @@ async function migrate() {
         details JSONB,
         created_at TIMESTAMP DEFAULT NOW()
       );
+      
+      CREATE TABLE IF NOT EXISTS post_audit (
+        id SERIAL PRIMARY KEY,
+        entry_id INTEGER REFERENCES entries(id) ON DELETE CASCADE,
+        ip_hash VARCHAR(64),
+        alias VARCHAR(50),
+        content_length INTEGER,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_post_audit_entry ON post_audit(entry_id);
+      CREATE INDEX IF NOT EXISTS idx_post_audit_ip ON post_audit(ip_hash);
       
       CREATE TABLE IF NOT EXISTS reports (
         id SERIAL PRIMARY KEY,
