@@ -244,6 +244,8 @@ const UIComponents = (function() {
     const exceedsLimit = entry.exceedsCharLimit || false;
     const createdAt = entry.created_at ? new Date(entry.created_at) : null;
     const editedAt = entry.edited_at ? new Date(entry.edited_at) : null;
+    const isGhost = entry.is_ghost === true;
+    const ghostModVisible = entry.ghost_mode_visible === true; // Mods can see real identity
     
     // Check if this user is the original poster
     const isOP = opUserId && userId && opUserId === userId;
@@ -258,11 +260,13 @@ const UIComponents = (function() {
     const isAnonymous = alias !== null;
     let entryClass = isAnonymous ? 'entry entry--anonymous' : 'entry entry--system';
     if (exceedsLimit) entryClass += ' entry--long';
+    if (isGhost) entryClass += ' ghost-post';
     const identityClass = isAnonymous ? 'entry-alias' : 'entry-system-label';
     
     // Get rank badge and custom title - custom title replaces rank
     const rank = entry.rank || '';
     const customTitle = entry.custom_title || '';
+    const epithet = entry.epithet || '';
     const isAdmin = entry.is_admin === true;
     
     // Rank tier explanations
@@ -272,21 +276,39 @@ const UIComponents = (function() {
       'MEMBER': 'Member • 50+ posts',
       'REGULAR': 'Regular • 100+ posts',
       'EXPERT': 'Expert • 200+ posts',
-      'VETERAN': 'Veteran • 500+ posts'
+      'VETERAN': 'Veteran • 500+ posts',
+      'GHOST': 'Anonymous post • Identity hidden'
     };
     
     // If user has custom title, show that instead of rank
-    const badgeHtml = customTitle 
+    // For ghost posts, show GHOST rank unless mod can see real identity
+    let displayRank = rank;
+    if (isGhost && !ghostModVisible) {
+      displayRank = 'GHOST';
+    }
+    
+    const badgeHtml = customTitle && !isGhost
       ? `<span class="user-title">${Utils.escapeHtml(customTitle)}</span>` 
-      : (rank ? `<span class="entry-rank rank-badge rank-${rank.toLowerCase()}" title="${rankExplanations[rank] || rank}">${rank}<span class="rank-info-tooltip">${rankExplanations[rank] || rank}</span></span>` : '');
+      : (displayRank ? `<span class="entry-rank rank-badge rank-${displayRank.toLowerCase()}" title="${rankExplanations[displayRank] || displayRank}">${displayRank}<span class="rank-info-tooltip">${rankExplanations[displayRank] || displayRank}</span></span>` : '');
     
-    // OP badge for original poster
-    const opBadgeHtml = isOP ? '<span class="op-badge" title="Original Poster">OP</span>' : '';
+    // OP badge for original poster (hidden on ghost posts unless mod)
+    const opBadgeHtml = (isOP && (!isGhost || ghostModVisible)) ? '<span class="op-badge" title="Original Poster">OP</span>' : '';
     
-    // Make alias a clickable link to profile
-    const identityLabel = isAnonymous 
-      ? `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${Utils.escapeHtml(alias)}</a>${opBadgeHtml}${badgeHtml}` 
-      : 'ARCHIVE';
+    // Mod indicator for ghost posts (shows real alias to mods)
+    const ghostModIndicator = ghostModVisible 
+      ? `<span class="ghost-mod-indicator" title="This is a ghost post - only you can see the real identity">GHOST</span>` 
+      : '';
+    
+    // Make alias a clickable link to profile (not for ghost posts unless mod)
+    let identityLabel;
+    if (isGhost && !ghostModVisible) {
+      // Ghost post - no link, just the ghost alias
+      identityLabel = `<span class="entry-alias">${Utils.escapeHtml(alias)}</span>${badgeHtml}`;
+    } else if (isAnonymous) {
+      identityLabel = `<a href="profile.html?alias=${encodeURIComponent(alias)}" class="entry-alias-link">${Utils.escapeHtml(alias)}</a>${ghostModIndicator}${opBadgeHtml}${badgeHtml}`;
+    } else {
+      identityLabel = 'ARCHIVE';
+    }
     
     // Format timestamp
     const timeStr = createdAt ? createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';

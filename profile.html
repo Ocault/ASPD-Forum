@@ -132,6 +132,7 @@
           </div>
           <div class="profile-title" id="profile-custom-title" aria-label="Custom title"></div>
           <div class="profile-rank" id="profile-rank" aria-label="User rank"></div>
+          <div class="profile-epithet" id="profile-epithet" aria-label="User epithet"></div>
           <p class="profile-bio" id="profile-bio">No bio set.</p>
           <div class="profile-signature" id="profile-signature" aria-label="Signature"></div>
         </div>
@@ -522,6 +523,15 @@
           profileSignature.innerHTML = '<span class="signature-text">"' + escapeHtml(profile.signature) + '"</span>';
         } else {
           profileSignature.textContent = '';
+        }
+
+        // Display dynamic epithet
+        var profileEpithet = document.getElementById('profile-epithet');
+        if (profile.epithet) {
+          profileEpithet.textContent = profile.epithet;
+          profileEpithet.title = 'Dynamic title based on posting behavior';
+        } else {
+          profileEpithet.textContent = '';
         }
 
         // Fetch and display last seen

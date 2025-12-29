@@ -435,6 +435,12 @@ async function sendNotificationEmail(userId, type, title, preview, link) {
 // Connected clients map: userId -> Set of WebSocket connections
 const wsClients = new Map();
 
+// Thread presence tracking: threadId -> Map of userId -> { alias, avatarConfig, joinedAt }
+const threadViewers = new Map();
+
+// Typing indicators: threadId -> Map of userId -> { alias, timestamp }
+const threadTyping = new Map();
+
 // Initialize WebSocket server (called after HTTP server starts)
 function initWebSocket(server) {
   if (!WebSocket) {
@@ -510,6 +516,11 @@ function initWebSocket(server) {
 
     // Handle disconnect
     ws.on('close', () => {
+      // Clean up thread presence
+      if (ws.viewingThread && userId) {
+        leaveThreadPresence(ws, userId, userAlias, ws.viewingThread);
+      }
+      
       if (userId && wsClients.has(userId)) {
         wsClients.get(userId).delete(ws);
         if (wsClients.get(userId).size === 0) {
@@ -556,12 +567,120 @@ function handleWsMessage(ws, userId, userAlias, message) {
     case 'typing':
       // Broadcast typing indicator to thread viewers
       if (message.threadId && userId) {
-        broadcastToThread(message.threadId, {
+        const threadId = parseInt(message.threadId);
+        
+        // Track typing state
+        if (!threadTyping.has(threadId)) {
+          threadTyping.set(threadId, new Map());
+        }
+        threadTyping.get(threadId).set(userId, { 
+          alias: userAlias, 
+          timestamp: Date.now() 
+        });
+        
+        // Broadcast to thread viewers (exclude self)
+        broadcastToThreadViewers(threadId, {
           type: 'typing',
-          threadId: message.threadId,
+          threadId,
           userId,
           alias: userAlias
         }, userId);
+        
+        // Auto-clear typing after 3 seconds
+        setTimeout(() => {
+          if (threadTyping.has(threadId)) {
+            const typing = threadTyping.get(threadId).get(userId);
+            if (typing && Date.now() - typing.timestamp >= 3000) {
+              threadTyping.get(threadId).delete(userId);
+              broadcastToThreadViewers(threadId, {
+                type: 'stopTyping',
+                threadId,
+                userId
+              });
+            }
+          }
+        }, 3500);
+      }
+      break;
+
+    case 'stopTyping':
+      // Clear typing indicator
+      if (message.threadId && userId) {
+        const threadId = parseInt(message.threadId);
+        if (threadTyping.has(threadId)) {
+          threadTyping.get(threadId).delete(userId);
+        }
+        broadcastToThreadViewers(threadId, {
+          type: 'stopTyping',
+          threadId,
+          userId
+        }, userId);
+      }
+      break;
+
+    case 'viewThread':
+      // User started viewing a thread - track presence
+      if (message.threadId && userId) {
+        const threadId = parseInt(message.threadId);
+        
+        // Leave any previous thread
+        if (ws.viewingThread && ws.viewingThread !== threadId) {
+          leaveThreadPresence(ws, userId, userAlias, ws.viewingThread);
+        }
+        
+        ws.viewingThread = threadId;
+        
+        // Add to thread viewers
+        if (!threadViewers.has(threadId)) {
+          threadViewers.set(threadId, new Map());
+        }
+        
+        const viewers = threadViewers.get(threadId);
+        const isNewViewer = !viewers.has(userId);
+        
+        viewers.set(userId, {
+          alias: userAlias,
+          avatarConfig: message.avatarConfig || null,
+          joinedAt: Date.now()
+        });
+        
+        // Send current viewer list to the joining user
+        const viewerList = [];
+        viewers.forEach((data, viewerId) => {
+          if (viewerId !== userId) {
+            viewerList.push({
+              userId: viewerId,
+              alias: data.alias,
+              avatarConfig: data.avatarConfig
+            });
+          }
+        });
+        
+        ws.send(JSON.stringify({
+          type: 'viewerList',
+          threadId,
+          viewers: viewerList
+        }));
+        
+        // Broadcast to other viewers that someone joined
+        if (isNewViewer) {
+          broadcastToThreadViewers(threadId, {
+            type: 'viewerJoined',
+            threadId,
+            userId,
+            alias: userAlias,
+            avatarConfig: message.avatarConfig || null
+          }, userId);
+        }
+        
+        console.log(`[WS] ${userAlias} viewing thread ${threadId} (${viewers.size} viewers)`);
+      }
+      break;
+
+    case 'leaveThread':
+      // User left a thread
+      if (message.threadId && userId) {
+        leaveThreadPresence(ws, userId, userAlias, parseInt(message.threadId));
       }
       break;
 
@@ -582,6 +701,61 @@ function handleWsMessage(ws, userId, userAlias, message) {
     default:
       console.log('[WS] Unknown message type:', message.type);
   }
+}
+
+// Helper: Remove user from thread presence
+function leaveThreadPresence(ws, userId, userAlias, threadId) {
+  if (threadViewers.has(threadId)) {
+    const viewers = threadViewers.get(threadId);
+    viewers.delete(userId);
+    
+    // Clean up typing
+    if (threadTyping.has(threadId)) {
+      threadTyping.get(threadId).delete(userId);
+    }
+    
+    // Broadcast departure
+    broadcastToThreadViewers(threadId, {
+      type: 'viewerLeft',
+      threadId,
+      userId,
+      alias: userAlias
+    });
+    
+    // Clean up empty maps
+    if (viewers.size === 0) {
+      threadViewers.delete(threadId);
+    }
+    if (threadTyping.has(threadId) && threadTyping.get(threadId).size === 0) {
+      threadTyping.delete(threadId);
+    }
+    
+    console.log(`[WS] ${userAlias} left thread ${threadId}`);
+  }
+  
+  if (ws.viewingThread === threadId) {
+    ws.viewingThread = null;
+  }
+}
+
+// Broadcast to all users viewing a specific thread
+function broadcastToThreadViewers(threadId, message, excludeUserId = null) {
+  if (!wss || !threadViewers.has(threadId)) return;
+  
+  const messageStr = JSON.stringify(message);
+  const viewers = threadViewers.get(threadId);
+  
+  viewers.forEach((data, viewerId) => {
+    if (excludeUserId && viewerId === excludeUserId) return;
+    
+    if (wsClients.has(viewerId)) {
+      wsClients.get(viewerId).forEach((ws) => {
+        if (ws.readyState === WebSocket.OPEN && ws.viewingThread === threadId) {
+          ws.send(messageStr);
+        }
+      });
+    }
+  });
 }
 
 // Send message to specific user (all their connections)
@@ -2053,7 +2227,7 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
   try {
     // Get user info
     const userResult = await db.query(
-      'SELECT id, alias, bio, avatar_config, signature, reputation, custom_title, is_admin, role, created_at, followers_private, following_private FROM users WHERE alias = $1',
+      'SELECT id, alias, bio, avatar_config, signature, reputation, custom_title, epithet, is_admin, role, created_at, followers_private, following_private FROM users WHERE alias = $1',
       [alias]
     );
     
@@ -3498,8 +3672,8 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
     // Build entries query with muted filter
     let entriesQuery = `SELECT e.id, e.user_id, COALESCE(u.alias, e.alias) AS alias, e.content, 
               COALESCE(u.avatar_config, e.avatar_config) AS avatar_config,
-              u.signature, u.reputation, u.custom_title, u.is_admin, u.role,
-              e.created_at, e.edited_at,
+              u.signature, u.reputation, u.custom_title, u.epithet, u.is_admin, u.role,
+              e.created_at, e.edited_at, e.is_ghost, e.ghost_alias,
               (SELECT COUNT(*) FROM entries WHERE user_id = e.user_id AND is_deleted = FALSE) AS post_count,
               LENGTH(e.content) > $2 AS "exceedsCharLimit"
        FROM entries e
@@ -3569,6 +3743,16 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
       }
     }
     
+    // Check if the requesting user is a mod/admin (can see real identity behind ghost posts)
+    let isMod = false;
+    if (userId) {
+      const modCheck = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+      if (modCheck.rows.length > 0) {
+        const role = modCheck.rows[0].role;
+        isMod = role === 'owner' || role === 'admin' || role === 'moderator';
+      }
+    }
+    
     // Attach reactions, votes, and rank to entries
     const entriesWithReactions = entriesResult.rows.map(entry => {
       const postCount = parseInt(entry.post_count) || 0;
@@ -3582,9 +3766,31 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
       else if (postCount >= 50) rank = 'MEMBER';
       else if (postCount >= 10) rank = 'ACTIVE';
       
+      // Process ghost mode - hide identity for non-mods
+      const isGhost = entry.is_ghost === true;
+      let displayEntry = { ...entry };
+      
+      if (isGhost && !isMod) {
+        // Mask identity for regular users
+        displayEntry.alias = entry.ghost_alias || 'GHOST';
+        displayEntry.avatar_config = null;
+        displayEntry.user_id = null;
+        displayEntry.signature = null;
+        displayEntry.reputation = null;
+        displayEntry.custom_title = null;
+        displayEntry.is_admin = false;
+        displayEntry.role = null;
+        displayEntry.post_count = null;
+        rank = 'GHOST';
+      } else if (isGhost && isMod) {
+        // Mods can see real identity but also know it's a ghost post
+        displayEntry.ghost_mode_visible = true; // Flag for mods to see it's a ghost post
+      }
+      
       return {
-        ...entry,
+        ...displayEntry,
         rank: rank,
+        is_ghost: isGhost,
         reactions: reactionsMap[entry.id] || {},
         score: votesMap[entry.id] || 0,
         userVote: userVotesMap[entry.id] || 0
@@ -3678,7 +3884,7 @@ const entriesLimiter = rateLimit({
 
 // API: Create entry (authenticated posting)
 app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, entriesLimiter, async (req, res) => {
-  const { threadId, thread_id, content, alias, avatar_config } = req.body;
+  const { threadId, thread_id, content, alias, avatar_config, isGhost } = req.body;
   const userId = req.user.userId;
   const userAlias = req.user.alias;
   
@@ -3755,13 +3961,20 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
     
     // Apply word filter and XSS sanitization
     const filteredContent = sanitizeContent(await filterContent(content));
+    
+    // Generate ghost alias if posting as ghost
+    const useGhostMode = isGhost === true;
+    const ghostAlias = useGhostMode ? `GHOST-${crypto.randomBytes(2).toString('hex').toUpperCase()}` : null;
 
     const insertResult = await db.query(
-      `INSERT INTO entries (thread_id, content, alias, avatar_config, user_id, ip_hash, shadow_banned)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, thread_id AS "threadId", content, alias, avatar_config AS "avatarConfig", created_at AS "createdAt", user_id`,
-      [threadDbId, filteredContent, entryAlias, avatar_config || null, userId, ipHash, isShadowBanned]
+      `INSERT INTO entries (thread_id, content, alias, avatar_config, user_id, ip_hash, shadow_banned, is_ghost, ghost_alias)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, thread_id AS "threadId", content, alias, avatar_config AS "avatarConfig", created_at AS "createdAt", user_id, is_ghost, ghost_alias`,
+      [threadDbId, filteredContent, entryAlias, avatar_config || null, userId, ipHash, isShadowBanned, useGhostMode, ghostAlias]
     );
+    
+    // For the response, use ghost alias if in ghost mode
+    const displayAlias = useGhostMode ? ghostAlias : entryAlias;
 
     // Audit log for post tracking
     const entryId = insertResult.rows[0].id;
@@ -3912,15 +4125,27 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
     // Broadcast new post to all users viewing this thread via WebSocket
     notifyNewPost(threadDbId, {
       id: entryId,
-      alias: entryAlias,
+      alias: displayAlias,
       content: content,
-      created_at: insertResult.rows[0].created_at
+      created_at: insertResult.rows[0].created_at,
+      is_ghost: useGhostMode
     });
 
     // Check for badge achievements (async, non-blocking)
     checkAndAwardBadges(userId).catch(() => {});
 
-    res.json({ success: true, entry: insertResult.rows[0] });
+    // Return entry with display alias for ghost mode
+    const entryResponse = {
+      ...insertResult.rows[0],
+      alias: displayAlias,
+      is_ghost: useGhostMode
+    };
+    // Remove real alias from ghost posts for non-mod responses
+    if (useGhostMode) {
+      delete entryResponse.user_id;
+    }
+
+    res.json({ success: true, entry: entryResponse });
   } catch (err) {
     console.error('[CREATE ENTRY ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
@@ -4223,6 +4448,210 @@ app.post('/api/admin/badges/award', authMiddleware, async (req, res) => {
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
+
+// ========================================
+// DYNAMIC EPITHETS
+// ========================================
+
+// Epithet definitions with their detection logic
+const EPITHETS = [
+  { name: 'THE NIGHT OWL', description: 'Posts primarily during late night hours' },
+  { name: 'THE EARLY BIRD', description: 'Posts primarily during early morning hours' },
+  { name: 'THE VERBOSE', description: 'Known for lengthy, detailed posts' },
+  { name: 'THE CONCISE', description: 'Known for brief, to-the-point posts' },
+  { name: 'THE ARCHIVIST', description: 'Revives old forgotten threads' },
+  { name: 'THE PROVOCATEUR', description: 'Posts tend to generate controversy' },
+  { name: 'THE DIPLOMAT', description: 'Posts rarely receive negative reactions' },
+  { name: 'THE PHANTOM', description: 'Frequently posts anonymously' },
+  { name: 'THE RAPID FIRE', description: 'Posts frequently in short bursts' },
+  { name: 'THE LURKER', description: 'Reads more than they post' },
+  { name: 'THE CRITIC', description: 'Often provides critical feedback' },
+  { name: 'THE SUPPORTER', description: 'Frequently gives positive reactions' },
+  { name: 'THE DEBATER', description: 'Engages in long discussion chains' },
+  { name: 'THE ORIGINATOR', description: 'Creates more threads than replies' },
+  { name: 'THE RESPONDER', description: 'Primarily replies to others' }
+];
+
+// Calculate and update epithet for a user
+async function calculateUserEpithet(userId) {
+  try {
+    // Get user's posting behavior from last 30 days
+    const stats = await db.query(`
+      SELECT 
+        -- Time of day analysis
+        COUNT(*) FILTER (WHERE EXTRACT(HOUR FROM e.created_at) BETWEEN 0 AND 5) AS night_posts,
+        COUNT(*) FILTER (WHERE EXTRACT(HOUR FROM e.created_at) BETWEEN 5 AND 9) AS early_posts,
+        -- Content length
+        AVG(LENGTH(e.content)) AS avg_length,
+        -- Total posts
+        COUNT(*) AS total_posts,
+        -- Ghost mode usage
+        COUNT(*) FILTER (WHERE e.is_ghost = TRUE) AS ghost_posts,
+        -- Replies to old threads (>30 days old)
+        COUNT(*) FILTER (WHERE e.created_at - t.created_at > INTERVAL '30 days') AS necro_posts
+      FROM entries e
+      JOIN threads t ON t.id = e.thread_id
+      WHERE e.user_id = $1 
+        AND e.created_at > NOW() - INTERVAL '30 days'
+        AND e.is_deleted = FALSE
+    `, [userId]);
+
+    // Get reaction patterns
+    const reactions = await db.query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE r.reaction_type IN ('like', 'love', 'laugh')) AS positive_given,
+        COUNT(*) FILTER (WHERE r.reaction_type IN ('angry', 'sad')) AS negative_given,
+        COUNT(*) AS total_given
+      FROM reactions r
+      WHERE r.user_id = $1 
+        AND r.created_at > NOW() - INTERVAL '30 days'
+    `, [userId]);
+
+    // Get vote patterns (votes received on their posts)
+    const votes = await db.query(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN v.vote_value > 0 THEN 1 ELSE 0 END), 0) AS upvotes_received,
+        COALESCE(SUM(CASE WHEN v.vote_value < 0 THEN 1 ELSE 0 END), 0) AS downvotes_received
+      FROM entry_votes v
+      JOIN entries e ON e.id = v.entry_id
+      WHERE e.user_id = $1 
+        AND v.created_at > NOW() - INTERVAL '30 days'
+    `, [userId]);
+
+    // Get thread creation vs reply ratio
+    const threadStats = await db.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM threads WHERE user_id = $1 AND created_at > NOW() - INTERVAL '30 days') AS threads_created,
+        (SELECT COUNT(*) FROM entries WHERE user_id = $1 AND created_at > NOW() - INTERVAL '30 days' AND is_deleted = FALSE) AS total_entries
+    `, [userId]);
+
+    const s = stats.rows[0];
+    const r = reactions.rows[0];
+    const v = votes.rows[0];
+    const t = threadStats.rows[0];
+
+    // Not enough data
+    if (parseInt(s.total_posts) < 5) {
+      return null;
+    }
+
+    // Calculate scores for each epithet
+    const scores = [];
+    const totalPosts = parseInt(s.total_posts);
+    const avgLength = parseFloat(s.avg_length) || 0;
+    const nightRatio = parseInt(s.night_posts) / totalPosts;
+    const earlyRatio = parseInt(s.early_posts) / totalPosts;
+    const ghostRatio = parseInt(s.ghost_posts) / totalPosts;
+    const necroRatio = parseInt(s.necro_posts) / totalPosts;
+    const upvotes = parseInt(v.upvotes_received) || 0;
+    const downvotes = parseInt(v.downvotes_received) || 0;
+    const totalVotes = upvotes + downvotes;
+    const threadsCreated = parseInt(t.threads_created) || 0;
+    const totalEntries = parseInt(t.total_entries) || 1;
+    const positiveGiven = parseInt(r.positive_given) || 0;
+    const totalReactionsGiven = parseInt(r.total_given) || 0;
+
+    // Night Owl: 40%+ posts at night
+    if (nightRatio >= 0.4) {
+      scores.push({ epithet: 'THE NIGHT OWL', score: nightRatio * 100 });
+    }
+
+    // Early Bird: 40%+ posts early morning
+    if (earlyRatio >= 0.4) {
+      scores.push({ epithet: 'THE EARLY BIRD', score: earlyRatio * 100 });
+    }
+
+    // The Verbose: Average post length >400 chars
+    if (avgLength > 400) {
+      scores.push({ epithet: 'THE VERBOSE', score: Math.min(avgLength / 10, 100) });
+    }
+
+    // The Concise: Average post length <80 chars
+    if (avgLength < 80 && avgLength > 0) {
+      scores.push({ epithet: 'THE CONCISE', score: 100 - avgLength });
+    }
+
+    // The Archivist: 20%+ posts are necro posts
+    if (necroRatio >= 0.2) {
+      scores.push({ epithet: 'THE ARCHIVIST', score: necroRatio * 100 });
+    }
+
+    // The Phantom: 30%+ posts are ghost mode
+    if (ghostRatio >= 0.3) {
+      scores.push({ epithet: 'THE PHANTOM', score: ghostRatio * 100 });
+    }
+
+    // The Provocateur: High downvote ratio (>30% of votes are downvotes)
+    if (totalVotes >= 10 && downvotes / totalVotes > 0.3) {
+      scores.push({ epithet: 'THE PROVOCATEUR', score: (downvotes / totalVotes) * 100 });
+    }
+
+    // The Diplomat: Very low downvote ratio (<5% downvotes)
+    if (totalVotes >= 10 && downvotes / totalVotes < 0.05) {
+      scores.push({ epithet: 'THE DIPLOMAT', score: 100 - (downvotes / totalVotes) * 100 });
+    }
+
+    // The Supporter: Gives lots of positive reactions
+    if (totalReactionsGiven >= 20 && positiveGiven / totalReactionsGiven > 0.8) {
+      scores.push({ epithet: 'THE SUPPORTER', score: (positiveGiven / totalReactionsGiven) * 100 });
+    }
+
+    // The Originator: Creates more threads than avg (>30% of entries are thread starters)
+    if (totalEntries >= 10 && threadsCreated / totalEntries > 0.3) {
+      scores.push({ epithet: 'THE ORIGINATOR', score: (threadsCreated / totalEntries) * 100 });
+    }
+
+    // The Responder: Primarily replies (thread creation <5% of activity)
+    if (totalEntries >= 20 && threadsCreated / totalEntries < 0.05) {
+      scores.push({ epithet: 'THE RESPONDER', score: 100 - (threadsCreated / totalEntries) * 100 });
+    }
+
+    // Pick the highest scoring epithet
+    if (scores.length === 0) {
+      return null;
+    }
+
+    scores.sort((a, b) => b.score - a.score);
+    const topEpithet = scores[0].epithet;
+
+    // Update user's epithet
+    await db.query(
+      'UPDATE users SET epithet = $1, epithet_updated_at = NOW() WHERE id = $2',
+      [topEpithet, userId]
+    );
+
+    return topEpithet;
+  } catch (err) {
+    console.error('[EPITHET ERROR]', err.message);
+    return null;
+  }
+}
+
+// Update epithets for all active users (run periodically)
+async function updateAllEpithets() {
+  try {
+    console.log('[EPITHET] Starting batch epithet update...');
+    
+    // Get users who posted in last 30 days
+    const activeUsers = await db.query(`
+      SELECT DISTINCT user_id 
+      FROM entries 
+      WHERE created_at > NOW() - INTERVAL '30 days' 
+        AND user_id IS NOT NULL
+        AND is_deleted = FALSE
+    `);
+
+    let updated = 0;
+    for (const row of activeUsers.rows) {
+      const epithet = await calculateUserEpithet(row.user_id);
+      if (epithet) updated++;
+    }
+
+    console.log(`[EPITHET] Updated epithets for ${updated}/${activeUsers.rows.length} users`);
+  } catch (err) {
+    console.error('[EPITHET BATCH ERROR]', err.message);
+  }
+}
 
 // Helper: Check and award automatic badges
 async function checkAndAwardBadges(userId) {
@@ -7947,6 +8376,8 @@ async function migrate() {
       ALTER TABLE entries ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP;
       ALTER TABLE entries ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
       ALTER TABLE entries ADD COLUMN IF NOT EXISTS deleted_by INTEGER REFERENCES users(id);
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS is_ghost BOOLEAN DEFAULT FALSE;
+      ALTER TABLE entries ADD COLUMN IF NOT EXISTS ghost_alias VARCHAR(20);
       
       CREATE TABLE IF NOT EXISTS audit_log (
         id SERIAL PRIMARY KEY,
@@ -8185,6 +8616,10 @@ async function migrate() {
       
       -- Add user custom title (admin-assignable)
       ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_title VARCHAR(50);
+      
+      -- Add dynamic epithet (auto-generated based on behavior)
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS epithet VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS epithet_updated_at TIMESTAMP;
       
       -- Polls table
       CREATE TABLE IF NOT EXISTS polls (
@@ -8434,5 +8869,11 @@ migrate().then(() => {
     // Run cleanup on startup and every hour
     cleanupExpiredTokens();
     setInterval(cleanupExpiredTokens, 60 * 60 * 1000);
+    
+    // Update user epithets every 6 hours (delayed start to not slow down boot)
+    setTimeout(() => {
+      updateAllEpithets();
+      setInterval(updateAllEpithets, 6 * 60 * 60 * 1000);
+    }, 60000); // Start 1 minute after boot
   });
 });

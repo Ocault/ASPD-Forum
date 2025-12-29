@@ -123,6 +123,26 @@
         emit('typing', message);
         break;
 
+      case 'stopTyping':
+        // Someone stopped typing
+        emit('stopTyping', message);
+        break;
+
+      case 'viewerList':
+        // Initial list of viewers when joining a thread
+        emit('viewerList', message);
+        break;
+
+      case 'viewerJoined':
+        // Someone joined the thread
+        emit('viewerJoined', message);
+        break;
+
+      case 'viewerLeft':
+        // Someone left the thread
+        emit('viewerLeft', message);
+        break;
+
       case 'userStatus':
         // User online/offline status
         emit('userStatus', message);
@@ -164,6 +184,25 @@
   // Send typing indicator
   function sendTyping(threadId) {
     send({ type: 'typing', threadId: parseInt(threadId) });
+  }
+
+  // Send stop typing indicator
+  function sendStopTyping(threadId) {
+    send({ type: 'stopTyping', threadId: parseInt(threadId) });
+  }
+
+  // Join a thread (for presence tracking)
+  function viewThread(threadId, avatarConfig) {
+    send({ 
+      type: 'viewThread', 
+      threadId: parseInt(threadId),
+      avatarConfig: avatarConfig || null
+    });
+  }
+
+  // Leave a thread
+  function leaveThread(threadId) {
+    send({ type: 'leaveThread', threadId: parseInt(threadId) });
   }
 
   // Event subscription system
@@ -235,6 +274,9 @@
     subscribeToThread: subscribeToThread,
     unsubscribeFromThread: unsubscribeFromThread,
     sendTyping: sendTyping,
+    sendStopTyping: sendStopTyping,
+    viewThread: viewThread,
+    leaveThread: leaveThread,
     reconnectWithAuth: reconnectWithAuth,
     init: init
   };
