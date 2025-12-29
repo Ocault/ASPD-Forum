@@ -1,5 +1,5 @@
 // Service Worker for ASPD Forum
-const CACHE_NAME = 'aspd-forum-v1';
+const CACHE_NAME = 'aspd-forum-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -57,6 +57,12 @@ self.addEventListener('fetch', (event) => {
 
   // Skip non-GET requests
   if (request.method !== 'GET') return;
+
+  // Skip non-http(s) schemes (chrome-extension://, etc.)
+  if (!url.protocol.startsWith('http')) return;
+
+  // Skip external URLs (Google Fonts, CDNs, etc.) - let browser handle them
+  if (url.origin !== self.location.origin) return;
 
   // Skip API calls (always fetch fresh)
   if (url.pathname.startsWith('/api/') || 
