@@ -477,7 +477,7 @@ function initWebSocket(server) {
                      req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
                      req.socket?.remoteAddress;
         const ipHash = hashIp(wsIp);
-        db.query('UPDATE users SET last_seen_at = NOW(), last_ip = $1 WHERE id = $2', [ipHash, userId]);
+        db.query('UPDATE users SET last_seen_at = NOW(), last_ip = $1, last_ip_raw = $2 WHERE id = $3', [ipHash, wsIp, userId]);
 
         console.log(`[WS] User ${userAlias} connected (${wsClients.get(userId).size} connections)`);
 
@@ -773,11 +773,12 @@ function authMiddleware(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     
-    // Asynchronously update last_seen and last_ip (non-blocking)
-    const ipHash = hashIp(getClientIp(req));
+    // Asynchronously update last_seen, last_ip (hash), and last_ip_raw (non-blocking)
+    const clientIp = getClientIp(req);
+    const ipHash = hashIp(clientIp);
     db.query(
-      'UPDATE users SET last_seen_at = NOW(), last_ip = $1 WHERE id = $2',
-      [ipHash, decoded.userId]
+      'UPDATE users SET last_seen_at = NOW(), last_ip = $1, last_ip_raw = $2 WHERE id = $3',
+      [ipHash, clientIp, decoded.userId]
     ).catch(() => {}); // Silent fail - don't block request
     
     next();
@@ -5069,7 +5070,7 @@ app.get('/api/admin/users/:id', authMiddleware, modMiddleware, async (req, res) 
 
   try {
     const userResult = await db.query(
-      `SELECT id, alias, bio, is_admin, role, is_banned, ban_reason, ban_expires_at, is_shadow_banned, created_at, last_ip, last_seen_at
+      `SELECT id, alias, bio, is_admin, role, is_banned, ban_reason, ban_expires_at, is_shadow_banned, created_at, last_ip, last_ip_raw, last_seen_at
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -5113,16 +5114,26 @@ app.get('/api/admin/users/:id', authMiddleware, modMiddleware, async (req, res) 
       [userId]
     );
 
+    // Build response - only owner can see raw IP
+    const userResponse = {
+      ...user,
+      last_ip: lastIp,
+      last_seen_at: user.last_seen_at,
+      warning_count: parseInt(warningCount.rows[0].count),
+      note_count: parseInt(noteCount.rows[0].count),
+      recent_entries: recentEntries.rows
+    };
+
+    // Only include raw IP for owner
+    if (req.user.role === 'owner') {
+      userResponse.last_ip_raw = user.last_ip_raw;
+    } else {
+      delete userResponse.last_ip_raw;
+    }
+
     res.json({
       success: true,
-      user: {
-        ...user,
-        last_ip: lastIp,
-        last_seen_at: user.last_seen_at,
-        warning_count: parseInt(warningCount.rows[0].count),
-        note_count: parseInt(noteCount.rows[0].count),
-        recent_entries: recentEntries.rows
-      }
+      user: userResponse
     });
   } catch (err) {
     res.status(500).json({ success: false, error: 'server_error' });
@@ -8155,6 +8166,9 @@ async function migrate() {
       
       -- Add last IP hash (recorded on every authenticated request)
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_ip TEXT;
+      
+      -- Add raw IP (only accessible to owner for abuse investigation)
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_ip_raw TEXT;
       
       -- Add signature to users
       ALTER TABLE users ADD COLUMN IF NOT EXISTS signature VARCHAR(200);

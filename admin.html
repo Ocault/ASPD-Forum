@@ -678,6 +678,7 @@
             </div>
             <div class="user-ip-row" style="font-size: 0.4375rem; color: var(--text-muted); padding: var(--spacing-xs) 0; border-bottom: 1px solid var(--border-color); margin-bottom: var(--spacing-sm);">
               <span>LAST IP:</span> <code id="user-ip-display" style="font-family: var(--font-mono); color: var(--text-secondary);">-</code>
+              <span id="user-ip-raw-container" style="display: none; margin-left: var(--spacing-sm);"> | <span style="color: var(--accent-primary);">RAW:</span> <code id="user-ip-raw-display" style="font-family: var(--font-mono); color: var(--accent-gold);">-</code></span>
             </div>
             <div id="role-controls" style="margin: var(--spacing-sm) 0; padding: var(--spacing-sm); background: var(--bg-tertiary); border: 1px solid var(--border-color);"></div>
             <div class="admin-form-row">
@@ -1332,6 +1333,16 @@
               var ipDisplay = document.getElementById('user-ip-display');
               if (ipDisplay) {
                 ipDisplay.textContent = data.user.last_ip || 'No IP recorded';
+              }
+              
+              // Display raw IP for owner only
+              var ipRawContainer = document.getElementById('user-ip-raw-container');
+              var ipRawDisplay = document.getElementById('user-ip-raw-display');
+              if (ipRawContainer && ipRawDisplay && data.user.last_ip_raw) {
+                ipRawContainer.style.display = 'inline';
+                ipRawDisplay.textContent = data.user.last_ip_raw;
+              } else if (ipRawContainer) {
+                ipRawContainer.style.display = 'none';
               }
               
               // Show/hide ban buttons (mods can't ban) - fallback to isAdmin() for backwards compat
