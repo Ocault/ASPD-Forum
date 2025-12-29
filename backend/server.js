@@ -10,6 +10,8 @@ const helmet = require('helmet');
 const sanitizeHtml = require('sanitize-html');
 const path = require('path');
 const db = require('./db');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +19,49 @@ const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = '1h';
 const JWT_REFRESH_EXPIRES = '7d'; // Refresh tokens last 7 days
+
+// ========================================
+// STRUCTURED LOGGING
+// ========================================
+const LOG_LEVELS = { ERROR: 0, WARN: 1, INFO: 2, DEBUG: 3 };
+const currentLogLevel = LOG_LEVELS[process.env.LOG_LEVEL?.toUpperCase()] ?? LOG_LEVELS.INFO;
+
+function formatLog(level, category, message, meta = {}) {
+  const timestamp = new Date().toISOString();
+  const reqId = meta.reqId || '-';
+  const metaStr = Object.keys(meta).filter(k => k !== 'reqId').length > 0
+    ? ' ' + JSON.stringify(meta)
+    : '';
+  return `${timestamp} [${level}] [${category}] [${reqId}] ${message}${metaStr}`;
+}
+
+const logger = {
+  error: (category, message, meta = {}) => {
+    if (currentLogLevel >= LOG_LEVELS.ERROR) console.error(formatLog('ERROR', category, message, meta));
+  },
+  warn: (category, message, meta = {}) => {
+    if (currentLogLevel >= LOG_LEVELS.WARN) console.warn(formatLog('WARN', category, message, meta));
+  },
+  info: (category, message, meta = {}) => {
+    if (currentLogLevel >= LOG_LEVELS.INFO) console.log(formatLog('INFO', category, message, meta));
+  },
+  debug: (category, message, meta = {}) => {
+    if (currentLogLevel >= LOG_LEVELS.DEBUG) console.log(formatLog('DEBUG', category, message, meta));
+  }
+};
+
+// Request ID middleware
+app.use((req, res, next) => {
+  req.reqId = crypto.randomBytes(8).toString('hex');
+  res.setHeader('X-Request-ID', req.reqId);
+  next();
+});
+
+// CRITICAL: Validate JWT_SECRET on startup
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  logger.error('STARTUP', 'JWT_SECRET must be set and at least 32 characters');
+  process.exit(1);
+}
 
 // Security headers with helmet
 app.use(helmet({
@@ -91,6 +136,61 @@ async function sendEmail(to, subject, html) {
   }
 }
 
+// Send notification email (for replies, mentions, DMs)
+async function sendNotificationEmail(userId, type, title, preview, link) {
+  try {
+    // Get user's email settings
+    const userResult = await db.query(
+      'SELECT email, email_verified, notification_replies, notification_mentions, notification_messages FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) return;
+    const user = userResult.rows[0];
+    
+    // Check if user has verified email and enabled notifications
+    if (!user.email || !user.email_verified) return;
+    
+    // Check notification preferences
+    if (type === 'thread_reply' && !user.notification_replies) return;
+    if (type === 'mention' && !user.notification_mentions) return;
+    if (type === 'private_message' && !user.notification_messages) return;
+    
+    const siteUrl = 'https://www.aspdforum.com';
+    const fullLink = link.startsWith('http') ? link : `${siteUrl}/${link}`;
+    
+    const emailHtml = `
+      <div style="background: #0a0a0a; padding: 40px 20px; font-family: 'Courier New', monospace;">
+        <div style="max-width: 500px; margin: 0 auto; background: #0f0f0f; border: 1px solid #1a1a1a; padding: 30px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <svg width="40" height="40" viewBox="0 0 100 100" style="opacity: 0.15;">
+              <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="none" stroke="#404040" stroke-width="2"/>
+            </svg>
+          </div>
+          <h2 style="color: #606060; font-size: 14px; text-align: center; letter-spacing: 0.1em; margin: 0 0 20px;">
+            ${title}
+          </h2>
+          <p style="color: #404040; font-size: 12px; line-height: 1.6; margin: 0 0 20px;">
+            ${preview.substring(0, 200)}${preview.length > 200 ? '...' : ''}
+          </p>
+          <div style="text-align: center;">
+            <a href="${fullLink}" style="display: inline-block; padding: 10px 20px; background: #1a1a1a; border: 1px solid #303030; color: #606060; text-decoration: none; font-size: 11px; letter-spacing: 0.1em;">
+              VIEW ON FORUM
+            </a>
+          </div>
+          <p style="color: #303030; font-size: 10px; text-align: center; margin-top: 30px;">
+            You can manage your notification settings in your <a href="${siteUrl}/profile.html" style="color: #404040;">profile</a>.
+          </p>
+        </div>
+      </div>
+    `;
+    
+    await sendEmail(user.email, `[ASPD Forum] ${title}`, emailHtml);
+  } catch (err) {
+    console.error('[NOTIFICATION EMAIL ERROR]', err.message);
+  }
+}
+
 // XSS Sanitization helper
 function sanitizeContent(content) {
   return sanitizeHtml(content, {
@@ -135,6 +235,23 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '2mb' }));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const level = res.statusCode >= 400 ? 'warn' : 'info';
+    logger[level]('HTTP', `${req.method} ${req.path} ${res.statusCode}`, {
+      reqId: req.reqId,
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      duration: `${duration}ms`
+    });
+  });
+  next();
+});
 
 // CSRF Protection - validate Origin header for state-changing requests
 const ALLOWED_ORIGINS = [
@@ -365,6 +482,46 @@ const strictAuthLimiter = rateLimit({
   skipSuccessfulRequests: true // Only count failed requests
 });
 
+// Rate limiter for messages (prevent spam)
+const messagesLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // 5 messages per minute
+  message: { success: false, error: 'rate_limit_exceeded', message: 'Too many messages, slow down' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.userId?.toString() || hashIp(getClientIp(req)) || 'unknown'
+});
+
+// Rate limiter for thread creation
+const threadsLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 3, // 3 threads per 5 minutes
+  message: { success: false, error: 'rate_limit_exceeded', message: 'Too many threads, slow down' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.userId?.toString() || hashIp(getClientIp(req)) || 'unknown'
+});
+
+// Rate limiter for reports (prevent report spam)
+const reportsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 reports per 15 minutes
+  message: { success: false, error: 'rate_limit_exceeded', message: 'Too many reports, slow down' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.userId?.toString() || hashIp(getClientIp(req)) || 'unknown'
+});
+
+// Rate limiter for password changes (prevent brute force)
+const passwordChangeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 attempts per hour
+  message: { success: false, error: 'too_many_attempts', message: 'Too many password change attempts' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.userId?.toString() || hashIp(getClientIp(req)) || 'unknown'
+});
+
 // Password strength validation
 function validatePassword(password) {
   const errors = [];
@@ -404,12 +561,46 @@ function clearFailedLogin(ipHash) {
   failedLoginAttempts.delete(ipHash);
 }
 
-// Register (with rate limiting and password validation)
+// Verify hCaptcha token
+async function verifyCaptcha(token) {
+  if (!process.env.HCAPTCHA_SECRET) {
+    console.log('[CAPTCHA] HCAPTCHA_SECRET not configured, skipping verification');
+    return true; // Skip if not configured
+  }
+  
+  try {
+    const response = await fetch('https://hcaptcha.com/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `response=${encodeURIComponent(token)}&secret=${encodeURIComponent(process.env.HCAPTCHA_SECRET)}`
+    });
+    
+    const data = await response.json();
+    return data.success === true;
+  } catch (err) {
+    console.error('[CAPTCHA ERROR]', err.message);
+    return false;
+  }
+}
+
+// Register (with rate limiting, password validation, and captcha)
 app.post('/register', authRateLimiter, async (req, res) => {
-  const { alias, password, email } = req.body;
+  const { alias, password, email, captchaToken } = req.body;
 
   if (!alias || !password) {
     return res.status(400).json({ success: false, error: 'missing_fields' });
+  }
+
+  // Verify CAPTCHA if configured
+  if (process.env.HCAPTCHA_SECRET) {
+    if (!captchaToken) {
+      return res.status(400).json({ success: false, error: 'captcha_required', message: 'Please complete the CAPTCHA' });
+    }
+    
+    const captchaValid = await verifyCaptcha(captchaToken);
+    if (!captchaValid) {
+      return res.status(400).json({ success: false, error: 'captcha_failed', message: 'CAPTCHA verification failed' });
+    }
   }
 
   // Validate alias format
@@ -436,7 +627,7 @@ app.post('/register', authRateLimiter, async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error('[REGISTER ERROR]', err.message);
+    logger.error('REGISTER', err.message, { reqId: req.reqId });
     if (err.code === '23505') {
       return res.status(409).json({ success: false, error: 'alias_exists' });
     }
@@ -446,7 +637,7 @@ app.post('/register', authRateLimiter, async (req, res) => {
 
 // Login (with rate limiting and lockout protection)
 app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
-  const { alias, password } = req.body;
+  const { alias, password, totpCode } = req.body;
   const ipHash = hashIp(getClientIp(req));
 
   // Check for IP-based lockout
@@ -460,7 +651,7 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT id, alias, password_hash, is_admin FROM users WHERE alias = $1',
+      'SELECT id, alias, password_hash, is_admin, totp_enabled, totp_secret FROM users WHERE alias = $1',
       [alias]
     );
 
@@ -477,6 +668,39 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
       return res.status(401).json({ success: false, error: 'invalid_credentials' });
     }
 
+    // Check if 2FA is enabled
+    if (user.totp_enabled) {
+      if (!totpCode) {
+        // Return special status to indicate 2FA is required
+        return res.status(200).json({ success: false, requires2fa: true, message: 'Two-factor authentication required' });
+      }
+      
+      // Verify TOTP code
+      const verified = speakeasy.totp.verify({
+        secret: user.totp_secret,
+        encoding: 'base32',
+        token: totpCode,
+        window: 1
+      });
+      
+      if (!verified) {
+        // Check if it's a backup code
+        const codeHash = crypto.createHash('sha256').update(totpCode.toUpperCase()).digest('hex');
+        const backupCheck = await db.query(
+          'SELECT id FROM recovery_codes WHERE user_id = $1 AND code_hash = $2 AND used = FALSE',
+          [user.id, codeHash]
+        );
+        
+        if (backupCheck.rows.length === 0) {
+          recordFailedLogin(ipHash);
+          return res.status(401).json({ success: false, error: 'invalid_2fa_code' });
+        }
+        
+        // Mark backup code as used
+        await db.query('UPDATE recovery_codes SET used = TRUE WHERE id = $1', [backupCheck.rows[0].id]);
+      }
+    }
+
     // Successful login - clear failed attempts
     clearFailedLogin(ipHash);
 
@@ -491,6 +715,14 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
       { userId: user.id, alias: user.alias, isAdmin: user.is_admin || false, type: 'refresh' },
       JWT_SECRET,
       { expiresIn: JWT_REFRESH_EXPIRES }
+    );
+    
+    // Store refresh token hash in database for revocation support
+    const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    await db.query(
+      'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+      [user.id, refreshTokenHash, refreshExpiry]
     );
 
     res.json({ success: true, token, refreshToken, isAdmin: user.is_admin || false });
@@ -656,6 +888,105 @@ app.post('/api/auth/reset-password', authRateLimiter, async (req, res) => {
   }
 });
 
+// Reset password with recovery code (for users without email)
+app.post('/api/auth/reset-with-recovery', authRateLimiter, async (req, res) => {
+  const { alias, recoveryCode, newPassword } = req.body;
+
+  if (!alias || !recoveryCode || !newPassword) {
+    return res.status(400).json({ success: false, error: 'missing_fields' });
+  }
+
+  // Validate password strength
+  const passwordErrors = validatePassword(newPassword);
+  if (passwordErrors.length > 0) {
+    return res.status(400).json({ success: false, error: 'weak_password', message: passwordErrors.join('. ') });
+  }
+
+  try {
+    // Find user
+    const userResult = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+    if (userResult.rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'invalid_credentials' });
+    }
+    
+    const userId = userResult.rows[0].id;
+    
+    // Check recovery code
+    const codeHash = crypto.createHash('sha256').update(recoveryCode.toUpperCase()).digest('hex');
+    const codeResult = await db.query(
+      'SELECT id FROM recovery_codes WHERE user_id = $1 AND code_hash = $2 AND used = FALSE',
+      [userId, codeHash]
+    );
+    
+    if (codeResult.rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'invalid_recovery_code' });
+    }
+    
+    // Mark code as used
+    await db.query('UPDATE recovery_codes SET used = TRUE WHERE id = $1', [codeResult.rows[0].id]);
+    
+    // Hash new password
+    const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    
+    // Update password
+    await db.query('UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2', [hash, userId]);
+    
+    // Invalidate all refresh tokens
+    await db.query('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1', [userId]);
+    
+    res.json({ success: true, message: 'Password has been reset successfully.' });
+  } catch (err) {
+    console.error('[RESET WITH RECOVERY ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Generate recovery codes (for users without email, or to regenerate)
+app.post('/api/settings/recovery-codes', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { password } = req.body;
+  
+  if (!password) {
+    return res.status(400).json({ success: false, error: 'password_required' });
+  }
+  
+  try {
+    // Verify password
+    const result = await db.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+    if (!result.rows[0]) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    const valid = await bcrypt.compare(password, result.rows[0].password_hash);
+    if (!valid) {
+      return res.status(401).json({ success: false, error: 'invalid_password' });
+    }
+    
+    // Delete old recovery codes
+    await db.query('DELETE FROM recovery_codes WHERE user_id = $1', [userId]);
+    
+    // Generate new recovery codes
+    const backupCodes = [];
+    for (let i = 0; i < 8; i++) {
+      backupCodes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
+    }
+    
+    // Store backup codes
+    for (const code of backupCodes) {
+      const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+      await db.query(
+        'INSERT INTO recovery_codes (user_id, code_hash) VALUES ($1, $2)',
+        [userId, codeHash]
+      );
+    }
+    
+    res.json({ success: true, recoveryCodes: backupCodes });
+  } catch (err) {
+    console.error('[GENERATE RECOVERY CODES ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // Refresh token endpoint - get new access token using refresh token
 app.post('/api/auth/refresh', async (req, res) => {
   const { refreshToken } = req.body;
@@ -670,6 +1001,21 @@ app.post('/api/auth/refresh', async (req, res) => {
     // Verify it's a refresh token
     if (decoded.type !== 'refresh') {
       return res.status(401).json({ success: false, error: 'invalid_token_type' });
+    }
+
+    // Validate refresh token against database (check for revocation)
+    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const tokenResult = await db.query(
+      'SELECT id, revoked FROM refresh_tokens WHERE token_hash = $1 AND user_id = $2',
+      [tokenHash, decoded.userId]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'token_not_found' });
+    }
+
+    if (tokenResult.rows[0].revoked) {
+      return res.status(401).json({ success: false, error: 'token_revoked' });
     }
 
     // Verify user still exists and isn't banned
@@ -701,6 +1047,22 @@ app.post('/api/auth/refresh', async (req, res) => {
     }
     return res.status(401).json({ success: false, error: 'invalid_refresh_token' });
   }
+});
+
+// Logout endpoint - revoke the current refresh token
+app.post('/api/auth/logout', async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (refreshToken) {
+    try {
+      const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      await db.query('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1', [tokenHash]);
+    } catch (err) {
+      console.error('[LOGOUT ERROR]', err.message);
+    }
+  }
+  
+  res.json({ success: true });
 });
 
 // API: Get current user info
@@ -765,6 +1127,7 @@ app.get('/api/users/autocomplete', authMiddleware, async (req, res) => {
 // API: Get user profile by alias
 app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
   const alias = req.params.alias;
+  const viewerId = req.user?.userId;
   
   try {
     // Get user info
@@ -778,6 +1141,17 @@ app.get('/api/profile/:alias', authMiddleware, async (req, res) => {
     }
     
     const user = userResult.rows[0];
+    
+    // Check if profile owner has blocked the viewer
+    if (viewerId && viewerId !== user.id) {
+      const blocked = await db.query(
+        'SELECT id FROM blocked_users WHERE user_id = $1 AND blocked_user_id = $2',
+        [user.id, viewerId]
+      );
+      if (blocked.rows.length > 0) {
+        return res.status(403).json({ success: false, error: 'profile_blocked', message: 'This user has blocked you.' });
+      }
+    }
     
     // Get post count
     const postCountResult = await db.query(
@@ -983,7 +1357,7 @@ app.put('/api/settings', authMiddleware, async (req, res) => {
 });
 
 // API: Change password (authenticated)
-app.post('/api/settings/change-password', authMiddleware, async (req, res) => {
+app.post('/api/settings/change-password', authMiddleware, passwordChangeLimiter, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   const userId = req.user.userId;
   
@@ -1010,13 +1384,267 @@ app.post('/api/settings/change-password', authMiddleware, async (req, res) => {
       return res.status(401).json({ success: false, error: 'invalid_password' });
     }
     
-    // Hash and update new password
+    // Hash and update new password, and update password_changed_at
     const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-    await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, userId]);
+    await db.query(
+      'UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2',
+      [hash, userId]
+    );
     
-    res.json({ success: true, message: 'Password changed successfully' });
+    // Invalidate all refresh tokens for this user (logout all sessions)
+    await db.query('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1', [userId]);
+    
+    res.json({ success: true, message: 'Password changed successfully. Please login again.' });
   } catch (err) {
-    console.error('[CHANGE PASSWORD ERROR]', err.message);
+    logger.error('CHANGE_PASSWORD', err.message, { reqId: req.reqId });
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// ========================================
+// TWO-FACTOR AUTHENTICATION (2FA)
+// ========================================
+
+// Get 2FA status
+app.get('/api/settings/2fa', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    const result = await db.query(
+      'SELECT totp_enabled FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    res.json({ success: true, enabled: result.rows[0].totp_enabled || false });
+  } catch (err) {
+    console.error('[2FA STATUS ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Generate 2FA secret (setup)
+app.post('/api/settings/2fa/setup', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const userAlias = req.user.alias;
+  
+  try {
+    // Check if already enabled
+    const existing = await db.query('SELECT totp_enabled FROM users WHERE id = $1', [userId]);
+    if (existing.rows[0]?.totp_enabled) {
+      return res.status(400).json({ success: false, error: '2fa_already_enabled' });
+    }
+    
+    // Generate secret
+    const secret = speakeasy.generateSecret({
+      name: `ASPD Forum (${userAlias})`,
+      issuer: 'ASPD Forum'
+    });
+    
+    // Store secret temporarily (not enabled yet)
+    await db.query(
+      'UPDATE users SET totp_secret = $1, totp_enabled = FALSE WHERE id = $2',
+      [secret.base32, userId]
+    );
+    
+    // Generate QR code
+    const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
+    
+    res.json({ 
+      success: true, 
+      secret: secret.base32,
+      qrCode: qrCodeUrl
+    });
+  } catch (err) {
+    console.error('[2FA SETUP ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Verify and enable 2FA
+app.post('/api/settings/2fa/verify', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { code } = req.body;
+  
+  if (!code) {
+    return res.status(400).json({ success: false, error: 'code_required' });
+  }
+  
+  try {
+    // Get stored secret
+    const result = await db.query('SELECT totp_secret FROM users WHERE id = $1', [userId]);
+    if (!result.rows[0]?.totp_secret) {
+      return res.status(400).json({ success: false, error: 'setup_required' });
+    }
+    
+    const secret = result.rows[0].totp_secret;
+    
+    // Verify the code
+    const verified = speakeasy.totp.verify({
+      secret: secret,
+      encoding: 'base32',
+      token: code,
+      window: 1 // Allow 1 step tolerance
+    });
+    
+    if (!verified) {
+      return res.status(400).json({ success: false, error: 'invalid_code' });
+    }
+    
+    // Enable 2FA
+    await db.query('UPDATE users SET totp_enabled = TRUE WHERE id = $1', [userId]);
+    
+    // Generate backup codes
+    const backupCodes = [];
+    for (let i = 0; i < 8; i++) {
+      backupCodes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
+    }
+    
+    // Store backup codes
+    for (const code of backupCodes) {
+      const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+      await db.query(
+        'INSERT INTO recovery_codes (user_id, code_hash) VALUES ($1, $2)',
+        [userId, codeHash]
+      );
+    }
+    
+    res.json({ success: true, backupCodes });
+  } catch (err) {
+    console.error('[2FA VERIFY ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Disable 2FA
+app.post('/api/settings/2fa/disable', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { password, code } = req.body;
+  
+  if (!password) {
+    return res.status(400).json({ success: false, error: 'password_required' });
+  }
+  
+  try {
+    // Verify password
+    const result = await db.query('SELECT password_hash, totp_secret, totp_enabled FROM users WHERE id = $1', [userId]);
+    if (!result.rows[0]) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    const valid = await bcrypt.compare(password, result.rows[0].password_hash);
+    if (!valid) {
+      return res.status(401).json({ success: false, error: 'invalid_password' });
+    }
+    
+    // If 2FA is enabled, require code
+    if (result.rows[0].totp_enabled) {
+      if (!code) {
+        return res.status(400).json({ success: false, error: 'code_required' });
+      }
+      
+      const verified = speakeasy.totp.verify({
+        secret: result.rows[0].totp_secret,
+        encoding: 'base32',
+        token: code,
+        window: 1
+      });
+      
+      if (!verified) {
+        return res.status(400).json({ success: false, error: 'invalid_code' });
+      }
+    }
+    
+    // Disable 2FA
+    await db.query('UPDATE users SET totp_secret = NULL, totp_enabled = FALSE WHERE id = $1', [userId]);
+    
+    // Delete recovery codes
+    await db.query('DELETE FROM recovery_codes WHERE user_id = $1', [userId]);
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[2FA DISABLE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Get active sessions for current user
+app.get('/api/settings/sessions', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    const result = await db.query(
+      `SELECT id, created_at, expires_at, 
+              CASE WHEN token_hash = $2 THEN true ELSE false END AS is_current
+       FROM refresh_tokens 
+       WHERE user_id = $1 AND revoked = FALSE AND expires_at > NOW()
+       ORDER BY created_at DESC`,
+      [userId, req.currentTokenHash || '']
+    );
+    
+    res.json({ 
+      success: true, 
+      sessions: result.rows.map(s => ({
+        id: s.id,
+        createdAt: s.created_at,
+        expiresAt: s.expires_at,
+        isCurrent: s.is_current
+      }))
+    });
+  } catch (err) {
+    console.error('[GET SESSIONS ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Revoke a specific session
+app.delete('/api/settings/sessions/:id', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const sessionId = parseInt(req.params.id);
+  
+  if (!sessionId || isNaN(sessionId)) {
+    return res.status(400).json({ success: false, error: 'invalid_session_id' });
+  }
+  
+  try {
+    const result = await db.query(
+      'UPDATE refresh_tokens SET revoked = TRUE WHERE id = $1 AND user_id = $2 RETURNING id',
+      [sessionId, userId]
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'session_not_found' });
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[REVOKE SESSION ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Logout all sessions except current
+app.post('/api/settings/sessions/logout-all', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { currentTokenHash } = req.body;
+  
+  try {
+    // Revoke all tokens except the current one (if provided)
+    if (currentTokenHash) {
+      await db.query(
+        'UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1 AND token_hash != $2',
+        [userId, currentTokenHash]
+      );
+    } else {
+      await db.query('UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1', [userId]);
+    }
+    
+    res.json({ success: true, message: 'All other sessions have been logged out.' });
+  } catch (err) {
+    console.error('[LOGOUT ALL ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -1978,7 +2606,7 @@ app.get('/api/thread/:id', authMiddleware, async (req, res) => {
 });
 
 // Create new thread
-app.post('/api/threads', authMiddleware, ipBanMiddleware, userBanMiddleware, async (req, res) => {
+app.post('/api/threads', authMiddleware, ipBanMiddleware, userBanMiddleware, threadsLimiter, async (req, res) => {
   const { roomId, title, content, tags } = req.body;
   const userId = req.user.userId;
 
@@ -2148,14 +2776,22 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
         if (mentionedUser.rows.length > 0 && mentionedUser.rows[0].id !== userId) {
           const mentionedUserId = mentionedUser.rows[0].id;
           
+          // Check if blocked (either direction) - blocked users can't mention each other
+          const isBlocked = await isBlockedBetween(userId, mentionedUserId);
+          if (isBlocked) continue;
+          
+          const notificationTitle = `${entryAlias} mentioned you`;
+          const notificationPreview = content.substring(0, 100) + (content.length > 100 ? '...' : '');
+          const notificationLink = `thread.html?id=${threadDbId}#entry-${entryId}`;
+          
           await db.query(
             `INSERT INTO notifications (user_id, type, title, message, link, related_entry_id, related_user_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [mentionedUserId, 'mention', `${entryAlias} mentioned you`, 
-             content.substring(0, 100) + (content.length > 100 ? '...' : ''),
-             `thread.html?id=${threadDbId}`,
-             entryId, userId]
+            [mentionedUserId, 'mention', notificationTitle, notificationPreview, notificationLink, entryId, userId]
           );
+          
+          // Send email notification (non-blocking)
+          sendNotificationEmail(mentionedUserId, 'mention', notificationTitle, notificationPreview, notificationLink);
         }
       }
     } catch (mentionErr) {
@@ -2184,14 +2820,18 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
       );
       
       for (const sub of subscribersResult.rows) {
+        const notificationTitle = `New reply in "${threadTitle.substring(0, 50)}"`;
+        const notificationPreview = `${entryAlias} posted: ${content.substring(0, 80)}${content.length > 80 ? '...' : ''}`;
+        const notificationLink = `thread.html?id=${threadDbId}#entry-${entryId}`;
+        
         await db.query(
           `INSERT INTO notifications (user_id, type, title, message, link, related_entry_id, related_user_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [sub.user_id, 'thread_reply', `New reply in "${threadTitle.substring(0, 50)}"`, 
-           `${entryAlias} posted: ${content.substring(0, 80)}${content.length > 80 ? '...' : ''}`,
-           `thread.html?id=${threadDbId}#entry-${entryId}`,
-           entryId, userId]
+          [sub.user_id, 'thread_reply', notificationTitle, notificationPreview, notificationLink, entryId, userId]
         );
+        
+        // Send email notification (non-blocking)
+        sendNotificationEmail(sub.user_id, 'thread_reply', notificationTitle, notificationPreview, notificationLink);
       }
     } catch (subErr) {
       // Silent fail - subscription notifications should not break posting
@@ -2302,7 +2942,7 @@ app.delete('/api/entries/:id', authMiddleware, async (req, res) => {
 // ========================================
 
 // Submit a report
-app.post('/api/reports', authMiddleware, async (req, res) => {
+app.post('/api/reports', authMiddleware, reportsLimiter, async (req, res) => {
   const { entry_id, reason, details } = req.body;
   const userId = req.user.userId;
 
@@ -4121,6 +4761,98 @@ app.get('/api/users/:alias/muted', authMiddleware, async (req, res) => {
 });
 
 // ========================================
+// BLOCKED USERS
+// ========================================
+
+// Block/unblock a user
+app.post('/api/users/:alias/block', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { alias } = req.params;
+
+  try {
+    const target = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+    if (target.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    const targetId = target.rows[0].id;
+    
+    if (targetId === userId) {
+      return res.status(400).json({ success: false, error: 'cannot_block_self' });
+    }
+
+    // Toggle block
+    const existing = await db.query(
+      'SELECT id FROM blocked_users WHERE user_id = $1 AND blocked_user_id = $2',
+      [userId, targetId]
+    );
+
+    if (existing.rows.length > 0) {
+      await db.query('DELETE FROM blocked_users WHERE id = $1', [existing.rows[0].id]);
+      res.json({ success: true, action: 'unblocked' });
+    } else {
+      await db.query(
+        'INSERT INTO blocked_users (user_id, blocked_user_id) VALUES ($1, $2)',
+        [userId, targetId]
+      );
+      res.json({ success: true, action: 'blocked' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Get list of blocked users
+app.get('/api/my/blocked', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await db.query(
+      `SELECT u.alias, u.avatar_config, bu.created_at
+       FROM blocked_users bu
+       JOIN users u ON u.id = bu.blocked_user_id
+       WHERE bu.user_id = $1
+       ORDER BY bu.created_at DESC`,
+      [userId]
+    );
+    res.json({ success: true, blocked: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Check if user is blocked
+app.get('/api/users/:alias/blocked', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { alias } = req.params;
+
+  try {
+    const target = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+    if (target.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'user_not_found' });
+    }
+    
+    const result = await db.query(
+      'SELECT id FROM blocked_users WHERE user_id = $1 AND blocked_user_id = $2',
+      [userId, target.rows[0].id]
+    );
+    res.json({ success: true, isBlocked: result.rows.length > 0 });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Helper: Check if user A has blocked user B or vice versa
+async function isBlockedBetween(userIdA, userIdB) {
+  const result = await db.query(
+    `SELECT id FROM blocked_users 
+     WHERE (user_id = $1 AND blocked_user_id = $2) 
+        OR (user_id = $2 AND blocked_user_id = $1)`,
+    [userIdA, userIdB]
+  );
+  return result.rows.length > 0;
+}
+
+// ========================================
 // DRAFTS LIST
 // ========================================
 
@@ -4213,7 +4945,7 @@ app.get('/api/messages/:id', authMiddleware, async (req, res) => {
 });
 
 // Send message
-app.post('/api/messages', authMiddleware, async (req, res) => {
+app.post('/api/messages', authMiddleware, messagesLimiter, async (req, res) => {
   const { recipient_alias, subject, content } = req.body;
   const senderId = req.user.userId;
 
@@ -4243,6 +4975,11 @@ app.post('/api/messages', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, error: 'cannot_message_self' });
     }
 
+    // Check if blocked (either direction)
+    if (await isBlockedBetween(senderId, recipientId)) {
+      return res.status(403).json({ success: false, error: 'user_blocked' });
+    }
+
     // Sanitize content for XSS
     const sanitizedContent = sanitizeContent(content);
     const sanitizedSubject = subject ? sanitizeContent(subject) : null;
@@ -4259,13 +4996,17 @@ app.post('/api/messages', authMiddleware, async (req, res) => {
     const senderResult = await db.query('SELECT alias FROM users WHERE id = $1', [senderId]);
     const senderAlias = senderResult.rows[0]?.alias || 'Someone';
 
+    const notificationTitle = `New message from ${senderAlias}`;
+    const notificationPreview = sanitizedSubject || sanitizedContent.substring(0, 50);
+    
     await db.query(
       `INSERT INTO notifications (user_id, type, title, message, link, related_user_id)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [recipientId, 'private_message', `New message from ${senderAlias}`,
-       subject || content.substring(0, 50),
-       'messages.html', senderId]
+      [recipientId, 'private_message', notificationTitle, notificationPreview, 'messages.html', senderId]
     );
+    
+    // Send email notification (non-blocking)
+    sendNotificationEmail(recipientId, 'private_message', notificationTitle, notificationPreview, 'messages.html');
 
     res.json({ success: true, messageId: insertResult.rows[0].id });
   } catch (err) {
@@ -4595,6 +5336,19 @@ async function migrate() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_replies BOOLEAN DEFAULT TRUE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_mentions BOOLEAN DEFAULT TRUE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_messages BOOLEAN DEFAULT TRUE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP DEFAULT NOW();
+      
+      -- Refresh tokens table (for session management)
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(255) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        revoked BOOLEAN DEFAULT FALSE
+      );
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
       
       -- Password reset tokens table
       CREATE TABLE IF NOT EXISTS password_reset_tokens (
@@ -4896,6 +5650,31 @@ async function migrate() {
       );
       CREATE INDEX IF NOT EXISTS idx_muted_users ON muted_users(user_id);
       
+      -- Blocked users (stronger than mute - prevents DMs, mentions, profile views)
+      CREATE TABLE IF NOT EXISTS blocked_users (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        blocked_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, blocked_user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_blocked_users_user ON blocked_users(user_id);
+      CREATE INDEX IF NOT EXISTS idx_blocked_users_blocked ON blocked_users(blocked_user_id);
+      
+      -- Recovery codes for users without email
+      CREATE TABLE IF NOT EXISTS recovery_codes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        code_hash VARCHAR(255) NOT NULL,
+        used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_recovery_codes_user ON recovery_codes(user_id);
+      
+      -- 2FA secrets
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE;
+      
       -- Insert default tags
       INSERT INTO tags (name, color) VALUES 
         ('Discussion', '#4a9eff'),
@@ -4941,9 +5720,26 @@ app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, '..', '404.html'));
 });
 
+// Cleanup expired refresh tokens periodically (every hour)
+async function cleanupExpiredTokens() {
+  try {
+    const result = await db.query(
+      'DELETE FROM refresh_tokens WHERE expires_at < NOW() OR revoked = TRUE'
+    );
+    if (result.rowCount > 0) {
+      console.log(`[CLEANUP] Removed ${result.rowCount} expired/revoked refresh tokens`);
+    }
+  } catch (err) {
+    console.error('[CLEANUP ERROR]', err.message);
+  }
+}
+
 // Start server
 migrate().then(() => {
   app.listen(PORT, () => {
     console.log('[SERVER] Port ' + PORT);
-  });
+    
+    // Run cleanup on startup and every hour
+    cleanupExpiredTokens();
+    setInterval(cleanupExpiredTokens, 60 * 60 * 1000);  });
 });

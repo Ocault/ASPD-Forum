@@ -22,6 +22,11 @@
   <link rel="apple-touch-icon" href="sigil.png">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
+  <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+  <style>
+    .h-captcha { margin: 1rem 0; display: flex; justify-content: center; }
+    .h-captcha iframe { filter: grayscale(0.8) brightness(0.9); }
+  </style>
 </head>
 <body>
 
@@ -52,6 +57,19 @@
           <label class="auth-label" for="pass">PASSWORD</label>
           <input type="password" id="pass" name="pass" class="auth-input" required autocomplete="new-password" aria-describedby="pass-hint" placeholder="Password">
           <span id="pass-hint" class="sr-only">Minimum 8 characters with uppercase, lowercase, and number</span>
+          
+          <!-- Password Strength Indicator -->
+          <div class="password-strength" id="password-strength" style="display: none; margin-top: 0.5rem;">
+            <div class="strength-bar" style="height: 3px; background: #1a1a1a; margin-bottom: 0.5rem;">
+              <div class="strength-fill" id="strength-fill" style="height: 100%; width: 0%; transition: all 0.3s;"></div>
+            </div>
+            <div class="strength-checks" style="font-size: 0.65rem; color: #404040;">
+              <div id="check-length"><span class="check-icon">✗</span> 8+ characters</div>
+              <div id="check-upper"><span class="check-icon">✗</span> Uppercase letter</div>
+              <div id="check-lower"><span class="check-icon">✗</span> Lowercase letter</div>
+              <div id="check-number"><span class="check-icon">✗</span> Number</div>
+            </div>
+          </div>
         </div>
         
         <div class="auth-field">
@@ -59,6 +77,9 @@
           <input type="password" id="pass-confirm" name="pass-confirm" class="auth-input" required autocomplete="new-password" aria-describedby="confirm-hint" placeholder="Confirm password">
           <span id="confirm-hint" class="sr-only">Re-enter your password to confirm</span>
         </div>
+        
+        <!-- hCaptcha -->
+        <div class="h-captcha" data-sitekey="10000000-ffff-ffff-ffff-000000000001" data-theme="dark"></div>
         
         <button type="submit" class="auth-btn" aria-label="Create new account">REGISTER</button>
       </form>
@@ -83,6 +104,59 @@
       'use strict';
       var form = document.getElementById('register-form');
       var submitBtn = form.querySelector('button[type="submit"]');
+      
+      // Password strength indicator
+      var passInput = document.getElementById('pass');
+      var strengthContainer = document.getElementById('password-strength');
+      var strengthFill = document.getElementById('strength-fill');
+      var checkLength = document.getElementById('check-length');
+      var checkUpper = document.getElementById('check-upper');
+      var checkLower = document.getElementById('check-lower');
+      var checkNumber = document.getElementById('check-number');
+      
+      function updatePasswordStrength(password) {
+        if (!password) {
+          strengthContainer.style.display = 'none';
+          return;
+        }
+        strengthContainer.style.display = 'block';
+        
+        var checks = {
+          length: password.length >= 8,
+          upper: /[A-Z]/.test(password),
+          lower: /[a-z]/.test(password),
+          number: /[0-9]/.test(password)
+        };
+        
+        // Update check marks
+        updateCheck(checkLength, checks.length);
+        updateCheck(checkUpper, checks.upper);
+        updateCheck(checkLower, checks.lower);
+        updateCheck(checkNumber, checks.number);
+        
+        // Calculate strength
+        var score = Object.values(checks).filter(Boolean).length;
+        var percent = (score / 4) * 100;
+        var color = score <= 1 ? '#603030' : score <= 2 ? '#604030' : score <= 3 ? '#606030' : '#306030';
+        
+        strengthFill.style.width = percent + '%';
+        strengthFill.style.background = color;
+      }
+      
+      function updateCheck(el, passed) {
+        var icon = el.querySelector('.check-icon');
+        if (passed) {
+          icon.textContent = '✓';
+          el.style.color = '#406040';
+        } else {
+          icon.textContent = '✗';
+          el.style.color = '#404040';
+        }
+      }
+      
+      passInput.addEventListener('input', function() {
+        updatePasswordStrength(this.value);
+      });
       
       form.addEventListener('submit', function(e) {
         e.preventDefault();
@@ -131,13 +205,23 @@
           return;
         }
 
+        // Get hCaptcha token
+        var captchaToken = '';
+        if (typeof hcaptcha !== 'undefined') {
+          captchaToken = hcaptcha.getResponse();
+          if (!captchaToken) {
+            Notify.show('PLEASE COMPLETE THE CAPTCHA', 'error');
+            return;
+          }
+        }
+
         submitBtn.disabled = true;
         submitBtn.textContent = 'PROCESSING...';
 
         fetch(AuthState.API_BASE + '/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ alias: alias, password: password, email: email || null })
+          body: JSON.stringify({ alias: alias, password: password, email: email || null, captchaToken: captchaToken })
         })
         .then(function(res) {
           if (!res.ok) {

@@ -119,6 +119,22 @@
           </form>
         </div>
 
+        <!-- Active Sessions -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <span class="settings-icon">📱</span>
+            <span class="settings-label">ACTIVE SESSIONS</span>
+          </div>
+          <p style="font-size: 0.75rem; color: #404040; margin-bottom: 1rem;">Manage devices where you're logged in. Revoke access if you notice suspicious activity.</p>
+          <div class="sessions-list" id="sessions-list">
+            <div class="empty-state">Loading...</div>
+          </div>
+          <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+            <button type="button" class="settings-btn" id="refresh-sessions-btn">REFRESH</button>
+            <button type="button" class="settings-btn danger" id="logout-all-btn">LOGOUT ALL DEVICES</button>
+          </div>
+        </div>
+
         <!-- Thread Subscriptions -->
         <div class="settings-card">
           <div class="settings-card-header">
@@ -508,6 +524,7 @@
           document.getElementById('social-actions').style.display = 'none';
           loadSubscriptions();
           loadEmailSettings();
+          loadSessions();
         } else {
           // Show follow/mute buttons for other users
           profileActions.style.display = 'none';
@@ -1090,6 +1107,101 @@
             }
           });
       }
+
+      // ========================================
+      // SESSION MANAGEMENT
+      // ========================================
+      
+      var sessionsList = document.getElementById('sessions-list');
+      var refreshSessionsBtn = document.getElementById('refresh-sessions-btn');
+      var logoutAllBtn = document.getElementById('logout-all-btn');
+      
+      function loadSessions() {
+        sessionsList.innerHTML = '<div class="empty-state">Loading...</div>';
+        
+        AuthState.apiRequest('/api/settings/sessions')
+          .then(function(data) {
+            if (data.success && data.sessions.length > 0) {
+              sessionsList.innerHTML = data.sessions.map(function(session) {
+                var created = new Date(session.createdAt);
+                var expires = new Date(session.expiresAt);
+                var timeAgo = getTimeAgo(created);
+                var currentTag = session.isCurrent ? ' <span style="color: #406040; font-weight: bold;">(CURRENT)</span>' : '';
+                
+                return '<div class="session-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid #1a1a1a; margin-bottom: 0.5rem;">' +
+                  '<div>' +
+                    '<div style="font-size: 0.8rem; color: #606060;">Session started ' + timeAgo + currentTag + '</div>' +
+                    '<div style="font-size: 0.7rem; color: #404040;">Expires: ' + expires.toLocaleDateString() + '</div>' +
+                  '</div>' +
+                  (session.isCurrent ? '' : '<button class="settings-btn danger revoke-session-btn" data-id="' + session.id + '" style="padding: 0.25rem 0.5rem; font-size: 0.65rem;">REVOKE</button>') +
+                '</div>';
+              }).join('');
+              
+              // Add revoke handlers
+              sessionsList.querySelectorAll('.revoke-session-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                  var sessionId = this.getAttribute('data-id');
+                  revokeSession(sessionId);
+                });
+              });
+            } else {
+              sessionsList.innerHTML = '<div class="empty-state">NO ACTIVE SESSIONS</div>';
+            }
+          })
+          .catch(function() {
+            sessionsList.innerHTML = '<div class="empty-state">FAILED TO LOAD SESSIONS</div>';
+          });
+      }
+      
+      function getTimeAgo(date) {
+        var seconds = Math.floor((new Date() - date) / 1000);
+        if (seconds < 60) return 'just now';
+        var minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return minutes + ' min ago';
+        var hours = Math.floor(minutes / 60);
+        if (hours < 24) return hours + ' hour' + (hours > 1 ? 's' : '') + ' ago';
+        var days = Math.floor(hours / 24);
+        return days + ' day' + (days > 1 ? 's' : '') + ' ago';
+      }
+      
+      function revokeSession(sessionId) {
+        AuthState.apiRequest('/api/settings/sessions/' + sessionId, {
+          method: 'DELETE'
+        })
+        .then(function(data) {
+          if (data.success) {
+            Notify.show('SESSION REVOKED', 'success');
+            loadSessions();
+          } else {
+            Notify.show(data.error || 'FAILED', 'error');
+          }
+        })
+        .catch(function() {
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      }
+      
+      refreshSessionsBtn.addEventListener('click', loadSessions);
+      
+      logoutAllBtn.addEventListener('click', function() {
+        if (!confirm('This will log you out of all other devices. Continue?')) return;
+        
+        AuthState.apiRequest('/api/settings/sessions/logout-all', {
+          method: 'POST',
+          body: JSON.stringify({})
+        })
+        .then(function(data) {
+          if (data.success) {
+            Notify.show('ALL OTHER SESSIONS LOGGED OUT', 'success');
+            loadSessions();
+          } else {
+            Notify.show(data.error || 'FAILED', 'error');
+          }
+        })
+        .catch(function() {
+          Notify.show('CONNECTION ERROR', 'error');
+        });
+      });
 
       // Change password
       changePasswordForm.addEventListener('submit', function(e) {

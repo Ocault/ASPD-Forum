@@ -356,6 +356,7 @@
         <button class="admin-nav-btn" data-section="announcements">ANNOUNCEMENTS</button>
         <button class="admin-nav-btn" data-section="bans">IP BANS</button>
         <button class="admin-nav-btn" data-section="filters">WORD FILTERS</button>
+        <button class="admin-nav-btn" data-section="audit">AUDIT LOG</button>
       </div>
 
       <div class="admin-content" id="admin-content">
@@ -662,6 +663,29 @@
             <tbody id="filters-list"></tbody>
           </table>
         </div>
+
+        <!-- Audit Log -->
+        <div class="admin-section" id="section-audit">
+          <div class="admin-section-title">ADMIN AUDIT LOG</div>
+          <p style="font-size: 0.5rem; color: var(--text-muted); margin-bottom: var(--spacing-md);">Record of all administrative actions taken on this forum.</p>
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>TIME</th>
+                <th>ADMIN</th>
+                <th>ACTION</th>
+                <th>TARGET</th>
+                <th>DETAILS</th>
+              </tr>
+            </thead>
+            <tbody id="audit-list"></tbody>
+          </table>
+          <div class="admin-pagination" id="audit-pagination" style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm); align-items: center;">
+            <button class="admin-btn" id="audit-prev" disabled>◄ PREV</button>
+            <span id="audit-page-info" style="font-size: 0.5rem; color: var(--text-muted);">PAGE 1</span>
+            <button class="admin-btn" id="audit-next">NEXT ►</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -716,7 +740,54 @@
         else if (section === 'announcements') loadAnnouncements();
         else if (section === 'bans') loadIpBans();
         else if (section === 'filters') loadFilters();
+        else if (section === 'audit') loadAuditLog();
       }
+
+      // Audit Log
+      var auditPage = 1;
+      function loadAuditLog() {
+        var list = document.getElementById('audit-list');
+        list.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading...</td></tr>';
+        
+        AuthState.fetchWithAuth('/admin/audit?page=' + auditPage + '&limit=25')
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (!data.success) throw new Error(data.error);
+            list.innerHTML = '';
+            if (data.logs.length === 0) {
+              list.innerHTML = '<tr><td colspan="5" style="text-align:center;">No audit logs found</td></tr>';
+              return;
+            }
+            data.logs.forEach(function(log) {
+              var tr = document.createElement('tr');
+              var date = new Date(log.created_at);
+              var timeStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+              var details = log.details ? (typeof log.details === 'object' ? JSON.stringify(log.details) : log.details) : '-';
+              if (details.length > 50) details = details.substring(0, 47) + '...';
+              tr.innerHTML = '<td>' + timeStr + '</td>' +
+                '<td>' + (log.admin_alias || 'Unknown') + '</td>' +
+                '<td>' + (log.action || '-') + '</td>' +
+                '<td>' + (log.target_type || '-') + (log.target_id ? ' #' + log.target_id : '') + '</td>' +
+                '<td title="' + (log.details ? JSON.stringify(log.details).replace(/"/g, '&quot;') : '') + '">' + details + '</td>';
+              list.appendChild(tr);
+            });
+            // Pagination
+            var pagination = data.pagination;
+            document.getElementById('audit-page-info').textContent = 'PAGE ' + pagination.page + ' OF ' + pagination.totalPages;
+            document.getElementById('audit-prev').disabled = pagination.page <= 1;
+            document.getElementById('audit-next').disabled = pagination.page >= pagination.totalPages;
+          })
+          .catch(function(err) {
+            list.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--error-color);">Error: ' + err.message + '</td></tr>';
+          });
+      }
+
+      document.getElementById('audit-prev').addEventListener('click', function() {
+        if (auditPage > 1) { auditPage--; loadAuditLog(); }
+      });
+      document.getElementById('audit-next').addEventListener('click', function() {
+        auditPage++; loadAuditLog();
+      });
 
       function formatDate(d) {
         if (!d) return '-';
