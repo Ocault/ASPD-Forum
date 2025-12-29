@@ -470,8 +470,14 @@ function initWebSocket(server) {
         }
         wsClients.get(userId).add(ws);
 
-        // Update last_seen
-        db.query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [userId]);
+        // Update last_seen and last_ip
+        // Get IP from WebSocket connection (X-Forwarded-For is in upgrade request headers)
+        const wsIp = req.headers['cf-connecting-ip'] || 
+                     req.headers['x-real-ip'] || 
+                     req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                     req.socket?.remoteAddress;
+        const ipHash = hashIp(wsIp);
+        db.query('UPDATE users SET last_seen_at = NOW(), last_ip = $1 WHERE id = $2', [ipHash, userId]);
 
         console.log(`[WS] User ${userAlias} connected (${wsClients.get(userId).size} connections)`);
 
@@ -766,6 +772,14 @@ function authMiddleware(req, res, next) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
+    
+    // Asynchronously update last_seen and last_ip (non-blocking)
+    const ipHash = hashIp(getClientIp(req));
+    db.query(
+      'UPDATE users SET last_seen_at = NOW(), last_ip = $1 WHERE id = $2',
+      [ipHash, decoded.userId]
+    ).catch(() => {}); // Silent fail - don't block request
+    
     next();
   } catch (err) {
     return res.status(401).json({ error: 'unauthorized' });
@@ -5055,7 +5069,7 @@ app.get('/api/admin/users/:id', authMiddleware, modMiddleware, async (req, res) 
 
   try {
     const userResult = await db.query(
-      `SELECT id, alias, bio, is_admin, role, is_banned, ban_reason, ban_expires_at, is_shadow_banned, created_at
+      `SELECT id, alias, bio, is_admin, role, is_banned, ban_reason, ban_expires_at, is_shadow_banned, created_at, last_ip, last_seen_at
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -5066,12 +5080,16 @@ app.get('/api/admin/users/:id', authMiddleware, modMiddleware, async (req, res) 
 
     const user = userResult.rows[0];
 
-    // Get last known IP from most recent entry
-    const lastIpResult = await db.query(
-      'SELECT ip_hash FROM entries WHERE user_id = $1 AND ip_hash IS NOT NULL ORDER BY created_at DESC LIMIT 1',
-      [userId]
-    );
-    const lastIp = lastIpResult.rows.length > 0 ? lastIpResult.rows[0].ip_hash : null;
+    // Use last_ip from users table (updated on every authenticated request)
+    // Fall back to most recent entry IP if users.last_ip is null
+    let lastIp = user.last_ip;
+    if (!lastIp) {
+      const lastIpResult = await db.query(
+        'SELECT ip_hash FROM entries WHERE user_id = $1 AND ip_hash IS NOT NULL ORDER BY created_at DESC LIMIT 1',
+        [userId]
+      );
+      lastIp = lastIpResult.rows.length > 0 ? lastIpResult.rows[0].ip_hash : null;
+    }
 
     // Get warning count
     const warningCount = await db.query(
@@ -5100,6 +5118,7 @@ app.get('/api/admin/users/:id', authMiddleware, modMiddleware, async (req, res) 
       user: {
         ...user,
         last_ip: lastIp,
+        last_seen_at: user.last_seen_at,
         warning_count: parseInt(warningCount.rows[0].count),
         note_count: parseInt(noteCount.rows[0].count),
         recent_entries: recentEntries.rows
@@ -8133,6 +8152,9 @@ async function migrate() {
       
       -- Add last_seen to users
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP;
+      
+      -- Add last IP hash (recorded on every authenticated request)
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_ip TEXT;
       
       -- Add signature to users
       ALTER TABLE users ADD COLUMN IF NOT EXISTS signature VARCHAR(200);
