@@ -766,6 +766,7 @@
       fetch(AuthState.API_BASE + '/api/auth/2fa-status', { headers: headers })
         .then(function(res) { return res.json(); })
         .then(function(data) {
+          console.log('2FA status response:', data);
           if (data.success) {
             if (data.enabled) {
               twofaDisabledView.style.display = 'none';
@@ -774,11 +775,14 @@
               recoveryCodes.style.display = 'block';
               loadRecoveryCodes();
             }
+          } else if (data.error === '2fa_not_available') {
+            // Only hide if 2FA is truly not available
+            document.getElementById('twofa-section').style.display = 'none';
           }
         })
-        .catch(function() {
-          // 2FA not available on this server
-          document.getElementById('twofa-section').style.display = 'none';
+        .catch(function(err) {
+          console.error('2FA status check failed:', err);
+          // Don't hide section on network error - user might just need to try again
         });
       
       // Enable 2FA button - start setup
@@ -786,13 +790,18 @@
         var btn = this;
         btn.disabled = true;
         btn.textContent = 'GENERATING...';
+        console.log('Enable 2FA clicked, calling:', AuthState.API_BASE + '/api/auth/setup-2fa');
         
         fetch(AuthState.API_BASE + '/api/auth/setup-2fa', {
           method: 'POST',
           headers: headers
         })
-        .then(function(res) { return res.json(); })
+        .then(function(res) { 
+          console.log('Setup 2FA response status:', res.status);
+          return res.json(); 
+        })
         .then(function(data) {
+          console.log('Setup 2FA response:', data);
           btn.disabled = false;
           btn.textContent = 'ENABLE 2FA';
           
@@ -806,7 +815,8 @@
             Notify.show(data.error || '2FA SETUP FAILED', 'error');
           }
         })
-        .catch(function() {
+        .catch(function(err) {
+          console.error('Setup 2FA error:', err);
           btn.disabled = false;
           btn.textContent = 'ENABLE 2FA';
           Notify.show('CONNECTION ERROR', 'error');
@@ -962,10 +972,15 @@
       
       function loadSessions() {
         sessionsList.innerHTML = '<div style="color: #404040; font-size: 0.8rem;">Loading...</div>';
+        console.log('Loading sessions from:', AuthState.API_BASE + '/api/settings/sessions');
         
         fetch(AuthState.API_BASE + '/api/settings/sessions', { headers: headers })
-          .then(function(res) { return res.json(); })
+          .then(function(res) { 
+            console.log('Sessions response status:', res.status);
+            return res.json(); 
+          })
           .then(function(data) {
+            console.log('Sessions response:', data);
             if (data.success && data.sessions && data.sessions.length > 0) {
               sessionsList.innerHTML = data.sessions.map(function(session) {
                 var created = new Date(session.createdAt);
@@ -1063,10 +1078,15 @@
       
       function loadSubscriptions() {
         subscriptionsList.innerHTML = '<div style="color: #404040; font-size: 0.8rem;">Loading...</div>';
+        console.log('Loading subscriptions from:', AuthState.API_BASE + '/api/my/subscriptions');
         
         fetch(AuthState.API_BASE + '/api/my/subscriptions', { headers: headers })
-          .then(function(res) { return res.json(); })
+          .then(function(res) { 
+            console.log('Subscriptions response status:', res.status);
+            return res.json(); 
+          })
           .then(function(data) {
+            console.log('Subscriptions response:', data);
             if (data.success && data.subscriptions && data.subscriptions.length > 0) {
               subscriptionsList.innerHTML = data.subscriptions.map(function(sub) {
                 return '<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid #1a1a1a; margin-bottom: 0.5rem; background: #0d0d0d;">' +
