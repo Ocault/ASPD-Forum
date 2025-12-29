@@ -961,11 +961,16 @@ app.post('/api/settings/verify-email', authMiddleware, async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     
-    // Store token (reuse password_reset_tokens table with a type)
+    // Delete any existing verification tokens for this user
+    await db.query(
+      `DELETE FROM password_reset_tokens WHERE user_id = $1 AND token LIKE 'verify_%'`,
+      [userId]
+    );
+    
+    // Store new verification token
     await db.query(
       `INSERT INTO password_reset_tokens (user_id, token, expires_at)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id) DO UPDATE SET token = $2, expires_at = $3`,
+       VALUES ($1, $2, $3)`,
       [userId, 'verify_' + token, expires]
     );
     
