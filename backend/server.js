@@ -383,10 +383,39 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// Hash IP address for privacy-preserving slow-mode tracking
+// Normalize IPv6 to /64 prefix (first 4 groups) for consistent hashing
+// This prevents ban evasion by changing the suffix
+function normalizeIp(ip) {
+  if (!ip) return null;
+  
+  // Clean up IPv6-mapped IPv4 (::ffff:192.168.1.1 -> 192.168.1.1)
+  if (ip.startsWith('::ffff:')) {
+    ip = ip.slice(7);
+  }
+  
+  // Check if IPv6 (contains colons and not just IPv4 port)
+  if (ip.includes(':') && !ip.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+    // Expand :: notation if present
+    const parts = ip.split(':');
+    const emptyIndex = parts.indexOf('');
+    if (emptyIndex !== -1) {
+      const missing = 8 - parts.filter(p => p !== '').length;
+      parts.splice(emptyIndex, 1, ...Array(missing).fill('0000'));
+    }
+    // Take first 4 groups (/64 prefix)
+    return parts.slice(0, 4).map(p => p.padStart(4, '0')).join(':');
+  }
+  
+  // IPv4: return as-is
+  return ip;
+}
+
+// Hash IP address for privacy-preserving tracking
+// IPv6 addresses are normalized to /64 prefix first
 function hashIp(ip) {
   if (!ip) return null;
-  return crypto.createHash('sha256').update(ip + (process.env.IP_SALT || 'aspd')).digest('hex').slice(0, 16);
+  const normalized = normalizeIp(ip);
+  return crypto.createHash('sha256').update(normalized + (process.env.IP_SALT || 'aspd')).digest('hex').slice(0, 16);
 }
 
 // Get client IP from request
@@ -3144,14 +3173,21 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
     // Use provided alias or user's alias
     const entryAlias = alias || userAlias;
     
+    // Check if user is shadow banned (user-level)
+    const shadowCheck = await db.query(
+      'SELECT is_shadow_banned FROM users WHERE id = $1',
+      [userId]
+    );
+    const isShadowBanned = shadowCheck.rows[0]?.is_shadow_banned || false;
+    
     // Apply word filter and XSS sanitization
     const filteredContent = sanitizeContent(await filterContent(content));
 
     const insertResult = await db.query(
       `INSERT INTO entries (thread_id, content, alias, avatar_config, user_id, ip_hash, shadow_banned)
-       VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, thread_id AS "threadId", content, alias, avatar_config AS "avatarConfig", created_at AS "createdAt", user_id`,
-      [threadDbId, filteredContent, entryAlias, avatar_config || null, userId, ipHash]
+      [threadDbId, filteredContent, entryAlias, avatar_config || null, userId, ipHash, isShadowBanned]
     );
 
     // Audit log for post tracking
@@ -3660,9 +3696,23 @@ app.post('/api/reports', authMiddleware, reportsLimiter, async (req, res) => {
   }
 });
 
-// Admin: Get reports
+// Report severity weights for priority queue
+const REPORT_SEVERITY = {
+  'illegal': 100,
+  'harassment': 80,
+  'doxxing': 90,
+  'threat': 85,
+  'hate_speech': 75,
+  'spam': 30,
+  'misinformation': 50,
+  'off_topic': 10,
+  'other': 20
+};
+
+// Admin: Get reports (sorted by severity priority)
 app.get('/api/admin/reports', authMiddleware, adminMiddleware, async (req, res) => {
   const status = req.query.status || 'pending';
+  const sortBy = req.query.sort || 'priority'; // 'priority' or 'date'
   const page = parseInt(req.query.page) || 1;
   const limit = Math.min(parseInt(req.query.limit) || 50, 100);
   const offset = (page - 1) * limit;
@@ -3674,15 +3724,36 @@ app.get('/api/admin/reports', authMiddleware, adminMiddleware, async (req, res) 
     );
     const total = parseInt(countResult.rows[0].count);
 
+    // Build ORDER BY based on sort preference
+    // Priority sorting: severity weight DESC, then report count on same entry, then date
+    const orderClause = sortBy === 'priority' 
+      ? `ORDER BY 
+           CASE r.reason 
+             WHEN 'illegal' THEN 100
+             WHEN 'doxxing' THEN 90
+             WHEN 'threat' THEN 85
+             WHEN 'harassment' THEN 80
+             WHEN 'hate_speech' THEN 75
+             WHEN 'misinformation' THEN 50
+             WHEN 'spam' THEN 30
+             WHEN 'other' THEN 20
+             WHEN 'off_topic' THEN 10
+             ELSE 25
+           END DESC,
+           (SELECT COUNT(*) FROM reports r2 WHERE r2.entry_id = r.entry_id AND r2.status = 'pending') DESC,
+           r.created_at ASC`
+      : `ORDER BY r.created_at DESC`;
+
     const result = await db.query(
       `SELECT r.id, r.entry_id, r.reason, r.details, r.status, r.created_at,
               e.content AS entry_content, e.alias AS entry_alias,
-              u.alias AS reporter_alias
+              u.alias AS reporter_alias,
+              (SELECT COUNT(*) FROM reports r2 WHERE r2.entry_id = r.entry_id AND r2.status = 'pending') AS report_count
        FROM reports r
        JOIN entries e ON e.id = r.entry_id
        JOIN users u ON u.id = r.reporter_id
        WHERE r.status = $1
-       ORDER BY r.created_at DESC
+       ${orderClause}
        LIMIT $2 OFFSET $3`,
       [status, limit, offset]
     );
@@ -3997,6 +4068,37 @@ app.post('/api/admin/users/:id/unban', authMiddleware, adminMiddleware, async (r
     await logAudit('unban_user', 'user', userId, adminId, null);
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Admin: Shadow ban user (all their new posts are automatically shadow banned)
+app.post('/api/admin/users/:id/shadow-ban', authMiddleware, adminMiddleware, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const adminId = req.user.userId;
+  const { shadowBanned } = req.body;
+
+  if (typeof shadowBanned !== 'boolean') {
+    return res.status(400).json({ success: false, error: 'invalid_value' });
+  }
+
+  try {
+    await db.query(
+      `UPDATE users SET is_shadow_banned = $1 WHERE id = $2`,
+      [shadowBanned, userId]
+    );
+
+    await logAudit(
+      shadowBanned ? 'shadow_ban_user' : 'unshadow_ban_user',
+      'user',
+      userId,
+      adminId,
+      { is_shadow_banned: shadowBanned }
+    );
+
+    res.json({ success: true, is_shadow_banned: shadowBanned });
+  } catch (err) {
+    console.error('[SHADOW BAN USER ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
