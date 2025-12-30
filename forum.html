@@ -97,7 +97,6 @@
     <footer class="forum-footer" data-component="forum-footer" role="contentinfo">
       <span data-bind="version">v1.0</span>
       <span data-bind="node-count">FORUMS: <span id="room-count" aria-live="polite">0</span></span>
-      <span data-bind="connection-status" aria-live="polite">ONLINE</span>
     </footer>
 
   </div>
@@ -309,20 +308,10 @@
             if (data.success && data.users) {
               var container = document.getElementById('whos-online-list');
               var countEl = document.getElementById('online-count');
-              var footerStatus = document.querySelector('[data-bind="connection-status"]');
               
               // Update the count display
               var countText = data.count + ' ONLINE';
               if (countEl) countEl.textContent = countText;
-              
-              // Also update footer with real breakdown
-              if (footerStatus) {
-                if (data.botCount > 0) {
-                  footerStatus.textContent = data.count + ' ONLINE (' + data.realCount + ' users, ' + data.botCount + ' bots)';
-                } else {
-                  footerStatus.textContent = data.count + ' ONLINE';
-                }
-              }
               
               if (container && data.users.length > 0) {
                 container.innerHTML = data.users.map(function(u) {
@@ -380,9 +369,7 @@
           window.ForumWebSocket.on('online_update', function(data) {
             if (data && typeof data.count === 'number') {
               var countEl = document.getElementById('online-count');
-              var footerStatus = document.querySelector('[data-bind="connection-status"]');
               if (countEl) countEl.textContent = data.count + ' ONLINE';
-              if (footerStatus) footerStatus.textContent = data.count + ' ONLINE';
               // Refresh the full list
               loadWhosOnline();
             }

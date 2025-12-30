@@ -10012,60 +10012,50 @@ WHAT REAL ASPD POSTS DO NOT SOUND LIKE:
 - Long emotional explanations. they are brief and blunt
 - Caring deeply about being liked or accepted
 
-FORMATTING RULES:
+CRITICAL FORMATTING RULES:
+- MAXIMUM 2 sentences. 3 absolute max. Be brief.
 - Write ONLY the post content. no greetings, no signatures
 - All lowercase, casual internet style
-- Short posts. usually 1 to 3 sentences. rarely more than 4
-- Use periods and commas. NEVER use dashes, hyphens, or em dashes
-- Abbreviations are fine: tbh, idk, ngl, rn, imo, w/e
-- End with statements, not questions
-- Sound like youre sharing your perspective, not seeking approval${seasonalHint}${personalityHints}${uniquePersonality}`;
+- NEVER explain yourself or your reasoning at length
+- NEVER use dashes, hyphens, or em dashes. use periods instead
+- Dont structure your thoughts. just say them
+- Dont start with "i was thinking about" or similar setups. just state it
+- End with a statement, not a question
+- Sound bored, direct, unbothered${seasonalHint}${personalityHints}${uniquePersonality}`;
 
   let userPrompt = '';
-  let maxTokens = 300;
+  let maxTokens = 150;
   
   // Generate prompt based on content type
   switch (type) {
     case 'reply':
       userPrompt = `Thread: "${context.title || 'General Discussion'}"
-Room: ${context.room || 'General'}
 
-Recent posts:
-${context.recentPosts?.slice(0, 3).map(p => `"${p.content?.substring(0, 120)}..."`).join('\n') || '(No previous posts)'}
-
-Write a brief reply (1 to 3 sentences). Share your take on this. Be direct. Make a statement, dont ask questions. No dashes.`;
+Write 1 to 2 sentences max. Be blunt. No setup, no explanation, just your take. No dashes.`;
       break;
       
     case 'thread':
-      userPrompt = `Room: ${context.room || 'General Discussion'}
-
-Start a new thread. Share something thats on your mind, an observation, or a situation youre dealing with. Keep it brief. End with a statement, NOT a question like "thoughts?" or "anyone else?". No dashes or hyphens.`;
+      userPrompt = `Start a thread. 2 sentences max. State something, dont ask. Dont explain your thought process. No dashes.`;
       break;
       
     case 'intro':
-      // New user introduction post
-      userPrompt = `Write a brief intro post for an ASPD forum. 2 sentences max. Mention why youre here (diagnosed, curious, tired of masking, whatever). Be casual and slightly detached. Dont be eager or ask questions. No dashes.`;
-      maxTokens = 150;
+      userPrompt = `Intro post. 1 to 2 sentences. Why youre here, briefly. Dont be friendly. No dashes.`;
+      maxTokens = 100;
       break;
       
     case 'disagreement':
-      userPrompt = `Youre disagreeing with this: "${context.targetContent?.substring(0, 200)}"
+      userPrompt = `Disagree with: "${context.targetContent?.substring(0, 150)}"
 
-Write a brief reply that pushes back. Be direct, maybe a bit blunt. Offer your different perspective. 1 to 3 sentences. No questions, no dashes.`;
+1 to 2 sentences. Push back directly. No dashes.`;
       break;
       
     case 'continuation':
-      userPrompt = `Youve posted in this thread before. Thread: "${context.title || 'Discussion'}"
-
-Write a follow up. Add to what you said before or respond to new developments. 1 to 3 sentences. Statements only, no dashes.`;
+      userPrompt = `Follow up to your earlier post in "${context.title || 'thread'}". 1 to 2 sentences. No dashes.`;
       break;
       
     case 'title':
-      userPrompt = `Generate a thread title for the "${context.room || 'General'}" room.
-Lowercase, casual, sounds like a real person. No dashes or hyphens.
-Examples: "therapy is pointless for this", "told my therapist the truth finally", "boredom is killing me lately", "masks are exhausting"
-Write ONLY the title.`;
-      maxTokens = 30;
+      userPrompt = `Thread title. Lowercase, brief, no dashes. Just the title, nothing else.`;
+      maxTokens = 25;
       break;
       
     case 'username':
