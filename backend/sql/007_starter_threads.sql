@@ -1,24 +1,14 @@
 -- ============================================
 -- ASPD Forum - Starter Content
 -- Run this after user account exists
--- Replace USER_ID with your actual user ID
+-- Replace YOUR_USERNAME with your actual alias
 -- ============================================
 
--- Get room IDs first (these are created by the migrate function)
--- general = 'general'
--- questions = 'questions' 
--- stories = 'stories'
--- relationships = 'relationships'
--- coping = 'coping'
--- diagnosis = 'diagnosis'
-
--- ============================================
--- THREAD 1: General Discussion - "finally found somewhere that gets it"
--- ============================================
-INSERT INTO threads (room_id, user_id, slug, title)
-SELECT r.id, u.id, 'finally-found-somewhere', 'finally found somewhere that gets it'
-FROM rooms r, users u 
-WHERE r.slug = 'general' AND u.alias = 'YOUR_USERNAME'
+-- THREAD 1: General Discussion
+INSERT INTO threads (room_id, slug, title)
+SELECT r.id, 'finally-found-somewhere', 'finally found somewhere that gets it'
+FROM rooms r
+WHERE r.slug = 'general'
 ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO entries (thread_id, user_id, alias, content)
@@ -32,13 +22,11 @@ FROM threads t, users u
 WHERE t.slug = 'finally-found-somewhere' AND u.alias = 'YOUR_USERNAME'
 ON CONFLICT DO NOTHING;
 
--- ============================================
--- THREAD 2: Coping - "what actually works vs what therapists tell you"
--- ============================================
-INSERT INTO threads (room_id, user_id, slug, title)
-SELECT r.id, u.id, 'what-actually-works', 'what actually works vs what therapists tell you'
-FROM rooms r, users u 
-WHERE r.slug = 'coping' AND u.alias = 'YOUR_USERNAME'
+-- THREAD 2: Coping
+INSERT INTO threads (room_id, slug, title)
+SELECT r.id, 'what-actually-works', 'what actually works vs what therapists tell you'
+FROM rooms r
+WHERE r.slug = 'coping'
 ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO entries (thread_id, user_id, alias, content)
@@ -64,13 +52,11 @@ FROM threads t, users u
 WHERE t.slug = 'what-actually-works' AND u.alias = 'YOUR_USERNAME'
 ON CONFLICT DO NOTHING;
 
--- ============================================
--- THREAD 3: Diagnosis - "court-ordered diagnosis gang"
--- ============================================
-INSERT INTO threads (room_id, user_id, slug, title)
-SELECT r.id, u.id, 'court-ordered-diagnosis', 'court-ordered diagnosis gang'
-FROM rooms r, users u 
-WHERE r.slug = 'diagnosis' AND u.alias = 'YOUR_USERNAME'
+-- THREAD 3: Diagnosis
+INSERT INTO threads (room_id, slug, title)
+SELECT r.id, 'court-ordered-diagnosis', 'court-ordered diagnosis gang'
+FROM rooms r
+WHERE r.slug = 'diagnosis'
 ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO entries (thread_id, user_id, alias, content)
@@ -88,13 +74,11 @@ FROM threads t, users u
 WHERE t.slug = 'court-ordered-diagnosis' AND u.alias = 'YOUR_USERNAME'
 ON CONFLICT DO NOTHING;
 
--- ============================================
--- THREAD 4: Relationships - "being upfront vs masking"
--- ============================================
-INSERT INTO threads (room_id, user_id, slug, title)
-SELECT r.id, u.id, 'upfront-vs-masking', 'being upfront vs masking - relationships'
-FROM rooms r, users u 
-WHERE r.slug = 'relationships' AND u.alias = 'YOUR_USERNAME'
+-- THREAD 4: Relationships
+INSERT INTO threads (room_id, slug, title)
+SELECT r.id, 'upfront-vs-masking', 'being upfront vs masking - relationships'
+FROM rooms r
+WHERE r.slug = 'relationships'
 ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO entries (thread_id, user_id, alias, content)
@@ -112,13 +96,11 @@ FROM threads t, users u
 WHERE t.slug = 'upfront-vs-masking' AND u.alias = 'YOUR_USERNAME'
 ON CONFLICT DO NOTHING;
 
--- ============================================
--- THREAD 5: Stories - "the moment you realized you were different"
--- ============================================
-INSERT INTO threads (room_id, user_id, slug, title)
-SELECT r.id, u.id, 'moment-you-realized', 'the moment you realized you were different'
-FROM rooms r, users u 
-WHERE r.slug = 'stories' AND u.alias = 'YOUR_USERNAME'
+-- THREAD 5: Stories
+INSERT INTO threads (room_id, slug, title)
+SELECT r.id, 'moment-you-realized', 'the moment you realized you were different'
+FROM rooms r
+WHERE r.slug = 'stories'
 ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO entries (thread_id, user_id, alias, content)

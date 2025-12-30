@@ -9002,7 +9002,7 @@ app.get('/api/public/rooms/:slug/threads', async (req, res) => {
   try {
     // Get room info
     const roomResult = await db.query(
-      'SELECT id, slug, title, description FROM rooms WHERE slug = $1 AND is_deleted = FALSE AND is_hidden = FALSE',
+      'SELECT id, slug, title, description FROM rooms WHERE slug = $1',
       [slug]
     );
     
@@ -9012,25 +9012,20 @@ app.get('/api/public/rooms/:slug/threads', async (req, res) => {
     
     const room = roomResult.rows[0];
     
-    // Get threads (public view - no vault/private threads)
+    // Get threads (simple query)
     const threadsResult = await db.query(`
-      SELECT t.id, t.slug, t.title, t.created_at, t.is_pinned, t.is_locked,
-             u.alias AS author,
-             (SELECT COUNT(*) FROM entries WHERE thread_id = t.id AND is_deleted = FALSE) AS reply_count,
-             (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id AND is_deleted = FALSE) AS last_activity
+      SELECT t.id, t.slug, t.title, t.created_at,
+             (SELECT COUNT(*) FROM entries WHERE thread_id = t.id) AS reply_count,
+             (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id) AS last_activity
       FROM threads t
-      JOIN users u ON u.id = t.user_id
-      WHERE t.room_id = $1 AND t.is_deleted = FALSE AND t.vault_level IS NULL
-      ORDER BY t.is_pinned DESC, COALESCE(
-        (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id AND is_deleted = FALSE),
-        t.created_at
-      ) DESC
+      WHERE t.room_id = $1
+      ORDER BY t.created_at DESC
       LIMIT $2 OFFSET $3
     `, [room.id, limit, offset]);
     
     // Get total count
     const countResult = await db.query(
-      'SELECT COUNT(*) FROM threads WHERE room_id = $1 AND is_deleted = FALSE AND vault_level IS NULL',
+      'SELECT COUNT(*) FROM threads WHERE room_id = $1',
       [room.id]
     );
     
@@ -9058,15 +9053,11 @@ app.get('/api/public/threads/:roomSlug/:threadSlug', async (req, res) => {
   try {
     // Get thread with room validation
     const threadResult = await db.query(`
-      SELECT t.id, t.slug, t.title, t.created_at, t.is_pinned, t.is_locked,
-             t.view_count, r.slug AS room_slug, r.title AS room_title,
-             u.alias AS author
+      SELECT t.id, t.slug, t.title, t.created_at,
+             r.slug AS room_slug, r.title AS room_title
       FROM threads t
       JOIN rooms r ON r.id = t.room_id
-      JOIN users u ON u.id = t.user_id
-      WHERE r.slug = $1 AND t.slug = $2 
-        AND t.is_deleted = FALSE AND t.vault_level IS NULL
-        AND r.is_deleted = FALSE AND r.is_hidden = FALSE
+      WHERE r.slug = $1 AND t.slug = $2
     `, [roomSlug, threadSlug]);
     
     if (threadResult.rows.length === 0) {
@@ -9081,14 +9072,14 @@ app.get('/api/public/threads/:roomSlug/:threadSlug', async (req, res) => {
              u.alias AS user_alias
       FROM entries e
       LEFT JOIN users u ON u.id = e.user_id
-      WHERE e.thread_id = $1 AND e.is_deleted = FALSE
+      WHERE e.thread_id = $1
       ORDER BY e.created_at ASC
       LIMIT $2 OFFSET $3
     `, [thread.id, limit, offset]);
     
     // Get total count
     const countResult = await db.query(
-      'SELECT COUNT(*) FROM entries WHERE thread_id = $1 AND is_deleted = FALSE',
+      'SELECT COUNT(*) FROM entries WHERE thread_id = $1',
       [thread.id]
     );
     
@@ -9118,8 +9109,6 @@ app.get('/api/public/activity', async (req, res) => {
       FROM entries e
       JOIN threads t ON t.id = e.thread_id
       JOIN rooms r ON r.id = t.room_id
-      WHERE e.is_deleted = FALSE AND t.is_deleted = FALSE AND t.vault_level IS NULL
-        AND r.is_deleted = FALSE AND r.is_hidden = FALSE
       ORDER BY e.created_at DESC
       LIMIT $1
     `, [limit]);
@@ -9154,8 +9143,6 @@ app.get('/api/public/search', async (req, res) => {
         FROM threads t
         JOIN rooms r ON r.id = t.room_id
         WHERE (t.title ILIKE $1 OR t.slug ILIKE $1)
-          AND t.is_deleted = FALSE AND t.vault_level IS NULL
-          AND r.is_deleted = FALSE AND r.is_hidden = FALSE
         ORDER BY t.created_at DESC
         LIMIT $2
       `, [searchPattern, limit]);
@@ -9176,19 +9163,15 @@ app.get('/api/public/sitemap', async (req, res) => {
     
     // Get all public rooms
     const roomsResult = await db.query(`
-      SELECT slug, updated_at FROM rooms 
-      WHERE is_deleted = FALSE AND is_hidden = FALSE
-      ORDER BY display_order ASC
+      SELECT slug FROM rooms ORDER BY id ASC
     `);
     
     // Get all public threads (limit to recent 1000 for performance)
     const threadsResult = await db.query(`
-      SELECT t.slug AS thread_slug, r.slug AS room_slug, t.updated_at
+      SELECT t.slug AS thread_slug, r.slug AS room_slug
       FROM threads t
       JOIN rooms r ON r.id = t.room_id
-      WHERE t.is_deleted = FALSE AND t.vault_level IS NULL
-        AND r.is_deleted = FALSE AND r.is_hidden = FALSE
-      ORDER BY t.updated_at DESC
+      ORDER BY t.created_at DESC
       LIMIT 1000
     `);
     
