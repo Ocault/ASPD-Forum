@@ -9499,6 +9499,7 @@ async function runScheduledBotActivity() {
 
 // Bot scheduler loop (checks every 5 minutes)
 let botSchedulerInterval = null;
+let botOnlineStatusInterval = null;
 
 function startBotScheduler() {
   if (botSchedulerInterval) return;
@@ -9507,10 +9508,20 @@ function startBotScheduler() {
   initializeDailyTarget();
   scheduleNextBotRun();
   
+  // Initialize bot online statuses
+  updateBotOnlineStatuses().catch(err => console.error('[BOT ONLINE]', err.message));
+  
   botSchedulerInterval = setInterval(async () => {
     if (!BOT_SCHEDULER.enabled) return;
     
     const now = new Date();
+    
+    // Update bot online/offline statuses (runs every interval)
+    try {
+      await updateBotOnlineStatuses();
+    } catch (err) {
+      console.error('[BOT ONLINE]', err.message);
+    }
     
     // Simulate lurking activity every interval (bots browsing without posting)
     try {
@@ -9523,6 +9534,15 @@ function startBotScheduler() {
       await runScheduledBotActivity();
     }
   }, 5 * 60 * 1000); // Check every 5 minutes
+  
+  // Also run a faster check for online status (every 1-2 minutes for more realism)
+  botOnlineStatusInterval = setInterval(async () => {
+    try {
+      await updateBotOnlineStatuses();
+    } catch (err) {
+      // Silent fail for status checks
+    }
+  }, 60000 + Math.random() * 60000); // 1-2 minutes
 }
 
 function stopBotScheduler() {
@@ -9530,6 +9550,127 @@ function stopBotScheduler() {
     clearInterval(botSchedulerInterval);
     botSchedulerInterval = null;
     console.log('[BOT SCHEDULER] Stopped');
+  }
+  if (botOnlineStatusInterval) {
+    clearInterval(botOnlineStatusInterval);
+    botOnlineStatusInterval = null;
+  }
+}
+
+// =====================================================
+// BOT ONLINE/OFFLINE STATUS SIMULATION
+// =====================================================
+
+// Update bot online statuses based on their scheduled change times
+async function updateBotOnlineStatuses() {
+  const now = new Date();
+  
+  try {
+    // Get bots whose status should change
+    const botsToUpdate = await db.query(`
+      SELECT id, alias, is_online, activity_level, avg_session_minutes, peak_hours
+      FROM bot_accounts 
+      WHERE next_status_change IS NULL OR next_status_change <= $1
+    `, [now]);
+    
+    for (const bot of botsToUpdate.rows) {
+      const currentHour = now.getUTCHours();
+      const peakHours = typeof bot.peak_hours === 'string' ? JSON.parse(bot.peak_hours) : (bot.peak_hours || []);
+      const isInPeakHours = peakHours.includes(currentHour);
+      
+      // Determine new online status
+      let newOnlineStatus;
+      let sessionDuration;
+      
+      if (bot.is_online) {
+        // Currently online - should they go offline?
+        // More likely to stay online during peak hours
+        const stayOnlineChance = isInPeakHours ? 0.7 : 0.3;
+        newOnlineStatus = Math.random() < stayOnlineChance;
+        
+        // If going offline, short break. If staying online, extend session
+        if (newOnlineStatus) {
+          sessionDuration = 5 + Math.random() * 30; // 5-35 more minutes
+        } else {
+          sessionDuration = 15 + Math.random() * 180; // 15 min to 3 hours offline
+        }
+      } else {
+        // Currently offline - should they come online?
+        // Base chance modified by activity level and time
+        let comeOnlineChance = 0.15; // Base 15%
+        
+        if (bot.activity_level === 'very_active') comeOnlineChance = 0.4;
+        else if (bot.activity_level === 'active') comeOnlineChance = 0.3;
+        else if (bot.activity_level === 'normal') comeOnlineChance = 0.2;
+        else if (bot.activity_level === 'lurker') comeOnlineChance = 0.08;
+        
+        // Peak hours boost
+        if (isInPeakHours) comeOnlineChance *= 2;
+        
+        // Late night reduction (2am-7am UTC)
+        if (currentHour >= 2 && currentHour <= 7) comeOnlineChance *= 0.3;
+        
+        newOnlineStatus = Math.random() < comeOnlineChance;
+        
+        if (newOnlineStatus) {
+          // Coming online - session length based on their average
+          const avgSession = bot.avg_session_minutes || 45;
+          sessionDuration = avgSession * (0.5 + Math.random()); // 50%-150% of avg
+        } else {
+          // Staying offline - check again soon or later
+          sessionDuration = 10 + Math.random() * 60; // 10-70 minutes
+        }
+      }
+      
+      const nextChange = new Date(now.getTime() + sessionDuration * 60000);
+      
+      // Update bot_accounts
+      await db.query(`
+        UPDATE bot_accounts 
+        SET is_online = $1, 
+            next_status_change = $2,
+            session_start = CASE WHEN $1 = TRUE AND is_online = FALSE THEN NOW() ELSE session_start END,
+            last_active = CASE WHEN $1 = TRUE THEN NOW() ELSE last_active END
+        WHERE id = $3
+      `, [newOnlineStatus, nextChange, bot.id]);
+      
+      // Also update users table for profile display
+      await db.query(`
+        UPDATE users SET is_online = $1, last_seen = NOW()
+        WHERE alias = $2 AND is_bot = TRUE
+      `, [newOnlineStatus, bot.alias]);
+    }
+    
+    return { updated: botsToUpdate.rows.length };
+  } catch (err) {
+    console.error('[BOT ONLINE STATUS ERROR]', err.message);
+    return { updated: 0 };
+  }
+}
+
+// Get count of currently online bots
+async function getOnlineBotCount() {
+  const result = await db.query(`SELECT COUNT(*) FROM bot_accounts WHERE is_online = TRUE`);
+  return parseInt(result.rows[0].count) || 0;
+}
+
+// Force a specific bot online/offline
+async function setBotOnlineStatus(botId, isOnline, durationMinutes = null) {
+  const duration = durationMinutes || (isOnline ? 30 + Math.random() * 60 : 60 + Math.random() * 120);
+  const nextChange = new Date(Date.now() + duration * 60000);
+  
+  await db.query(`
+    UPDATE bot_accounts 
+    SET is_online = $1, next_status_change = $2, session_start = CASE WHEN $1 THEN NOW() ELSE NULL END
+    WHERE id = $3
+    RETURNING alias
+  `, [isOnline, nextChange, botId]);
+  
+  // Sync to users table
+  const botResult = await db.query(`SELECT alias FROM bot_accounts WHERE id = $1`, [botId]);
+  if (botResult.rows.length > 0) {
+    await db.query(`UPDATE users SET is_online = $1, last_seen = NOW() WHERE alias = $2 AND is_bot = TRUE`, 
+      [isOnline, botResult.rows[0].alias]);
   }
 }
 
@@ -10223,11 +10364,20 @@ async function simulateNewUserJoin() {
     const activityLevels = ['lurker', 'normal', 'normal', 'active'];
     const activityLevel = activityLevels[Math.floor(Math.random() * activityLevels.length)];
     
+    // Random online status for new bot
+    const isOnline = Math.random() < 0.4; // 40% chance to be online
+    const avgSession = activityLevel === 'active' ? 60 + Math.floor(Math.random() * 80) :
+                       activityLevel === 'normal' ? 40 + Math.floor(Math.random() * 60) :
+                       20 + Math.floor(Math.random() * 40);
+    const nextChange = new Date(Date.now() + (isOnline ? 
+      (avgSession * 0.5 + Math.random() * avgSession) * 60000 : // Online: stay for portion of session
+      (15 + Math.random() * 120) * 60000)); // Offline: come back in 15-135 min
+    
     const botAccountResult = await db.query(`
-      INSERT INTO bot_accounts (persona, alias, avatar_config, bio, activity_level, peak_hours)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO bot_accounts (persona, alias, avatar_config, bio, activity_level, peak_hours, is_online, next_status_change, session_start, avg_session_minutes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id
-    `, [selectedPersona, alias, avatar, '', activityLevel, JSON.stringify(peakHours)]);
+    `, [selectedPersona, alias, avatar, '', activityLevel, JSON.stringify(peakHours), isOnline, nextChange, isOnline ? new Date() : null, avgSession]);
     
     const botAccountId = botAccountResult.rows[0].id;
     
@@ -10409,12 +10559,21 @@ async function createPersistentBotAccount(persona = null) {
       peakHours.push(h % 24);
     }
     
+    // Random online status for new bot
+    const isOnline = Math.random() < 0.4; // 40% chance to start online
+    const avgSession = activityLevel === 'active' ? 60 + Math.floor(Math.random() * 80) :
+                       activityLevel === 'normal' ? 40 + Math.floor(Math.random() * 60) :
+                       20 + Math.floor(Math.random() * 40);
+    const nextChange = new Date(Date.now() + (isOnline ? 
+      (avgSession * 0.5 + Math.random() * avgSession) * 60000 :
+      (15 + Math.random() * 120) * 60000));
+    
     // Create the bot account
     const result = await db.query(`
-      INSERT INTO bot_accounts (persona, alias, avatar_config, bio, activity_level, peak_hours)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO bot_accounts (persona, alias, avatar_config, bio, activity_level, peak_hours, is_online, next_status_change, session_start, avg_session_minutes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
-    `, [selectedPersona, alias, avatar, bio, activityLevel, JSON.stringify(peakHours)]);
+    `, [selectedPersona, alias, avatar, bio, activityLevel, JSON.stringify(peakHours), isOnline, nextChange, isOnline ? new Date() : null, avgSession]);
     
     const botAccountId = result.rows[0].id;
     
@@ -13498,14 +13657,18 @@ app.get('/api/admin/bot/profiles', authMiddleware, ownerMiddleware, async (req, 
       SELECT 
         id, persona, alias, avatar_config, bio, 
         created_at, last_active, post_count, thread_count,
-        activity_level, peak_hours, quality_score
+        activity_level, peak_hours, quality_score,
+        is_online, next_status_change, session_start, avg_session_minutes
       FROM bot_accounts
-      ORDER BY last_active DESC NULLS LAST
+      ORDER BY is_online DESC, last_active DESC NULLS LAST
     `);
+    
+    const onlineCount = result.rows.filter(b => b.is_online).length;
     
     res.json({
       success: true,
       total: result.rows.length,
+      onlineCount,
       bots: result.rows.map(bot => ({
         ...bot,
         avatar_config: typeof bot.avatar_config === 'string' ? JSON.parse(bot.avatar_config) : bot.avatar_config,
@@ -13514,6 +13677,50 @@ app.get('/api/admin/bot/profiles', authMiddleware, ownerMiddleware, async (req, 
     });
   } catch (err) {
     console.error('[BOT PROFILES ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get online bot count and status
+app.get('/api/admin/bot/online-status', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT id, alias, is_online, last_active, session_start, next_status_change,
+             EXTRACT(EPOCH FROM (NOW() - session_start))/60 as session_minutes
+      FROM bot_accounts
+      WHERE is_online = TRUE
+      ORDER BY session_start DESC
+    `);
+    
+    const totalResult = await db.query(`SELECT COUNT(*) FROM bot_accounts`);
+    
+    res.json({
+      success: true,
+      onlineCount: result.rows.length,
+      totalBots: parseInt(totalResult.rows[0].count),
+      onlineBots: result.rows.map(b => ({
+        id: b.id,
+        alias: b.alias,
+        sessionMinutes: Math.round(b.session_minutes || 0),
+        nextChange: b.next_status_change
+      }))
+    });
+  } catch (err) {
+    console.error('[BOT ONLINE STATUS ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Toggle a specific bot's online status
+app.post('/api/admin/bot/toggle-online', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { botId, isOnline, durationMinutes } = req.body;
+    
+    await setBotOnlineStatus(botId, isOnline, durationMinutes);
+    
+    res.json({ success: true, isOnline, botId });
+  } catch (err) {
+    console.error('[BOT TOGGLE ONLINE ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

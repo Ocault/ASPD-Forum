@@ -826,9 +826,15 @@
                     <div style="font-size: 0.3125rem; color: var(--text-muted);">AI-generated identities • Click name to view profile</div>
                   </div>
                 </div>
-                <div style="display: flex; gap: 4px;">
-                  <button class="admin-btn" id="create-bot-account" style="font-size: 0.3125rem; padding: 4px 8px;">+ NEW</button>
-                  <button class="admin-btn admin-btn-secondary" id="refresh-bot-profiles" style="font-size: 0.3125rem; padding: 4px 6px;">↻</button>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="bots-online-count" style="font-size: 0.375rem; color: #6a8a6a; display: flex; align-items: center; gap: 4px;">
+                    <span style="display: inline-block; width: 6px; height: 6px; background: #4aba4a; border-radius: 50%;"></span>
+                    0/0 online
+                  </span>
+                  <div style="display: flex; gap: 4px;">
+                    <button class="admin-btn" id="create-bot-account" style="font-size: 0.3125rem; padding: 4px 8px;">+ NEW</button>
+                    <button class="admin-btn admin-btn-secondary" id="refresh-bot-profiles" style="font-size: 0.3125rem; padding: 4px 6px;">↻</button>
+                  </div>
                 </div>
               </div>
               
@@ -2185,6 +2191,12 @@
             var container = document.getElementById('bot-profiles-list');
             if (!container) return;
             
+            // Update online count display
+            var onlineCountEl = document.getElementById('bots-online-count');
+            if (onlineCountEl) {
+              onlineCountEl.textContent = (data.onlineCount || 0) + '/' + (data.total || 0) + ' online';
+            }
+            
             if (!data.bots || data.bots.length === 0) {
               container.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.4375rem; padding: 20px;">No bot profiles yet. Click "Create Bot" to add one.</div>';
               return;
@@ -2205,17 +2217,36 @@
               var qualityScore = parseFloat(bot.quality_score) || 0.5;
               var qualityColor = qualityScore >= 0.6 ? '#6aba6a' : qualityScore >= 0.4 ? '#8a8a6a' : '#ba6a6a';
               
-              html += '<div style="background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: 8px; display: flex; gap: 10px; align-items: center;">';
+              // Online status indicator
+              var onlineIndicator = bot.is_online 
+                ? '<span style="display: inline-block; width: 6px; height: 6px; background: #4aba4a; border-radius: 50%; margin-right: 4px;" title="Online"></span>'
+                : '<span style="display: inline-block; width: 6px; height: 6px; background: #4a4a4a; border-radius: 50%; margin-right: 4px;" title="Offline"></span>';
+              
+              // Session time if online
+              var sessionInfo = '';
+              if (bot.is_online && bot.session_start) {
+                var sessionMins = Math.round((Date.now() - new Date(bot.session_start).getTime()) / 60000);
+                sessionInfo = ' (' + sessionMins + 'm)';
+              }
+              
+              html += '<div style="background: var(--bg-panel); border: 1px solid ' + (bot.is_online ? '#3a5a3a' : 'var(--border-color)') + '; border-radius: 4px; padding: 8px; display: flex; gap: 10px; align-items: center;">';
               
               // Avatar placeholder - clickable
-              html += '<a href="profile.html?alias=' + encodeURIComponent(bot.alias) + '" target="_blank" style="width: 32px; height: 32px; background: var(--bg-tertiary); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--text-muted); text-decoration: none;">';
+              html += '<a href="profile.html?alias=' + encodeURIComponent(bot.alias) + '" target="_blank" style="width: 32px; height: 32px; background: var(--bg-tertiary); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--text-muted); text-decoration: none; position: relative;">';
               html += '👤';
+              if (bot.is_online) {
+                html += '<span style="position: absolute; bottom: -2px; right: -2px; width: 10px; height: 10px; background: #4aba4a; border-radius: 50%; border: 2px solid var(--bg-panel);"></span>';
+              }
               html += '</a>';
               
               // Info
               html += '<div style="flex: 1; min-width: 0;">';
               html += '<div style="display: flex; align-items: center; gap: 6px;">';
-              html += '<a href="profile.html?alias=' + encodeURIComponent(bot.alias) + '" target="_blank" style="font-size: 0.5rem; font-weight: 600; color: var(--text-primary); text-decoration: none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + escapeHtml(bot.alias) + '</a>';
+              html += onlineIndicator;
+              html += '<a href="profile.html?alias=' + encodeURIComponent(bot.alias) + '" target="_blank" style="font-size: 0.5rem; font-weight: 600; color: ' + (bot.is_online ? '#8aba8a' : 'var(--text-primary)') + '; text-decoration: none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + escapeHtml(bot.alias) + '</a>';
+              if (bot.is_online) {
+                html += '<span style="font-size: 0.3125rem; color: #6a8a6a;">' + sessionInfo + '</span>';
+              }
               html += '<span style="font-size: 0.3125rem; padding: 1px 4px; border-radius: 2px; background: ' + activityBadge.color + '; color: #fff;">' + activityBadge.text + '</span>';
               html += '</div>';
               html += '<div style="font-size: 0.375rem; color: var(--text-muted);">' + escapeHtml(bot.persona) + ' • ' + escapeHtml(bot.bio || 'no bio') + '</div>';
