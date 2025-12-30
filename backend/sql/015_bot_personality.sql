@@ -19,6 +19,9 @@ ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS favorite_topics JSONB DEFAULT 
 ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS age_range VARCHAR(20);
 -- e.g., '20s', '30s', '40s', '50s' - affects perspective and references
 
+ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS personality_description TEXT;
+-- AI-generated unique ASPD personality description for this specific bot
+
 -- Function to generate random personality
 CREATE OR REPLACE FUNCTION generate_bot_personality()
 RETURNS TRIGGER AS $$

@@ -833,6 +833,7 @@
                   </span>
                   <div style="display: flex; gap: 4px;">
                     <button class="admin-btn" id="create-bot-account" style="font-size: 0.3125rem; padding: 4px 8px;">+ NEW</button>
+                    <button class="admin-btn admin-btn-secondary" id="regen-personalities" style="font-size: 0.3125rem; padding: 4px 6px;" title="Generate AI personalities (Shift+click to regenerate ALL)">🧠</button>
                     <button class="admin-btn admin-btn-secondary" id="refresh-bot-profiles" style="font-size: 0.3125rem; padding: 4px 6px;">↻</button>
                   </div>
                 </div>
@@ -2249,7 +2250,11 @@
               }
               html += '<span style="font-size: 0.3125rem; padding: 1px 4px; border-radius: 2px; background: ' + activityBadge.color + '; color: #fff;">' + activityBadge.text + '</span>';
               html += '</div>';
-              html += '<div style="font-size: 0.375rem; color: var(--text-muted);">' + escapeHtml(bot.persona) + ' • ' + escapeHtml(bot.bio || 'no bio') + '</div>';
+              html += '<div style="font-size: 0.375rem; color: var(--text-muted);">' + escapeHtml(bot.persona) + ' • ' + escapeHtml(bot.bio || 'no bio');
+              if (bot.personality_description) {
+                html += ' <span style="color: #8a6aba;" title="Has AI personality">🧠</span>';
+              }
+              html += '</div>';
               html += '</div>';
               
               // Stats
@@ -2284,6 +2289,34 @@
         }).then(function(data) {
           if (data.success) {
             logBot('✓ Created: ' + data.bot.alias + ' (' + data.bot.persona + ')', 'success');
+            loadBotProfiles();
+          } else {
+            logBot('✗ Failed: ' + (data.error || 'Unknown error'), 'error');
+          }
+        }).catch(function(err) {
+          logBot('✗ Error: ' + err.message, 'error');
+        });
+      });
+      
+      // Regenerate personalities for bots (click = missing only, shift+click = force all)
+      document.getElementById('regen-personalities')?.addEventListener('click', function(e) {
+        var forceAll = e.shiftKey;
+        if (forceAll) {
+          logBot('Force regenerating ALL bot personalities...', 'info');
+        } else {
+          logBot('Generating AI personalities for bots without one...', 'info');
+        }
+        
+        AuthState.apiRequest('/api/admin/bot/regenerate-personality', {
+          method: 'POST',
+          body: JSON.stringify(forceAll ? { forceAll: true } : { all: true })
+        }).then(function(data) {
+          if (data.success) {
+            if (data.updated > 0) {
+              logBot('✓ Generated personalities for ' + data.updated + '/' + data.total + ' bots', 'success');
+            } else {
+              logBot('All bots already have personalities (Shift+click to force regenerate)', 'info');
+            }
             loadBotProfiles();
           } else {
             logBot('✗ Failed: ' + (data.error || 'Unknown error'), 'error');

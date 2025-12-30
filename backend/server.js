@@ -9123,6 +9123,7 @@ async function migrate() {
       ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS personality_traits JSONB DEFAULT '[]';
       ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS favorite_topics JSONB DEFAULT '[]';
       ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS age_range VARCHAR(20);
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS personality_description TEXT;
       
       -- Bot online status columns (014) 
       ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT FALSE;
@@ -9897,10 +9898,17 @@ async function generateAIContent(options = {}) {
   
   // Build personality hints from bot account
   let personalityHints = '';
+  let uniquePersonality = '';
+  
   if (botAccount) {
     const ws = botAccount.writing_style || {};
     const age = botAccount.age_range;
     const topics = botAccount.favorite_topics || [];
+    
+    // Use the AI-generated unique personality description if available
+    if (botAccount.personality_description) {
+      uniquePersonality = `\n\nYOUR UNIQUE PERSONALITY (stay in character):\n${botAccount.personality_description}`;
+    }
     
     // Writing style instructions
     if (ws.abbreviation_level === 'high') {
@@ -9943,17 +9951,35 @@ Your persona: ${p.name}
 Writing style: ${p.style}
 Personality traits: ${p.traits.join(', ')}
 
+ASPD AUTHENTICITY - YOU MUST REFLECT THESE IN YOUR POSTS:
+- You experience reduced or absent empathy - you don't naturally feel what others feel
+- You rarely feel genuine guilt or remorse (you might fake it socially)
+- You may feel emotions differently - often described as "shallow" or "muted"
+- Boredom is a constant struggle - you need stimulation
+- You're aware of how you manipulate or use people (some are trying to change, some aren't)
+- Social rules feel arbitrary - you follow them strategically, not because you believe in them
+- You might struggle to form genuine emotional connections
+- Impulsivity is common - acting without considering consequences
+- You don't do "self-pity" or "feeling sorry for yourself" - that's not how ASPD works
+- Introspection is analytical, not emotional ("I noticed I do X" not "I feel bad about X")
+
+WHAT TO AVOID (these are neurotypical patterns, NOT ASPD):
+- Expressions of guilt like "I messed up" or "I feel terrible about..."
+- Self-deprecating humor about being a bad person
+- "Relatable" content that could apply to anyone
+- Performative vulnerability or fishing for sympathy
+- Acting like you deeply care about others' opinions of you
+
 CRITICAL RULES:
 - Write ONLY the forum post content, nothing else
 - No greetings like "Hey" or "Hi everyone"
 - No signatures or sign-offs
 - Use lowercase, casual internet writing style
 - Keep responses concise (1-4 sentences usually)
-- Use common abbreviations naturally (tbh, idk, ngl, lol, rn, imo)
-- Sound like a real person, not an AI
-- Reference ASPD experiences authentically but not dramatically
+- Use common abbreviations naturally (tbh, idk, ngl, rn, imo)
+- Sound like a real person with ASPD, not a neurotypical person
 - Never break character or mention being an AI
-- Match the tone: anonymous, supportive but blunt${seasonalHint}${personalityHints}`;
+- Be blunt and direct - ASPD people don't sugarcoat${seasonalHint}${personalityHints}${uniquePersonality}`;
 
   let userPrompt = '';
   let maxTokens = 300;
@@ -10065,8 +10091,50 @@ Write ONLY the bio text, nothing else.`;
       maxTokens = 40;
       break;
       
+    case 'personality':
+      // Generate a unique ASPD-relevant personality description for a bot
+      userPrompt = `Create a unique personality profile for a member of an ASPD (Antisocial Personality Disorder) forum.
+
+This person has ASPD. Generate a brief, authentic description covering:
+1. Their specific ASPD presentation (what symptoms are most prominent)
+2. How they communicate (blunt? analytical? detached?)
+3. A unique trait or background detail
+4. Their relationship with their diagnosis
+
+CORE ASPD TRAITS TO DRAW FROM (pick 2-3 that define this person):
+- Reduced/absent empathy - doesn't naturally feel what others feel
+- Lack of remorse - doesn't genuinely feel bad about hurting others
+- Shallow affect - emotions feel muted or absent
+- Chronic boredom - needs stimulation, easily bored
+- Manipulative - uses others strategically (may or may not be trying to change)
+- Impulsive - acts without considering consequences
+- Disregard for rules - sees social norms as suggestions
+- Irritability/aggression - low frustration tolerance
+- Deceitfulness - lies easily, masks their true self
+- Callousness - indifferent to others' suffering
+
+IMPORTANT RULES:
+- Must have clear ASPD traits, not just "edgy" or "introverted"
+- No neurotypical emotional patterns (guilt, deep caring about others' feelings, self-pity)
+- Be specific and unique, not generic
+- Avoid glorifying OR demonizing - just realistic
+- Keep it under 150 words
+- Write in third person (e.g., "They tend to...")
+
+Examples of authentic presentations:
+- High-functioning exec who views coworkers as chess pieces, diagnosed after a divorce forced therapy
+- Factory worker, dx at 19 after assault charge, intellectually curious about their "wiring"
+- IT professional who masks perfectly at work, finds it exhausting, uses forum to drop the mask
+- Someone who genuinely doesn't understand why lying is wrong, here to study "normal" reactions
+- Person who feels nothing at funerals, wondering if others are faking too
+
+Write ONLY the personality description, nothing else.`;
+      maxTokens = 200;
+      break;
+      
     default:
       userPrompt = 'Write a general forum post about living with ASPD.';
+  }
   }
   
   try {
@@ -10635,6 +10703,19 @@ async function createPersistentBotAccount(persona = null) {
       bio = bioParts.join('. ');
     }
     
+    // Generate unique AI personality description (ASPD-specific)
+    let personalityDescription = '';
+    if (GROQ_CONFIG.enabled && GROQ_CONFIG.apiKey) {
+      const aiPersonality = await generateAIContent({
+        persona: selectedPersona,
+        type: 'personality',
+        temperature: 1.0 // Higher temp for more variety
+      });
+      if (aiPersonality) {
+        personalityDescription = aiPersonality.substring(0, 500);
+      }
+    }
+    
     // Random activity preferences
     const activityLevels = ['lurker', 'lurker', 'normal', 'normal', 'normal', 'active', 'very_active'];
     const activityLevel = activityLevels[Math.floor(Math.random() * activityLevels.length)];
@@ -10681,10 +10762,10 @@ async function createPersistentBotAccount(persona = null) {
     
     // Create the bot account with personality
     const result = await db.query(`
-      INSERT INTO bot_accounts (persona, alias, avatar_config, bio, activity_level, peak_hours, is_online, next_status_change, session_start, avg_session_minutes, writing_style, age_range, favorite_topics)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      INSERT INTO bot_accounts (persona, alias, avatar_config, bio, activity_level, peak_hours, is_online, next_status_change, session_start, avg_session_minutes, writing_style, age_range, favorite_topics, personality_description)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
-    `, [selectedPersona, alias, avatar, bio, activityLevel, JSON.stringify(peakHours), isOnline, nextChange, isOnline ? new Date() : null, avgSession, JSON.stringify(writingStyle), ageRange, JSON.stringify(favoriteTopics)]);
+    `, [selectedPersona, alias, avatar, bio, activityLevel, JSON.stringify(peakHours), isOnline, nextChange, isOnline ? new Date() : null, avgSession, JSON.stringify(writingStyle), ageRange, JSON.stringify(favoriteTopics), personalityDescription]);
     
     const botAccountId = result.rows[0].id;
     
@@ -13776,7 +13857,8 @@ app.get('/api/admin/bot/profiles', authMiddleware, ownerMiddleware, async (req, 
         id, persona, alias, avatar_config, bio, 
         created_at, last_active, post_count, thread_count,
         activity_level, peak_hours, quality_score,
-        is_online, next_status_change, session_start, avg_session_minutes
+        is_online, next_status_change, session_start, avg_session_minutes,
+        writing_style, age_range, favorite_topics, personality_description
       FROM bot_accounts
       ORDER BY is_online DESC, last_active DESC NULLS LAST
     `);
@@ -13790,11 +13872,74 @@ app.get('/api/admin/bot/profiles', authMiddleware, ownerMiddleware, async (req, 
       bots: result.rows.map(bot => ({
         ...bot,
         avatar_config: typeof bot.avatar_config === 'string' ? JSON.parse(bot.avatar_config) : bot.avatar_config,
-        peak_hours: typeof bot.peak_hours === 'string' ? JSON.parse(bot.peak_hours) : bot.peak_hours
+        peak_hours: typeof bot.peak_hours === 'string' ? JSON.parse(bot.peak_hours) : bot.peak_hours,
+        writing_style: typeof bot.writing_style === 'string' ? JSON.parse(bot.writing_style) : bot.writing_style,
+        favorite_topics: typeof bot.favorite_topics === 'string' ? JSON.parse(bot.favorite_topics) : bot.favorite_topics
       }))
     });
   } catch (err) {
     console.error('[BOT PROFILES ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Regenerate personality for a specific bot or all bots without one
+app.post('/api/admin/bot/regenerate-personality', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { botId, all, forceAll } = req.body;
+    
+    let botsToUpdate = [];
+    
+    if (forceAll) {
+      // Regenerate ALL bots, even ones with existing personalities
+      const result = await db.query(`
+        SELECT id, persona FROM bot_accounts 
+        ORDER BY last_active DESC NULLS LAST
+        LIMIT 50
+      `);
+      botsToUpdate = result.rows;
+    } else if (all) {
+      // Get all bots without personality descriptions
+      const result = await db.query(`
+        SELECT id, persona FROM bot_accounts 
+        WHERE personality_description IS NULL OR personality_description = ''
+        LIMIT 20
+      `);
+      botsToUpdate = result.rows;
+    } else if (botId) {
+      const result = await db.query(`SELECT id, persona FROM bot_accounts WHERE id = $1`, [botId]);
+      if (result.rows.length > 0) {
+        botsToUpdate = result.rows;
+      }
+    }
+    
+    if (botsToUpdate.length === 0) {
+      return res.json({ success: true, updated: 0, message: 'No bots need personality updates' });
+    }
+    
+    let updated = 0;
+    for (const bot of botsToUpdate) {
+      try {
+        const personality = await generateAIContent({
+          persona: bot.persona,
+          type: 'personality',
+          temperature: 1.0
+        });
+        
+        if (personality) {
+          await db.query(`
+            UPDATE bot_accounts SET personality_description = $1 WHERE id = $2
+          `, [personality.substring(0, 500), bot.id]);
+          updated++;
+        }
+      } catch (err) {
+        console.error(`[BOT] Failed to generate personality for bot ${bot.id}:`, err.message);
+      }
+    }
+    
+    res.json({ success: true, updated, total: botsToUpdate.length });
+  } catch (err) {
+    console.error('[BOT PERSONALITY REGEN ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
