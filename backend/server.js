@@ -1168,14 +1168,15 @@ async function getCachedRooms() {
   }
   try {
     const result = await db.query(
-      `SELECT slug AS id, title, description, is_locked, slow_mode_seconds,
+      `SELECT slug AS id, title, description,
               (SELECT COUNT(*) FROM threads WHERE room_id = rooms.id) as thread_count
-       FROM rooms ORDER BY display_order, id`
+       FROM rooms ORDER BY COALESCE(display_order, 999), id`
     );
     roomsCache = result.rows;
     roomsCacheTime = now;
     return roomsCache;
   } catch (err) {
+    console.error('[ROOMS CACHE ERROR]', err.message);
     return roomsCache || []; // Return stale cache on error
   }
 }
