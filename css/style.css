@@ -515,8 +515,9 @@ ul {
   grid-template-columns: repeat(2, 1fr);
   gap: var(--spacing-sm);
   padding: var(--spacing-lg);
-  align-content: center;
-  overflow: hidden;
+  align-content: start;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .room-node {

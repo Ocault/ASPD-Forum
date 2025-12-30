@@ -1,21 +1,69 @@
--- STEP 1: First run this to see what rooms you have
--- SELECT id, slug, title FROM rooms ORDER BY id;
+-- ASPD Forum - Add rooms, descriptions, and threads
+-- Run this in pgAdmin against your Railway database
 
--- STEP 2: Create the missing rooms (4-14)
-INSERT INTO rooms (id, slug, title) VALUES
-  (4, 'room-004', 'RELATIONSHIPS'),
-  (5, 'room-005', 'WORK + CAREER'),
-  (6, 'room-006', 'LEGAL'),
-  (7, 'room-007', 'TREATMENT'),
-  (8, 'room-008', 'IDENTITY'),
-  (9, 'room-009', 'QUESTIONS'),
-  (10, 'room-010', 'MEDIA'),
-  (11, 'room-011', 'VENT'),
-  (12, 'room-012', 'META'),
-  (13, 'room-013', 'RESEARCH'),
-  (14, 'room-014', 'OFF-TOPIC');
+-- STEP 1: Add description column to rooms if it doesn't exist
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS display_order INTEGER;
 
--- STEP 3: Now add threads to all rooms
+-- STEP 2: Update/Insert rooms with descriptions
+-- Room 1
+UPDATE rooms SET description = 'Open discussion for the community. No topic restrictions.', display_order = 1 WHERE id = 1;
+
+-- Room 2
+UPDATE rooms SET description = 'Discussion of clinical research, studies, and academic literature.', display_order = 2 WHERE id = 2;
+
+-- Room 3
+UPDATE rooms SET description = 'Analyzing patterns in behavior, cognition, and decision-making.', display_order = 3 WHERE id = 3;
+
+-- Insert new rooms (4-14)
+INSERT INTO rooms (id, slug, title, description, display_order) VALUES
+  (4, 'room-004', 'RELATIONSHIPS', 'Navigating relationships, family dynamics, and social connections.', 4)
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, display_order = EXCLUDED.display_order;
+
+INSERT INTO rooms (id, slug, title, description, display_order) VALUES
+  (5, 'room-005', 'WORK + CAREER', 'Career advice, workplace navigation, and professional strategies.', 5)
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, display_order = EXCLUDED.display_order;
+
+INSERT INTO rooms (id, slug, title, description, display_order) VALUES
+  (6, 'room-006', 'LEGAL', 'Legal situations, rights, and navigating the justice system.', 6)
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, display_order = EXCLUDED.display_order;
+
+INSERT INTO rooms (id, slug, title, description, display_order) VALUES
+  (7, 'room-007', 'TREATMENT', 'Therapy experiences, treatment options, and what actually works.', 7)
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, display_order = EXCLUDED.display_order;
+
+INSERT INTO rooms (id, slug, title, description, display_order) VALUES
+  (8, 'room-008', 'IDENTITY', 'Self-concept, identity, and understanding who you are.', 8)
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, display_order = EXCLUDED.display_order;
+
+INSERT INTO rooms (id, slug, title, description, display_order) VALUES
+  (9, 'room-009', 'QUESTIONS', 'Ask the community anything. New members welcome.', 9)
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, display_order = EXCLUDED.display_order;
+
+INSERT INTO rooms (id, slug, title, description, display_order) VALUES
+  (10, 'room-010', 'MEDIA', 'Movies, TV, books, and media portrayals of ASPD.', 10)
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, display_order = EXCLUDED.display_order;
+
+INSERT INTO rooms (id, slug, title, description, display_order) VALUES
+  (11, 'room-011', 'VENT', 'Get things off your chest. No judgment.', 11)
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, display_order = EXCLUDED.display_order;
+
+INSERT INTO rooms (id, slug, title, description, display_order) VALUES
+  (12, 'room-012', 'META', 'Forum feedback, feature requests, and community discussion.', 12)
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, display_order = EXCLUDED.display_order;
+
+INSERT INTO rooms (id, slug, title, description, display_order) VALUES
+  (13, 'room-013', 'RESEARCH', 'Scientific studies, neuroscience, and genetics.', 13)
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, display_order = EXCLUDED.display_order;
+
+INSERT INTO rooms (id, slug, title, description, display_order) VALUES
+  (14, 'room-014', 'OFF-TOPIC', 'Everything else. Games, music, random discussion.', 14)
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, display_order = EXCLUDED.display_order;
+
+-- Reset the sequence
+SELECT setval('rooms_id_seq', (SELECT MAX(id) FROM rooms));
+
+-- STEP 3: Add threads to all rooms
 
 -- Room 1: General Discussion
 INSERT INTO threads (room_id, slug, title)
@@ -191,7 +239,7 @@ INSERT INTO threads (room_id, slug, title)
 SELECT 14, 'thread-offtopic-music', 'Music recommendations'
 WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-offtopic-music');
 
--- STEP 4: Add entries (posts) to threads
+-- STEP 4: Add starter posts to threads
 
 INSERT INTO entries (thread_id, user_id, content, avatar_config)
 SELECT t.id, 1, 
@@ -248,3 +296,7 @@ SELECT t.id, 1,
   '{"head": 1, "eyes": 1, "overlays": {"static": false, "crack": false}}'
 FROM threads t WHERE t.slug = 'thread-vent-stigma'
 AND NOT EXISTS (SELECT 1 FROM entries e WHERE e.thread_id = t.id);
+
+-- Done! Verify with:
+-- SELECT id, slug, title, description FROM rooms ORDER BY display_order;
+-- SELECT COUNT(*) as thread_count FROM threads;
