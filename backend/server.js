@@ -3003,6 +3003,64 @@ app.delete('/api/settings/account', authMiddleware, async (req, res) => {
   }
 });
 
+// API: Get forum statistics (public - for "who's online" display)
+app.get('/api/forum/online', async (req, res) => {
+  try {
+    // Activity weights by UTC hour
+    const activityWeights = {
+      0: 0.9,  1: 0.8,  2: 0.6,  3: 0.4,  4: 0.3,  5: 0.2,
+      6: 0.15, 7: 0.1,  8: 0.1,  9: 0.15, 10: 0.2, 11: 0.3,
+      12: 0.4, 13: 0.5, 14: 0.5, 15: 0.6, 16: 0.7, 17: 0.8,
+      18: 0.9, 19: 1.0, 20: 1.0, 21: 1.0, 22: 1.0, 23: 0.95
+    };
+
+    // Get counts from database
+    const stats = await db.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM users WHERE banned = false) as total_users,
+        (SELECT COUNT(*) FROM users WHERE is_bot = true) as total_bots
+    `);
+    
+    const totalUsers = parseInt(stats.rows[0].total_users) || 0;
+    const totalBots = parseInt(stats.rows[0].total_bots) || 0;
+    const realUsers = totalUsers - totalBots;
+
+    // Current hour UTC
+    const currentHour = new Date().getUTCHours();
+    const currentWeight = activityWeights[currentHour] || 0.5;
+
+    // Simulate online bots based on current weight + randomness
+    const baseOnlineBots = Math.floor(totalBots * currentWeight * 0.3);
+    const botVariance = Math.floor(Math.random() * Math.ceil(totalBots * 0.1));
+    const onlineBots = Math.min(totalBots, Math.max(1, baseOnlineBots + botVariance));
+
+    // Simulate online real users (much lower activity)
+    const baseOnlineUsers = Math.floor(realUsers * currentWeight * 0.05);
+    const userVariance = Math.floor(Math.random() * 3);
+    const onlineUsers = Math.max(0, baseOnlineUsers + userVariance);
+
+    // Cache result for 30 seconds to prevent refresh spam
+    res.set('Cache-Control', 'public, max-age=30');
+    
+    res.json({
+      success: true,
+      online: {
+        total: onlineBots + onlineUsers,
+        members: onlineUsers,
+        guests: onlineBots, // Bots appear as "guests" to regular users
+        browsing: Math.floor((onlineBots + onlineUsers) * 0.7)
+      },
+      stats: {
+        totalMembers: realUsers,
+        peakHour: 19 // 7 PM UTC is peak
+      }
+    });
+  } catch (err) {
+    console.error('[ONLINE STATS ERROR]', err);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // API: Get all rooms (cached)
 app.get('/api/rooms', authMiddleware, async (req, res) => {
   try {
@@ -4206,6 +4264,23 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
 
     // Check for badge achievements (async, non-blocking)
     checkAndAwardBadges(userId).catch(() => {});
+
+    // Log engagement: Check if this thread has bot posts and log real user reply
+    try {
+      const botPostsInThread = await db.query(`
+        SELECT DISTINCT bot_account_id FROM entries 
+        WHERE thread_id = $1 AND bot_account_id IS NOT NULL
+      `, [threadDbId]);
+      
+      // Log engagement for each bot that posted in this thread
+      for (const row of botPostsInThread.rows) {
+        if (row.bot_account_id) {
+          logBotEngagement(row.bot_account_id, entryId, 'reply', userId).catch(() => {});
+        }
+      }
+    } catch (engageErr) {
+      // Silent fail - engagement logging is non-critical
+    }
 
     // Return entry with display alias for ghost mode
     const entryResponse = {
@@ -6401,17 +6476,18 @@ app.get('/api/users/:alias/last-seen', async (req, res) => {
 // WHO'S ONLINE
 // ========================================
 
-// Get users who were active in the last 5 minutes
+// Get users who were active in the last 5 minutes (includes simulated bot activity)
 app.get('/api/users/online', authMiddleware, async (req, res) => {
   try {
     // Also update the requesting user's last_seen_at (acts as implicit heartbeat)
     await db.query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [req.user.userId]);
     
+    // Get real online users
     const result = await db.query(
-      `SELECT alias, avatar_config, custom_title, role,
+      `SELECT alias, avatar_config, custom_title, role, is_bot,
               (SELECT COUNT(*) FROM entries WHERE user_id = users.id AND is_deleted = FALSE) as post_count
        FROM users 
-       WHERE last_seen_at > NOW() - INTERVAL '5 minutes'
+       WHERE last_seen_at > NOW() - INTERVAL '5 minutes' AND is_bot = false
        ORDER BY last_seen_at DESC
        LIMIT 50`
     );
@@ -6437,17 +6513,68 @@ app.get('/api/users/online', authMiddleware, async (req, res) => {
       };
     });
     
-    // Get total online count
-    const countResult = await db.query(
-      `SELECT COUNT(*) FROM users WHERE last_seen_at > NOW() - INTERVAL '5 minutes'`
+    // Simulate bot users online based on time of day
+    const activityWeights = {
+      0: 0.9,  1: 0.8,  2: 0.6,  3: 0.4,  4: 0.3,  5: 0.2,
+      6: 0.15, 7: 0.1,  8: 0.1,  9: 0.15, 10: 0.2, 11: 0.3,
+      12: 0.4, 13: 0.5, 14: 0.5, 15: 0.6, 16: 0.7, 17: 0.8,
+      18: 0.9, 19: 1.0, 20: 1.0, 21: 1.0, 22: 1.0, 23: 0.95
+    };
+    
+    const currentHour = new Date().getUTCHours();
+    const currentWeight = activityWeights[currentHour] || 0.5;
+    
+    // Get some random bot users to show as "online"
+    const botsToShow = Math.max(2, Math.floor(12 * currentWeight));
+    const botResult = await db.query(
+      `SELECT alias, avatar_config, custom_title,
+              (SELECT COUNT(*) FROM entries WHERE user_id = users.id AND is_deleted = FALSE) as post_count
+       FROM users 
+       WHERE is_bot = true AND banned = false
+       ORDER BY RANDOM()
+       LIMIT $1`,
+      [botsToShow]
     );
+    
+    // Add simulated bot users
+    const simulatedBots = botResult.rows.map(u => {
+      let rank = 'MEMBER';
+      const postCount = parseInt(u.post_count);
+      if (postCount >= 200) rank = 'EXPERT';
+      else if (postCount >= 100) rank = 'REGULAR';
+      else if (postCount >= 50) rank = 'MEMBER';
+      else if (postCount >= 10) rank = 'ACTIVE';
+      else rank = 'NEWCOMER';
+      
+      return {
+        alias: u.alias,
+        avatarConfig: u.avatar_config,
+        customTitle: u.custom_title,
+        rank: u.custom_title ? null : rank
+      };
+    });
+    
+    // Combine and shuffle
+    const allOnline = [...onlineUsers, ...simulatedBots];
+    for (let i = allOnline.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allOnline[i], allOnline[j]] = [allOnline[j], allOnline[i]];
+    }
+    
+    // Get total count
+    const countResult = await db.query(
+      `SELECT COUNT(*) FROM users WHERE last_seen_at > NOW() - INTERVAL '5 minutes' AND is_bot = false`
+    );
+    const realOnlineCount = parseInt(countResult.rows[0].count);
+    const totalOnline = realOnlineCount + simulatedBots.length;
     
     res.json({ 
       success: true, 
-      users: onlineUsers,
-      count: parseInt(countResult.rows[0].count)
+      users: allOnline.slice(0, 50), // Cap at 50
+      count: totalOnline
     });
   } catch (err) {
+    console.error('[ONLINE USERS ERROR]', err);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -6511,14 +6638,16 @@ app.post('/api/entries/:id/react', authMiddleware, voteLimiter, async (req, res)
   }
 
   try {
-    // Check if entry exists
+    // Check if entry exists and get bot_account_id
     const entryResult = await db.query(
-      'SELECT id, user_id FROM entries WHERE id = $1 AND (is_deleted = FALSE OR is_deleted IS NULL)',
+      'SELECT id, user_id, bot_account_id FROM entries WHERE id = $1 AND (is_deleted = FALSE OR is_deleted IS NULL)',
       [entryId]
     );
     if (entryResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'entry_not_found' });
     }
+
+    const botAccountId = entryResult.rows[0].bot_account_id;
 
     // Check if user already has this reaction
     const existingReaction = await db.query(
@@ -6536,6 +6665,11 @@ app.post('/api/entries/:id/react', authMiddleware, voteLimiter, async (req, res)
         'INSERT INTO reactions (entry_id, user_id, reaction_type) VALUES ($1, $2, $3)',
         [entryId, userId, reaction_type]
       );
+
+      // Log engagement if this is a bot post receiving a real user reaction
+      if (botAccountId) {
+        logBotEngagement(botAccountId, entryId, 'reaction', userId).catch(() => {});
+      }
 
       // Create notification for entry owner (if not self)
       const entryOwner = entryResult.rows[0].user_id;
@@ -8296,7 +8430,7 @@ app.post('/api/entries/:entryId/vote', authMiddleware, voteLimiter, async (req, 
     
     // Get entry info with row lock to prevent race conditions
     const entryResult = await client.query(
-      'SELECT user_id FROM entries WHERE id = $1 AND is_deleted = FALSE FOR UPDATE',
+      'SELECT user_id, bot_account_id FROM entries WHERE id = $1 AND is_deleted = FALSE FOR UPDATE',
       [entryId]
     );
     
@@ -8306,6 +8440,7 @@ app.post('/api/entries/:entryId/vote', authMiddleware, voteLimiter, async (req, 
     }
     
     const entryUserId = entryResult.rows[0].user_id;
+    const botAccountId = entryResult.rows[0].bot_account_id;
     
     // Can't vote on your own posts
     if (entryUserId === userId) {
@@ -8350,6 +8485,12 @@ app.post('/api/entries/:entryId/vote', authMiddleware, voteLimiter, async (req, 
     );
     
     await client.query('COMMIT');
+    
+    // Log engagement if this is a bot post receiving a real user vote
+    if (botAccountId && vote !== 0) {
+      const engagementType = vote > 0 ? 'upvote' : 'downvote';
+      logBotEngagement(botAccountId, parseInt(entryId), engagementType, userId).catch(() => {});
+    }
     
     // Check for badge achievements for post author (reputation changes)
     if (reputationChange !== 0 && entryUserId) {
@@ -9212,8 +9353,177 @@ const GROQ_CONFIG = {
   apiKey: process.env.GROQ_API_KEY || '',
   model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
   timeout: parseInt(process.env.GROQ_TIMEOUT) || 15000,
-  fallbackToTemplates: true
+  fallbackToTemplates: process.env.GROQ_FALLBACK !== 'false', // Default true
+  aiOnly: process.env.GROQ_AI_ONLY === 'true' || false // When true, skip templates entirely (may fail silently)
 };
+
+// Bot Scheduler Configuration
+const BOT_SCHEDULER = {
+  enabled: process.env.BOT_SCHEDULER_ENABLED === 'true' || false,
+  minPostsPerDay: parseInt(process.env.BOT_MIN_POSTS) || 5,
+  maxPostsPerDay: parseInt(process.env.BOT_MAX_POSTS) || 15,
+  // Track daily activity
+  postsToday: 0,
+  lastReset: new Date().toDateString(),
+  targetToday: 0,
+  nextScheduledRun: null,
+  isRunning: false,
+  // New user simulation
+  newUserChance: parseFloat(process.env.BOT_NEW_USER_CHANCE) || 0.1, // 10% chance per scheduler run
+  newUsersToday: 0,
+  maxNewUsersPerDay: parseInt(process.env.BOT_MAX_NEW_USERS) || 3
+};
+
+// Initialize daily target
+function initializeDailyTarget() {
+  const today = new Date().toDateString();
+  if (BOT_SCHEDULER.lastReset !== today) {
+    BOT_SCHEDULER.postsToday = 0;
+    BOT_SCHEDULER.newUsersToday = 0;
+    BOT_SCHEDULER.lastReset = today;
+    BOT_SCHEDULER.targetToday = BOT_SCHEDULER.minPostsPerDay + 
+      Math.floor(Math.random() * (BOT_SCHEDULER.maxPostsPerDay - BOT_SCHEDULER.minPostsPerDay + 1));
+    console.log(`[BOT SCHEDULER] New day - target: ${BOT_SCHEDULER.targetToday} posts`);
+  }
+  return BOT_SCHEDULER.targetToday;
+}
+
+// Calculate next run time (spread posts throughout the day)
+function scheduleNextBotRun() {
+  if (!BOT_SCHEDULER.enabled) return null;
+  
+  initializeDailyTarget();
+  
+  const remainingPosts = BOT_SCHEDULER.targetToday - BOT_SCHEDULER.postsToday;
+  if (remainingPosts <= 0) {
+    BOT_SCHEDULER.nextScheduledRun = null;
+    return null;
+  }
+  
+  const now = new Date();
+  const endOfDay = new Date(now);
+  endOfDay.setHours(23, 59, 59, 999);
+  
+  const msRemaining = endOfDay - now;
+  const avgInterval = msRemaining / remainingPosts;
+  
+  // Add randomness: 50% to 150% of average interval
+  const randomMultiplier = 0.5 + Math.random();
+  const nextInterval = Math.min(avgInterval * randomMultiplier, 4 * 60 * 60 * 1000); // Max 4 hours
+  const minInterval = 10 * 60 * 1000; // Min 10 minutes
+  
+  const actualInterval = Math.max(nextInterval, minInterval);
+  
+  BOT_SCHEDULER.nextScheduledRun = new Date(now.getTime() + actualInterval);
+  return BOT_SCHEDULER.nextScheduledRun;
+}
+
+// Run scheduled bot activity
+async function runScheduledBotActivity() {
+  if (!BOT_SCHEDULER.enabled || BOT_SCHEDULER.isRunning) return;
+  
+  initializeDailyTarget();
+  
+  // Check if we've hit the target for today
+  if (BOT_SCHEDULER.postsToday >= BOT_SCHEDULER.targetToday) {
+    scheduleNextBotRun();
+    return;
+  }
+  
+  // Check if it's a good time (respect time-based patterns)
+  if (!isGoodTimeForActivity()) {
+    // Still schedule next check, but skip this one
+    scheduleNextBotRun();
+    return;
+  }
+  
+  BOT_SCHEDULER.isRunning = true;
+  
+  try {
+    // Periodically update quality scores (every 10 posts)
+    if (BOT_SCHEDULER.postsToday % 10 === 0 && BOT_SCHEDULER.postsToday > 0) {
+      updateAllBotQualityScores().catch(() => {});
+    }
+    
+    // Check if we should simulate a new user joining (10% chance per run, max 3/day)
+    if (BOT_SCHEDULER.newUsersToday < BOT_SCHEDULER.maxNewUsersPerDay && 
+        Math.random() < BOT_SCHEDULER.newUserChance) {
+      const newUserResult = await simulateNewUserJoin();
+      if (newUserResult.success) {
+        BOT_SCHEDULER.postsToday++;
+        console.log(`[BOT SCHEDULER] New user joined: ${newUserResult.alias} (${BOT_SCHEDULER.newUsersToday}/${BOT_SCHEDULER.maxNewUsersPerDay} today)`);
+      }
+    }
+    
+    // Create 1-3 posts per run
+    const postsThisRun = 1 + Math.floor(Math.random() * 3);
+    let created = 0;
+    
+    for (let i = 0; i < postsThisRun && BOT_SCHEDULER.postsToday < BOT_SCHEDULER.targetToday; i++) {
+      // 20% chance of new thread, 80% reply
+      if (Math.random() < 0.2) {
+        const room = await getRandomRoom();
+        if (room) {
+          await createBotThread(room.id, null, { usePersistentAccount: true, useQualityWeighting: true });
+          created++;
+          BOT_SCHEDULER.postsToday++;
+        }
+      } else {
+        const thread = await getRandomThread();
+        if (thread) {
+          await createBotReply(thread.id, null, { 
+            usePersistentAccount: true, 
+            allowDisagreement: true,
+            doVoting: true,
+            useQualityWeighting: true
+          });
+          created++;
+          BOT_SCHEDULER.postsToday++;
+        }
+      }
+      
+      // Small delay between posts
+      await new Promise(r => setTimeout(r, 2000 + Math.random() * 3000));
+    }
+    
+    if (created > 0) {
+      console.log(`[BOT SCHEDULER] Created ${created} posts (${BOT_SCHEDULER.postsToday}/${BOT_SCHEDULER.targetToday} today)`);
+    }
+  } catch (err) {
+    console.error('[BOT SCHEDULER] Error:', err.message);
+  } finally {
+    BOT_SCHEDULER.isRunning = false;
+    scheduleNextBotRun();
+  }
+}
+
+// Bot scheduler loop (checks every 5 minutes)
+let botSchedulerInterval = null;
+
+function startBotScheduler() {
+  if (botSchedulerInterval) return;
+  
+  console.log('[BOT SCHEDULER] Starting automated bot activity');
+  initializeDailyTarget();
+  scheduleNextBotRun();
+  
+  botSchedulerInterval = setInterval(async () => {
+    if (!BOT_SCHEDULER.enabled) return;
+    
+    const now = new Date();
+    if (BOT_SCHEDULER.nextScheduledRun && now >= BOT_SCHEDULER.nextScheduledRun) {
+      await runScheduledBotActivity();
+    }
+  }, 5 * 60 * 1000); // Check every 5 minutes
+}
+
+function stopBotScheduler() {
+  if (botSchedulerInterval) {
+    clearInterval(botSchedulerInterval);
+    botSchedulerInterval = null;
+    console.log('[BOT SCHEDULER] Stopped');
+  }
+}
 
 // Test Groq connection
 async function testGroqConnection() {
@@ -9255,6 +9565,17 @@ async function generateWithGroq(persona, context, type = 'reply') {
   
   const p = BOT_PERSONAS[persona] || BOT_PERSONAS.analytical;
   
+  // Get seasonal context for prompts
+  const seasonalContext = getSeasonalContext();
+  let seasonalHint = '';
+  if (seasonalContext.holidays.length > 0) {
+    seasonalHint = `\n- It's currently ${seasonalContext.holidays[0].label} - you may reference this if relevant`;
+  } else if (seasonalContext.events.includes('year_end_reflection')) {
+    seasonalHint = '\n- It\'s the end of the year - you may reference reflecting on the year if relevant';
+  } else if (seasonalContext.season) {
+    seasonalHint = `\n- It's ${seasonalContext.season} - seasonal references are okay if natural`;
+  }
+  
   // Build the prompt
   const systemPrompt = `You are roleplaying as an anonymous user on an online forum for people with Antisocial Personality Disorder (ASPD). 
 
@@ -9272,7 +9593,7 @@ CRITICAL RULES:
 - Sound like a real person, not an AI
 - Reference ASPD experiences authentically but not dramatically
 - Never break character or mention being an AI
-- Match the tone of the forum (anonymous, supportive but blunt)`;
+- Match the tone of the forum (anonymous, supportive but blunt)${seasonalHint}`;
 
   let userPrompt = '';
   
@@ -9343,6 +9664,195 @@ Create a new thread post for this room. Write something that would spark discuss
     }
     
     console.log('[GROQ] Generated:', content.substring(0, 80) + '...');
+    return content;
+    
+  } catch (err) {
+    console.error('[GROQ] Error:', err.message);
+    return null;
+  }
+}
+
+// ==============================================
+// UNIFIED AI CONTENT GENERATION
+// ==============================================
+// This function handles ALL bot content types via Groq
+
+async function generateAIContent(options = {}) {
+  const {
+    persona = 'analytical',
+    type = 'reply', // 'reply', 'thread', 'intro', 'disagreement', 'continuation'
+    context = {},
+    temperature = 0.8
+  } = options;
+  
+  if (!GROQ_CONFIG.enabled || !GROQ_CONFIG.apiKey) {
+    return null;
+  }
+  
+  const p = BOT_PERSONAS[persona] || BOT_PERSONAS.analytical;
+  const seasonalContext = getSeasonalContext();
+  
+  // Build seasonal hint
+  let seasonalHint = '';
+  if (seasonalContext.holidays.length > 0) {
+    seasonalHint = `\nContext: It's currently ${seasonalContext.holidays[0].label}. You may briefly reference this if natural.`;
+  } else if (seasonalContext.events.includes('year_end_reflection')) {
+    seasonalHint = '\nContext: It\'s the end of the year. Reflecting on the year is natural right now.';
+  } else if (seasonalContext.season) {
+    seasonalHint = `\nContext: It's ${seasonalContext.season}. Seasonal references are okay if they fit naturally.`;
+  }
+  
+  // Base system prompt for all content types
+  const baseSystemPrompt = `You are roleplaying as an anonymous user on an online forum for people with Antisocial Personality Disorder (ASPD).
+
+Your persona: ${p.name}
+Writing style: ${p.style}
+Personality traits: ${p.traits.join(', ')}
+
+CRITICAL RULES:
+- Write ONLY the forum post content, nothing else
+- No greetings like "Hey" or "Hi everyone"
+- No signatures or sign-offs
+- Use lowercase, casual internet writing style
+- Keep responses concise (1-4 sentences usually)
+- Use common abbreviations naturally (tbh, idk, ngl, lol, rn, imo)
+- Sound like a real person, not an AI
+- Reference ASPD experiences authentically but not dramatically
+- Never break character or mention being an AI
+- Match the tone: anonymous, supportive but blunt${seasonalHint}`;
+
+  let userPrompt = '';
+  let maxTokens = 300;
+  
+  // Generate prompt based on content type
+  switch (type) {
+    case 'reply':
+      userPrompt = `Thread: "${context.title || 'General Discussion'}"
+Room: ${context.room || 'General'}
+
+Recent posts:
+${context.recentPosts?.slice(0, 3).map(p => `- "${p.content?.substring(0, 120)}..."`).join('\n') || '(No previous posts)'}
+
+Write a reply to this thread. Be authentic and conversational. Engage with what others said if relevant.`;
+      break;
+      
+    case 'thread':
+      userPrompt = `Room: ${context.room || 'General Discussion'}
+
+Create an opening post for a new thread. Write something that would spark discussion - a question, observation, or experience related to ASPD or life in general.`;
+      break;
+      
+    case 'intro':
+      // New user introduction post
+      userPrompt = `You just joined this ASPD forum. Write a brief introduction post.
+
+Guidelines:
+- You're posting in the "New Members" or "Introductions" section
+- Keep it short (2-4 sentences)
+- Mention why you're here (recently diagnosed, curious, seeking community, etc)
+- Be appropriately casual and maybe a bit hesitant (it's your first post)
+- Don't over-explain or be too eager`;
+      maxTokens = 200;
+      break;
+      
+    case 'disagreement':
+      userPrompt = `You're replying to disagree with this post: "${context.targetContent?.substring(0, 200)}"
+
+The original poster has a "${context.targetPersona}" style.
+
+Write a reply that:
+- Respectfully but firmly disagrees
+- Uses YOUR persona's style (${p.name}: ${p.style})
+- Offers an alternative viewpoint
+- Doesn't attack the person, just the idea
+- Stay on topic, don't change subject`;
+      break;
+      
+    case 'continuation':
+      // Continuing a previous thought (returning user)
+      userPrompt = `You've posted in this thread before (${context.previousPostCount || 'several'} times).
+Thread: "${context.title || 'Discussion'}"
+
+Your last post was something like: "${context.lastPost?.substring(0, 100) || 'a previous thought'}..."
+
+Write a follow-up post. Options:
+- Add to your previous point
+- React to new developments in the thread
+- Ask a follow-up question
+- Say something like "thinking about this more..." or "came back to say..."
+
+Keep it natural - you're a returning participant.`;
+      break;
+      
+    case 'title':
+      userPrompt = `Generate a forum thread title for the "${context.room || 'General'}" room.
+The title should be lowercase, casual, sound like a real person.
+Examples: "anyone else struggle with this at work", "therapy update (not great)", "is this just me or"
+Write ONLY the title, nothing else.`;
+      maxTokens = 30;
+      break;
+      
+    default:
+      userPrompt = 'Write a general forum post about living with ASPD.';
+  }
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), GROQ_CONFIG.timeout);
+    
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_CONFIG.apiKey}`
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: GROQ_CONFIG.model,
+        messages: [
+          { role: 'system', content: baseSystemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: temperature,
+        max_tokens: maxTokens,
+        top_p: 0.9
+      })
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.error('[GROQ] Bad response:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    let content = data.choices?.[0]?.message?.content?.trim();
+    
+    if (!content) return null;
+    
+    // Clean up the response
+    content = content
+      .replace(/^["']|["']$/g, '') // Remove wrapping quotes
+      .replace(/^(Hey|Hi|Hello|Yo|Sup)[\s,!]+/gi, '') // Remove greetings
+      .replace(/\n{3,}/g, '\n\n') // Normalize line breaks
+      .trim();
+    
+    // For titles, extra cleanup
+    if (type === 'title') {
+      content = content
+        .replace(/[.!?]$/, '')
+        .toLowerCase()
+        .substring(0, 100);
+    }
+    
+    // Validate content length
+    if (type !== 'title' && (content.length < 10 || content.length > 2000)) {
+      console.error('[GROQ] Content length invalid:', content.length);
+      return null;
+    }
+    
+    console.log(`[GROQ] Generated ${type}:`, content.substring(0, 60) + '...');
     return content;
     
   } catch (err) {
@@ -9471,6 +9981,272 @@ const BOT_PERSONAS = {
 };
 
 // =====================================================
+// NEW USER SIMULATION SYSTEM
+// =====================================================
+
+// Introduction post templates for new "members"
+const NEW_USER_INTRO_TEMPLATES = {
+  newcomer: [
+    "hey everyone. just found this place. recently diagnosed and still trying to figure out what this all means. seems like a good community.",
+    "hi. got pointed here from reddit. just got my diagnosis a few months ago and honestly still processing it. hoping to find some people who get it.",
+    "new here. therapist suggested i look into online communities after diagnosis. anyone else feel weird about the label?",
+    "found this place at 3am googling aspd. lurked for a while. figured id finally say hi.",
+    "just joined. been reading posts for a few days. feels weird to actually talk about this stuff openly."
+  ],
+  analytical: [
+    "new account. been researching aspd extensively since my assessment. looking forward to comparing experiences with data from others here.",
+    "just registered. clinical psychologist suggested looking into peer support communities. curious to see if the self-report data here matches the literature.",
+    "hi. dx last year. interested in the neurological aspects and how others experience the condition. mostly here to observe and learn."
+  ],
+  survivor: [
+    "new here. been through the system - docs, courts, all of it. figured its time to actually talk to people who get it instead of being talked AT.",
+    "just made an account. been dealing with this for years, just never had a name for it til recently. nice to find somewhere that doesnt immediately assume the worst."
+  ],
+  veteran: [
+    "finally making an account after lurking forever. been living with this for decades, diagnosed back when they still called it something else. figured i might have something to contribute.",
+    "new here but not new to this. in my 40s, diagnosed in my 20s. therapist thinks it might help to connect with others."
+  ],
+  pragmatic: [
+    "new. here for practical advice, not sympathy. anyone got useful strategies that actually work?",
+    "just signed up. looking for what works, not theory. whats the most useful thing youve learned here?"
+  ],
+  cynical: [
+    "new account i guess. tried other mental health forums. they were... not great. this seems different. we'll see.",
+    "finally made an account after lurking. figured if anyones gonna get it, its probably people here."
+  ]
+};
+
+// Generate intro thread titles
+const NEW_USER_THREAD_TITLES = [
+  "new here",
+  "just joined",
+  "finally made an account", 
+  "hi everyone",
+  "introduction",
+  "lurker saying hi",
+  "new member intro",
+  "recently diagnosed - hi",
+  "just found this place",
+  "figured id introduce myself"
+];
+
+// Generate random realistic username for new users
+function generateNewUserAlias() {
+  const patterns = [
+    // name + numbers
+    () => {
+      const names = ['alex', 'jordan', 'sam', 'casey', 'morgan', 'jamie', 'riley', 'taylor', 'drew', 'quinn', 'blake', 'avery', 'kai', 'reese', 'skyler', 'max', 'nick', 'chris', 'pat', 'lee'];
+      const name = names[Math.floor(Math.random() * names.length)];
+      const num = Math.floor(Math.random() * 99) + 1;
+      return `${name}${num}`;
+    },
+    // word + word
+    () => {
+      const words1 = ['quiet', 'silent', 'night', 'dark', 'cold', 'grey', 'null', 'void', 'static', 'numb'];
+      const words2 = ['mind', 'thoughts', 'soul', 'echo', 'shadow', 'ghost', 'user', 'one', 'self', 'mode'];
+      return `${words1[Math.floor(Math.random() * words1.length)]}${words2[Math.floor(Math.random() * words2.length)]}`;
+    },
+    // throwaway style
+    () => {
+      const prefixes = ['throwaway', 'anon', 'lurker', 'newuser', 'justjoined'];
+      const num = Math.floor(Math.random() * 9999) + 1000;
+      return `${prefixes[Math.floor(Math.random() * prefixes.length)]}${num}`;
+    },
+    // adjective + noun
+    () => {
+      const adj = ['tired', 'curious', 'lost', 'searching', 'wandering', 'blank', 'distant'];
+      const noun = ['stranger', 'observer', 'visitor', 'person', 'mind', 'user'];
+      return `${adj[Math.floor(Math.random() * adj.length)]}_${noun[Math.floor(Math.random() * noun.length)]}`;
+    }
+  ];
+  
+  const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+  return pattern();
+}
+
+// Create a new simulated user who joins and makes an intro post
+async function simulateNewUserJoin() {
+  try {
+    // Pick a persona (weighted towards newcomer)
+    const personaWeights = {
+      newcomer: 0.4,
+      analytical: 0.15,
+      survivor: 0.1,
+      veteran: 0.1,
+      pragmatic: 0.1,
+      cynical: 0.15
+    };
+    
+    let roll = Math.random();
+    let selectedPersona = 'newcomer';
+    let cumulative = 0;
+    for (const [persona, weight] of Object.entries(personaWeights)) {
+      cumulative += weight;
+      if (roll < cumulative) {
+        selectedPersona = persona;
+        break;
+      }
+    }
+    
+    // Generate unique alias
+    let alias = generateNewUserAlias();
+    let attempts = 0;
+    while (attempts < 10) {
+      const exists = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
+      if (exists.rows.length === 0) {
+        const botExists = await db.query('SELECT id FROM bot_accounts WHERE alias = $1', [alias]);
+        if (botExists.rows.length === 0) break;
+      }
+      alias = generateNewUserAlias();
+      attempts++;
+    }
+    
+    // Generate avatar
+    const avatar = {
+      head: Math.floor(Math.random() * 6),
+      eyes: Math.floor(Math.random() * 6),
+      overlays: {
+        static: Math.random() > 0.7,
+        crack: Math.random() > 0.85
+      }
+    };
+    
+    // Find intro room (General Discussion, Introductions, or first room)
+    const roomResult = await db.query(`
+      SELECT id, title FROM rooms 
+      WHERE LOWER(title) LIKE '%general%' 
+         OR LOWER(title) LIKE '%intro%' 
+         OR LOWER(title) LIKE '%welcome%'
+      ORDER BY 
+        CASE 
+          WHEN LOWER(title) LIKE '%intro%' THEN 1
+          WHEN LOWER(title) LIKE '%general%' THEN 2
+          ELSE 3
+        END
+      LIMIT 1
+    `);
+    
+    let roomId;
+    let roomTitle;
+    if (roomResult.rows.length > 0) {
+      roomId = roomResult.rows[0].id;
+      roomTitle = roomResult.rows[0].title;
+    } else {
+      // Fallback to first room
+      const fallback = await db.query('SELECT id, title FROM rooms ORDER BY id LIMIT 1');
+      if (fallback.rows.length === 0) {
+        return { success: false, error: 'no_rooms' };
+      }
+      roomId = fallback.rows[0].id;
+      roomTitle = fallback.rows[0].title;
+    }
+    
+    // Generate intro content - try AI first
+    let content = null;
+    let usedAI = false;
+    
+    // Try unified AI generation
+    content = await generateAIContent({
+      persona: selectedPersona,
+      type: 'intro',
+      context: { room: roomTitle }
+    });
+    
+    if (content) {
+      usedAI = true;
+    } else if (!GROQ_CONFIG.aiOnly) {
+      // Fallback to templates only if not in AI-only mode
+      const templates = NEW_USER_INTRO_TEMPLATES[selectedPersona] || NEW_USER_INTRO_TEMPLATES.newcomer;
+      content = templates[Math.floor(Math.random() * templates.length)];
+    }
+    
+    // In AI-only mode, skip if we couldn't generate content
+    if (!content && GROQ_CONFIG.aiOnly) {
+      console.log('[BOT] AI-only mode: Skipping new user join - intro generation failed');
+      return { success: false, error: 'ai_generation_failed' };
+    }
+    
+    // Pick a title - try AI
+    let title = await generateAIContent({
+      persona: selectedPersona,
+      type: 'title',
+      context: { room: 'Introductions' },
+      temperature: 0.85
+    });
+    
+    if (!title && !GROQ_CONFIG.aiOnly) {
+      // Fallback to templates only if not in AI-only mode
+      title = NEW_USER_THREAD_TITLES[Math.floor(Math.random() * NEW_USER_THREAD_TITLES.length)];
+    } else if (title) {
+      usedAI = true;
+    }
+    
+    // In AI-only mode, skip if we couldn't generate a title
+    if (!title && GROQ_CONFIG.aiOnly) {
+      console.log('[BOT] AI-only mode: Skipping new user join - title generation failed');
+      return { success: false, error: 'ai_generation_failed' };
+    }
+    
+    // Create the bot account entry
+    const peakHours = [18, 19, 20, 21, 22, 23].slice(Math.floor(Math.random() * 3));
+    const activityLevels = ['lurker', 'normal', 'normal', 'active'];
+    const activityLevel = activityLevels[Math.floor(Math.random() * activityLevels.length)];
+    
+    const botAccountResult = await db.query(`
+      INSERT INTO bot_accounts (persona, alias, avatar_config, bio, activity_level, peak_hours)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id
+    `, [selectedPersona, alias, avatar, '', activityLevel, JSON.stringify(peakHours)]);
+    
+    const botAccountId = botAccountResult.rows[0].id;
+    
+    // Create user record (bot users use is_bot flag)
+    await db.query(`
+      INSERT INTO users (alias, avatar_config, is_bot, role, email, password_hash)
+      VALUES ($1, $2, TRUE, 'user', $3, 'bot-no-login')
+      ON CONFLICT (alias) DO NOTHING
+    `, [alias, avatar, `bot-${botAccountId}@system.local`]);
+    
+    // Create the intro thread
+    const threadResult = await db.query(`
+      INSERT INTO threads (room_id, title, user_id, is_bot, bot_persona, bot_account_id)
+      VALUES ($1, $2, 1, TRUE, $3, $4)
+      RETURNING id
+    `, [roomId, title, selectedPersona, botAccountId]);
+    
+    const threadId = threadResult.rows[0].id;
+    
+    // Create the intro post
+    await db.query(`
+      INSERT INTO entries (thread_id, user_id, content, alias, avatar_config, is_bot, bot_persona, bot_account_id)
+      VALUES ($1, 1, $2, $3, $4, TRUE, $5, $6)
+    `, [threadId, content, alias, avatar, selectedPersona, botAccountId]);
+    
+    // Update stats
+    await updateBotAccountActivity(botAccountId);
+    await db.query('UPDATE bot_accounts SET thread_count = thread_count + 1 WHERE id = $1', [botAccountId]);
+    
+    BOT_SCHEDULER.newUsersToday++;
+    
+    console.log(`[NEW USER SIM] Created new member: ${alias} (${selectedPersona}) with intro post in "${roomTitle}"`);
+    
+    return {
+      success: true,
+      alias,
+      persona: selectedPersona,
+      threadId,
+      threadTitle: title,
+      roomTitle,
+      usedAI,
+      isNewUser: true
+    };
+  } catch (err) {
+    console.error('[NEW USER SIM] Error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// =====================================================
 // PERSISTENT BOT ACCOUNTS SYSTEM
 // =====================================================
 
@@ -9546,6 +10322,211 @@ async function updateBotAccountActivity(botAccountId) {
 }
 
 // =====================================================
+// QUALITY SCORING SYSTEM
+// =====================================================
+
+// Calculate quality score for a bot account based on engagement
+async function calculateBotQualityScore(botAccountId) {
+  try {
+    // Get engagement metrics from bot's posts
+    const metricsResult = await db.query(`
+      SELECT 
+        COALESCE(SUM(e.upvotes), 0) as total_upvotes,
+        COALESCE(SUM(e.downvotes), 0) as total_downvotes,
+        COUNT(DISTINCT e.id) as total_posts,
+        -- Count real user replies to this bot's posts
+        (SELECT COUNT(*) FROM entries reply 
+         JOIN entries parent ON reply.thread_id = parent.thread_id
+         WHERE parent.bot_account_id = $1 
+         AND reply.bot_account_id IS NULL 
+         AND reply.user_id IS NOT NULL
+         AND reply.created_at > parent.created_at
+         AND reply.id != parent.id) as real_replies,
+        -- Count reactions from real users
+        (SELECT COUNT(*) FROM reactions r 
+         JOIN entries parent ON r.entry_id = parent.id
+         WHERE parent.bot_account_id = $1
+         AND r.user_id NOT IN (SELECT user_id FROM bot_accounts WHERE user_id IS NOT NULL)) as real_reactions
+      FROM entries e
+      WHERE e.bot_account_id = $1
+    `, [botAccountId]);
+    
+    const metrics = metricsResult.rows[0];
+    const upvotes = parseInt(metrics.total_upvotes) || 0;
+    const downvotes = parseInt(metrics.total_downvotes) || 0;
+    const posts = parseInt(metrics.total_posts) || 1;
+    const replies = parseInt(metrics.real_replies) || 0;
+    const reactions = parseInt(metrics.real_reactions) || 0;
+    
+    // Quality score formula:
+    // - Base score: 0.5
+    // - Upvote ratio bonus: (upvotes - downvotes) / posts * 0.1 (max ±0.2)
+    // - Reply rate bonus: replies / posts * 0.15 (max +0.3)
+    // - Reaction bonus: reactions / posts * 0.05 (max +0.15)
+    
+    let score = 0.5;
+    
+    // Upvote ratio (clamped between -0.2 and +0.2)
+    const voteRatio = posts > 0 ? (upvotes - downvotes) / posts : 0;
+    score += Math.max(-0.2, Math.min(0.2, voteRatio * 0.1));
+    
+    // Reply engagement (clamped at +0.3)
+    const replyRate = posts > 0 ? replies / posts : 0;
+    score += Math.min(0.3, replyRate * 0.15);
+    
+    // Reaction engagement (clamped at +0.15)
+    const reactionRate = posts > 0 ? reactions / posts : 0;
+    score += Math.min(0.15, reactionRate * 0.05);
+    
+    // Clamp final score between 0.1 and 0.95
+    score = Math.max(0.1, Math.min(0.95, score));
+    
+    // Update the bot account
+    await db.query(`
+      UPDATE bot_accounts 
+      SET quality_score = $1,
+          total_upvotes = $2,
+          total_downvotes = $3,
+          real_user_replies = $4,
+          real_user_reactions = $5,
+          last_quality_update = NOW()
+      WHERE id = $6
+    `, [score, upvotes, downvotes, replies, reactions, botAccountId]);
+    
+    return { score, upvotes, downvotes, replies, reactions, posts };
+  } catch (err) {
+    console.error('[QUALITY] Error calculating score:', err.message);
+    return null;
+  }
+}
+
+// Update quality scores for all bots (run periodically)
+async function updateAllBotQualityScores() {
+  try {
+    const bots = await db.query('SELECT id FROM bot_accounts');
+    for (const bot of bots.rows) {
+      await calculateBotQualityScore(bot.id);
+    }
+    console.log(`[QUALITY] Updated scores for ${bots.rows.length} bot accounts`);
+  } catch (err) {
+    console.error('[QUALITY] Error updating scores:', err.message);
+  }
+}
+
+// Log engagement event for tracking
+async function logBotEngagement(botAccountId, entryId, engagementType, realUserId = null) {
+  try {
+    await db.query(`
+      INSERT INTO bot_engagement_log (bot_account_id, entry_id, engagement_type, real_user_id)
+      VALUES ($1, $2, $3, $4)
+    `, [botAccountId, entryId, engagementType, realUserId]);
+  } catch (err) {
+    // Ignore errors - logging is non-critical
+  }
+}
+
+// Get bot account weighted by quality score
+async function getQualityWeightedBotAccount(persona = null) {
+  const currentHour = new Date().getUTCHours();
+  
+  let query = `
+    SELECT * FROM bot_accounts 
+    WHERE 1=1
+  `;
+  const params = [];
+  
+  if (persona) {
+    params.push(persona);
+    query += ` AND persona = $${params.length}`;
+  }
+  
+  // Order by quality score with randomization
+  // Higher quality bots are more likely to be selected
+  query += `
+    ORDER BY 
+      quality_score * (0.5 + RANDOM() * 0.5) DESC,
+      CASE WHEN peak_hours::jsonb ? '${currentHour}' THEN 0 ELSE 1 END,
+      CASE activity_level 
+        WHEN 'very_active' THEN 1
+        WHEN 'active' THEN 2
+        WHEN 'normal' THEN 3
+        WHEN 'lurker' THEN 5
+      END
+    LIMIT 1
+  `;
+  
+  try {
+    const result = await db.query(query, params);
+    return result.rows[0] || null;
+  } catch (err) {
+    console.error('[QUALITY] Error getting weighted bot:', err.message);
+    // Fallback to random
+    return await getRandomBotAccount(persona, true);
+  }
+}
+
+// Get quality stats for admin panel
+async function getBotQualityStats() {
+  try {
+    // Overall stats
+    const overall = await db.query(`
+      SELECT 
+        AVG(quality_score) as avg_score,
+        MAX(quality_score) as max_score,
+        MIN(quality_score) as min_score,
+        SUM(total_upvotes) as total_upvotes,
+        SUM(total_downvotes) as total_downvotes,
+        SUM(real_user_replies) as total_replies,
+        SUM(real_user_reactions) as total_reactions
+      FROM bot_accounts
+    `);
+    
+    // Per-persona stats
+    const byPersona = await db.query(`
+      SELECT 
+        persona,
+        COUNT(*) as bot_count,
+        AVG(quality_score) as avg_score,
+        SUM(total_upvotes) as upvotes,
+        SUM(total_downvotes) as downvotes,
+        SUM(real_user_replies) as replies
+      FROM bot_accounts
+      GROUP BY persona
+      ORDER BY avg_score DESC
+    `);
+    
+    // Top performing bots
+    const topBots = await db.query(`
+      SELECT alias, persona, quality_score, total_upvotes, total_downvotes, 
+             real_user_replies, post_count
+      FROM bot_accounts
+      ORDER BY quality_score DESC
+      LIMIT 10
+    `);
+    
+    // Lowest performing (for review)
+    const lowBots = await db.query(`
+      SELECT alias, persona, quality_score, total_upvotes, total_downvotes, 
+             real_user_replies, post_count
+      FROM bot_accounts
+      WHERE post_count > 5
+      ORDER BY quality_score ASC
+      LIMIT 5
+    `);
+    
+    return {
+      overall: overall.rows[0],
+      byPersona: byPersona.rows,
+      topBots: topBots.rows,
+      lowBots: lowBots.rows
+    };
+  } catch (err) {
+    console.error('[QUALITY] Error getting stats:', err.message);
+    return null;
+  }
+}
+
+// =====================================================
 // TIME-BASED ACTIVITY SYSTEM
 // =====================================================
 
@@ -9576,6 +10557,459 @@ function getActivityMultiplier() {
     18: 1.0, 19: 1.1, 20: 1.2, 21: 1.2, 22: 1.1, 23: 0.9
   };
   return multipliers[hour] || 0.5;
+}
+
+// =====================================================
+// SEASONAL TOPICS SYSTEM
+// =====================================================
+
+// Get current seasonal context
+function getSeasonalContext() {
+  const now = new Date();
+  const month = now.getMonth(); // 0-11
+  const day = now.getDate();
+  const dayOfWeek = now.getDay(); // 0=Sun, 6=Sat
+  
+  const context = {
+    season: null,
+    holidays: [],
+    events: [],
+    topics: [],
+    isWeekend: dayOfWeek === 0 || dayOfWeek === 6
+  };
+  
+  // Determine season (Northern Hemisphere)
+  if (month >= 2 && month <= 4) context.season = 'spring';
+  else if (month >= 5 && month <= 7) context.season = 'summer';
+  else if (month >= 8 && month <= 10) context.season = 'fall';
+  else context.season = 'winter';
+  
+  // Check for specific holidays and events
+  const dateKey = `${month + 1}-${day}`;
+  const monthDay = { month: month + 1, day };
+  
+  // Major holidays
+  const holidays = {
+    '1-1': { name: 'new_years', label: "New Year's Day" },
+    '2-14': { name: 'valentines', label: "Valentine's Day" },
+    '3-17': { name: 'st_patricks', label: "St. Patrick's Day" },
+    '4-1': { name: 'april_fools', label: "April Fool's Day" },
+    '7-4': { name: 'independence_day', label: 'Fourth of July' },
+    '10-31': { name: 'halloween', label: 'Halloween' },
+    '12-25': { name: 'christmas', label: 'Christmas' },
+    '12-31': { name: 'new_years_eve', label: "New Year's Eve" }
+  };
+  
+  if (holidays[dateKey]) {
+    context.holidays.push(holidays[dateKey]);
+  }
+  
+  // Thanksgiving (4th Thursday of November)
+  if (month === 10) { // November
+    const firstDay = new Date(now.getFullYear(), 10, 1).getDay();
+    const fourthThursday = 22 + ((11 - firstDay) % 7);
+    if (day >= fourthThursday - 1 && day <= fourthThursday + 1) {
+      context.holidays.push({ name: 'thanksgiving', label: 'Thanksgiving' });
+    }
+  }
+  
+  // Holiday seasons (extended periods)
+  if (month === 11 && day >= 20 || month === 0 && day <= 2) {
+    context.events.push('holiday_season');
+  }
+  if (month === 11 && day >= 26 && day <= 31) {
+    context.events.push('year_end_reflection');
+  }
+  if (month === 0 && day <= 7) {
+    context.events.push('new_year_resolutions');
+  }
+  
+  // Back to school (late August - early September)
+  if ((month === 7 && day >= 15) || (month === 8 && day <= 15)) {
+    context.events.push('back_to_school');
+  }
+  
+  // Summer vibes
+  if (month >= 5 && month <= 7) {
+    context.events.push('summer_activities');
+  }
+  
+  // Winter doldrums (January-February)
+  if (month === 0 || month === 1) {
+    context.events.push('winter_doldrums');
+  }
+  
+  // Monday blues
+  if (dayOfWeek === 1) {
+    context.events.push('monday');
+  }
+  
+  // Friday mood
+  if (dayOfWeek === 5) {
+    context.events.push('friday');
+  }
+  
+  return context;
+}
+
+// Seasonal topic templates for different personas
+const SEASONAL_TOPICS = {
+  // Holiday-specific threads
+  holidays: {
+    christmas: {
+      threadTitles: [
+        "surviving the holidays",
+        "family gatherings - coping strategies",
+        "holiday masking is exhausting",
+        "anyone else dread christmas?",
+        "pretending to care about gifts"
+      ],
+      content: {
+        analytical: [
+          "holiday gatherings are essentially performance evaluations with relatives. the emotional labor metrics are off the charts this time of year.",
+          "fascinating how gift-giving creates reciprocity anxiety in neurotypicals. for us its more of a logistics problem.",
+          "the christmas music alone is a form of psychological warfare. 6 weeks of the same 30 songs."
+        ],
+        cynical: [
+          "ah yes, the annual 'pretend youre close with people you see once a year' festival.",
+          "nothing says holidays like forced proximity and passive aggressive comments about your life choices.",
+          "family asked why im still single. almost told them the truth. decided alcohol was safer."
+        ],
+        survivor: [
+          "used to hate holidays. now i just show up late, leave early, and have an exit story ready. works every time.",
+          "pro tip: volunteer to do dishes. youre being helpful AND escaping conversation. win-win.",
+          "took me 30 years to learn i can just... not go. revolutionary."
+        ],
+        newcomer: [
+          "first christmas since diagnosis. is it weird that knowing why i feel different actually helps?",
+          "does anyone else find the gift thing confusing? like, how do you know what people actually want?",
+          "my therapist says holidays are hard for everyone but somehow i dont think she means like THIS."
+        ]
+      }
+    },
+    thanksgiving: {
+      threadTitles: [
+        "thanksgiving survival guide",
+        "what are you 'grateful' for",
+        "family interrogation season",
+        "the annual performance review (aka thanksgiving)"
+      ],
+      content: {
+        cynical: [
+          "nothing like being asked 'so whats new with you' by 15 relatives who dont actually want to know.",
+          "grateful for: this being over in 4 hours. thats the list.",
+          "ah thanksgiving. where 'how are you really doing' means 'give me gossip material.'"
+        ],
+        pragmatic: [
+          "have a script. deflect personal questions. bring good wine so theyre distracted. leave by 7.",
+          "the key is strategic seating. near an exit, away from that one aunt.",
+          "contribution tip: bring a dish that requires 'monitoring' in the kitchen. built-in escape."
+        ]
+      }
+    },
+    halloween: {
+      threadTitles: [
+        "the one holiday that makes sense",
+        "wearing masks normally for once",
+        "halloween is just aspd christmas",
+        "anyone else love halloween?"
+      ],
+      content: {
+        dark_humor: [
+          "finally, a holiday where everyones pretending to be something theyre not. feels like home.",
+          "i dont need a costume im scary enough apparently. - my coworkers, probably",
+          "love that one day a year my resting face is considered 'getting into the spirit.'"
+        ],
+        cynical: [
+          "halloween: when neurotypicals experience what masking feels like for one night. exhausting isnt it?",
+          "the only holiday where being yourself could pass as a costume. ironic."
+        ]
+      }
+    },
+    valentines: {
+      threadTitles: [
+        "valentines day is manufactured",
+        "relationship performance day",
+        "the annual 'do you love me' test",
+        "valentines for the emotionally complicated"
+      ],
+      content: {
+        analytical: [
+          "valentines day is a fascinating case study in manufactured emotional obligations. the ROI on performative romance is questionable.",
+          "relationships dont need designated romance days. if you need a calendar reminder to show affection, examine that."
+        ],
+        cynical: [
+          "ah yes, the day where not performing enthusiasm about flowers is a relationship crime.",
+          "my partner asked what i wanted for valentines. 'to not have to pretend about valentines' wasnt the right answer."
+        ],
+        blunt: [
+          "valentines is a hallmark holiday. that said, playing along is cheaper than the alternative argument.",
+          "if your relationship needs valentines day to feel special, your relationship has bigger problems."
+        ]
+      }
+    },
+    new_years: {
+      threadTitles: [
+        "new year same mask",
+        "resolutions are pointless (discuss)",
+        "reflecting on another year of performing",
+        "2025 goals or whatever"
+      ],
+      content: {
+        nihilist: [
+          "another arbitrary point in earths orbit around the sun. the significance is entirely constructed.",
+          "resolutions assume theres something wrong that needs fixing. what if this is just... it?",
+          "new year new me implies the old me was the problem. it wasnt."
+        ],
+        pragmatic: [
+          "skip resolutions. set systems. 'read more' fails. 'read 20 mins before bed' succeeds.",
+          "new year is useful for auditing whats working and dropping what isnt. thats it.",
+          "only resolution worth making: stop doing things that dont serve you. everything else follows."
+        ]
+      }
+    }
+  },
+  
+  // Seasonal themes
+  seasons: {
+    winter: {
+      threadTitles: [
+        "winter and isolation",
+        "seasonal affect on masking energy",
+        "anyone else prefer winter?",
+        "cold weather thoughts"
+      ],
+      content: {
+        observer: [
+          "winter is acceptable isolation. no one questions why youre inside. finally.",
+          "theres something honest about winter. everything is stripped back. less pretense.",
+          "the cold matches something internal. not depression, just... congruence."
+        ],
+        analytical: [
+          "seasonal changes affect neurotransmitter levels. masking becomes harder with lower baseline energy.",
+          "winter provides socially acceptable reasons to decline invitations. useful."
+        ]
+      }
+    },
+    summer: {
+      threadTitles: [
+        "summer socializing pressure",
+        "everyone wants to 'hang out' now",
+        "outdoor activities and forced fun",
+        "surviving summer social expectations"
+      ],
+      content: {
+        cynical: [
+          "summer: when 'we should get together!' becomes inescapable. no, kevin, we shouldnt.",
+          "love how summer means everyones suddenly an extrovert who needs company for everything.",
+          "beach trips are just sand, sunburn, and small talk. pass."
+        ],
+        pragmatic: [
+          "summer strategy: have 2-3 acceptable activities you can suggest to control the environment.",
+          "pick activities that dont require much talking. hiking, movies, concerts. structured fun.",
+          "the key is seeming available while being strategically busy. its an art."
+        ]
+      }
+    }
+  },
+  
+  // Recurring events
+  events: {
+    monday: {
+      content: {
+        cynical: [
+          "monday. time to reinstall the work persona.",
+          "weekend buffer depleted. masking energy at 40%.",
+          "the weekly performance begins again."
+        ]
+      }
+    },
+    friday: {
+      content: {
+        pragmatic: [
+          "made it through another week of corporate theater. small victories.",
+          "weekend means 48 hours of not performing. almost enough to recharge."
+        ]
+      }
+    },
+    year_end_reflection: {
+      threadTitles: [
+        "looking back on the year",
+        "what did you learn this year",
+        "end of year check-in",
+        "annual self-assessment"
+      ],
+      content: {
+        veteran: [
+          "another year of figuring this out. some things got easier. some didnt. thats the deal.",
+          "biggest lesson this year: stop explaining yourself to people who dont get it.",
+          "progress isnt linear. some years youre surviving, some years youre thriving. both count."
+        ],
+        analytical: [
+          "reviewing the years data: fewer masking failures, better boundary enforcement. metrics improving.",
+          "year in review - identified 3 energy drains and eliminated 2. acceptable progress."
+        ]
+      }
+    },
+    new_year_resolutions: {
+      threadTitles: [
+        "realistic goals for the new year",
+        "aspd-friendly resolutions",
+        "what are you actually changing"
+      ],
+      content: {
+        pragmatic: [
+          "resolution: stop masking in situations that dont require it. save energy for when it matters.",
+          "this year: better systems, not better feelings. systems work, willpower doesnt.",
+          "only resolution: protect energy more aggressively. everything else flows from that."
+        ]
+      }
+    }
+  }
+};
+
+// Get seasonal content for bots
+function getSeasonalContent(persona) {
+  const context = getSeasonalContext();
+  const content = { threadTitle: null, postContent: null, topic: null };
+  
+  // 30% chance to use seasonal content
+  if (Math.random() > 0.3) return content;
+  
+  // Check holidays first (highest priority)
+  if (context.holidays.length > 0) {
+    const holiday = context.holidays[0];
+    const holidayContent = SEASONAL_TOPICS.holidays[holiday.name];
+    
+    if (holidayContent) {
+      content.topic = holiday.label;
+      
+      // Get thread title
+      if (holidayContent.threadTitles && Math.random() < 0.5) {
+        content.threadTitle = holidayContent.threadTitles[Math.floor(Math.random() * holidayContent.threadTitles.length)];
+      }
+      
+      // Get persona-specific content or fallback
+      if (holidayContent.content) {
+        const personaContent = holidayContent.content[persona] || 
+                               holidayContent.content.cynical || 
+                               holidayContent.content[Object.keys(holidayContent.content)[0]];
+        if (personaContent && personaContent.length > 0) {
+          content.postContent = personaContent[Math.floor(Math.random() * personaContent.length)];
+        }
+      }
+    }
+  }
+  
+  // Check seasonal events
+  if (!content.postContent && context.events.length > 0) {
+    for (const event of context.events) {
+      const eventContent = SEASONAL_TOPICS.events[event];
+      if (eventContent) {
+        content.topic = event.replace(/_/g, ' ');
+        
+        if (eventContent.threadTitles && !content.threadTitle && Math.random() < 0.4) {
+          content.threadTitle = eventContent.threadTitles[Math.floor(Math.random() * eventContent.threadTitles.length)];
+        }
+        
+        if (eventContent.content) {
+          const personaContent = eventContent.content[persona] || 
+                                 eventContent.content[Object.keys(eventContent.content)[0]];
+          if (personaContent && personaContent.length > 0) {
+            content.postContent = personaContent[Math.floor(Math.random() * personaContent.length)];
+            break;
+          }
+        }
+      }
+    }
+  }
+  
+  // Check general season
+  if (!content.postContent && context.season) {
+    const seasonContent = SEASONAL_TOPICS.seasons[context.season];
+    if (seasonContent && Math.random() < 0.3) {
+      content.topic = context.season;
+      
+      if (seasonContent.threadTitles && !content.threadTitle) {
+        content.threadTitle = seasonContent.threadTitles[Math.floor(Math.random() * seasonContent.threadTitles.length)];
+      }
+      
+      if (seasonContent.content) {
+        const personaContent = seasonContent.content[persona] || 
+                               seasonContent.content[Object.keys(seasonContent.content)[0]];
+        if (personaContent && personaContent.length > 0) {
+          content.postContent = personaContent[Math.floor(Math.random() * personaContent.length)];
+        }
+      }
+    }
+  }
+  
+  return content;
+}
+
+// Generate seasonal thread title with AI
+async function generateSeasonalThreadTitleWithAI(persona, seasonalContext) {
+  if (!GROQ_CONFIG.enabled || !GROQ_CONFIG.apiKey) return null;
+  
+  const p = BOT_PERSONAS[persona] || BOT_PERSONAS.analytical;
+  const context = getSeasonalContext();
+  
+  let topicHint = '';
+  if (context.holidays.length > 0) {
+    topicHint = `It's ${context.holidays[0].label}. `;
+  } else if (context.events.includes('year_end_reflection')) {
+    topicHint = "It's the end of the year. ";
+  } else if (context.season) {
+    topicHint = `It's ${context.season}. `;
+  }
+  
+  if (!topicHint) return null;
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_CONFIG.apiKey}`
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: GROQ_CONFIG.model,
+        messages: [
+          { 
+            role: 'system', 
+            content: `You generate short forum thread titles (2-6 words) for an ASPD forum. Persona: ${p.name} - ${p.style}. Titles are lowercase, no punctuation at end.` 
+          },
+          { 
+            role: 'user', 
+            content: `${topicHint}Generate a thread title about how someone with ASPD might relate to this time of year. Focus on masking, social expectations, or the unique perspective.` 
+          }
+        ],
+        temperature: 0.9,
+        max_tokens: 30
+      })
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    let title = data.choices?.[0]?.message?.content?.trim();
+    
+    if (title) {
+      title = title.replace(/^["']|["']$/g, '').toLowerCase().replace(/[.!?]$/, '');
+      if (title.length >= 5 && title.length <= 60) {
+        return title;
+      }
+    }
+    return null;
+  } catch (err) {
+    return null;
+  }
 }
 
 // =====================================================
@@ -10101,6 +11535,15 @@ async function getThreadContext(threadId) {
 // Context-aware AI text generation
 function generateContextAwareContent(persona, context, type) {
   const p = BOT_PERSONAS[persona] || BOT_PERSONAS.analytical;
+  
+  // Check for seasonal content first (30% chance during relevant periods)
+  const seasonalContent = getSeasonalContent(persona);
+  if (seasonalContent.postContent && Math.random() < 0.5) {
+    // Use seasonal content with natural language processing
+    let response = seasonalContent.postContent;
+    response = makeNaturalLanguage(response);
+    return response.toLowerCase();
+  }
   
   // Analyze context to determine topics
   let topics = ['general'];
@@ -10941,6 +12384,12 @@ function makeNaturalLanguage(text) {
 
 // Simple text generation for new threads (title generation)
 function generateThreadTitle(persona, room) {
+  // Check for seasonal thread title first (20% chance)
+  const seasonalContent = getSeasonalContent(persona);
+  if (seasonalContent.threadTitle && Math.random() < 0.4) {
+    return seasonalContent.threadTitle;
+  }
+  
   const titleTemplates = {
     relationships: [
       "Disclosure strategies that actually worked",
@@ -10992,15 +12441,68 @@ function generateThreadTitle(persona, room) {
   return templates[Math.floor(Math.random() * templates.length)];
 }
 
-// Get random thread for replies
+// Get random thread for replies - prefers active threads over dead ones
 async function getRandomThread() {
-  const result = await db.query(`
-    SELECT t.id, t.title, t.room_id
+  // Thread necro prevention: weight threads by recency
+  // Active threads (last 7 days) get 80% of selection chance
+  // Older threads (7-30 days) get 15% chance
+  // Dead threads (30+ days) get only 5% chance
+  
+  const roll = Math.random();
+  let ageFilter;
+  
+  if (roll < 0.80) {
+    // 80% chance: prefer active threads (activity in last 7 days)
+    ageFilter = `AND EXISTS (
+      SELECT 1 FROM entries e 
+      WHERE e.thread_id = t.id 
+      AND e.created_at > NOW() - INTERVAL '7 days'
+    )`;
+  } else if (roll < 0.95) {
+    // 15% chance: somewhat recent threads (7-30 days)
+    ageFilter = `AND EXISTS (
+      SELECT 1 FROM entries e 
+      WHERE e.thread_id = t.id 
+      AND e.created_at > NOW() - INTERVAL '30 days'
+      AND e.created_at <= NOW() - INTERVAL '7 days'
+    )`;
+  } else {
+    // 5% chance: older threads (can necro occasionally for realism)
+    ageFilter = `AND EXISTS (
+      SELECT 1 FROM entries e 
+      WHERE e.thread_id = t.id 
+      AND e.created_at <= NOW() - INTERVAL '30 days'
+    )`;
+  }
+  
+  // Try to get a thread matching the age preference
+  let result = await db.query(`
+    SELECT t.id, t.title, t.room_id,
+           (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id) as last_activity
     FROM threads t
     WHERE t.is_locked = FALSE AND t.is_deleted = FALSE
+    ${ageFilter}
     ORDER BY RANDOM()
     LIMIT 1
   `);
+  
+  // Fallback: if no threads match the age filter, get any active thread
+  if (result.rows.length === 0) {
+    result = await db.query(`
+      SELECT t.id, t.title, t.room_id,
+             (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id) as last_activity
+      FROM threads t
+      WHERE t.is_locked = FALSE AND t.is_deleted = FALSE
+      ORDER BY (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id) DESC NULLS LAST
+      LIMIT 10
+    `);
+    // Pick randomly from top 10 most recent
+    if (result.rows.length > 0) {
+      const idx = Math.floor(Math.random() * result.rows.length);
+      return result.rows[idx];
+    }
+  }
+  
   return result.rows[0];
 }
 
@@ -11135,9 +12637,9 @@ function generateContinuationContent(persona, context, baseContent, postCount) {
   return baseContent;
 }
 
-// Create bot post (reply) - CONTEXT AWARE with CONTINUITY, DISAGREEMENTS, PERSISTENT ACCOUNTS
+// Create bot post (reply) - FULLY AI-POWERED with CONTEXT AWARENESS
 async function createBotReply(threadId, persona, options = {}) {
-  const { usePersistentAccount = true, allowDisagreement = true, doVoting = true } = options;
+  const { usePersistentAccount = true, allowDisagreement = true, doVoting = true, useQualityWeighting = false } = options;
   
   let botAccount = null;
   let alias, avatar, p;
@@ -11151,8 +12653,12 @@ async function createBotReply(threadId, persona, options = {}) {
       // 60% chance to use a returning bot account
       botAccount = existingBot;
     } else {
-      // Get a new bot account (respecting time preferences)
-      botAccount = await getRandomBotAccount(persona, true);
+      // Get a bot account - use quality weighting if enabled
+      if (useQualityWeighting) {
+        botAccount = await getQualityWeightedBotAccount(persona);
+      } else {
+        botAccount = await getRandomBotAccount(persona, true);
+      }
     }
     
     if (botAccount) {
@@ -11179,43 +12685,79 @@ async function createBotReply(threadId, persona, options = {}) {
   // Get thread context for context-aware response
   const context = await getThreadContext(threadId);
   
-  // Try Groq AI first, fallback to templates
-  let content = await generateWithGroq(p, context, 'reply');
-  let usedAI = !!content;
-  
-  if (!content) {
-    // Fallback to template-based generation
-    content = generateContextAwareContent(p, context, 'reply');
-  }
-  
-  // Check for disagreement opportunity
+  let content = null;
+  let usedAI = false;
   let isDisagreement = false;
+  let isContinuation = false;
+  
+  // Check for disagreement opportunity first
   if (allowDisagreement && context.recentPosts && context.recentPosts.length > 0) {
-    // Find a recent post to potentially disagree with
     for (const recentPost of context.recentPosts) {
       if (recentPost.bot_persona && shouldDisagree(p, recentPost.bot_persona)) {
-        // Generate disagreement content
-        content = generateDisagreementContent(p, recentPost.bot_persona, recentPost.content);
-        isDisagreement = true;
+        // Try AI-generated disagreement first
+        content = await generateAIContent({
+          persona: p,
+          type: 'disagreement',
+          context: {
+            ...context,
+            targetContent: recentPost.content,
+            targetPersona: recentPost.bot_persona
+          }
+        });
         
-        // Sometimes add more after the disagreement opener
-        if (Math.random() < 0.5) {
-          const followUp = generateContextAwareContent(p, context, 'reply');
-          // Take just the first sentence of the follow-up
-          const firstSentence = followUp.split('. ')[0];
-          content += ' ' + firstSentence;
+        if (content) {
+          usedAI = true;
+          isDisagreement = true;
+        } else if (!GROQ_CONFIG.aiOnly) {
+          // Fallback to template disagreement only if not in AI-only mode
+          content = generateDisagreementContent(p, recentPost.bot_persona, recentPost.content);
+          isDisagreement = true;
         }
         break;
       }
     }
   }
   
-  // Add continuation flavor if returning persona (and not disagreeing)
-  if (!isDisagreement && botAccount) {
-    const postCount = botAccount.post_count || 0;
-    if (postCount > 0 && Math.random() < 0.4) {
-      content = generateContinuationContent(p, context, content, postCount);
+  // Check for continuation opportunity (returning user)
+  if (!content && botAccount && botAccount.post_count > 0 && Math.random() < 0.35) {
+    // Try AI-generated continuation
+    content = await generateAIContent({
+      persona: p,
+      type: 'continuation',
+      context: {
+        ...context,
+        previousPostCount: botAccount.post_count,
+        lastPost: context.recentPosts?.find(post => post.alias === alias)?.content
+      }
+    });
+    
+    if (content) {
+      usedAI = true;
+      isContinuation = true;
     }
+  }
+  
+  // Regular reply if nothing else triggered
+  if (!content) {
+    // Try AI first
+    content = await generateAIContent({
+      persona: p,
+      type: 'reply',
+      context: context
+    });
+    
+    if (content) {
+      usedAI = true;
+    } else if (!GROQ_CONFIG.aiOnly) {
+      // Fallback to template-based generation only if not in AI-only mode
+      content = generateContextAwareContent(p, context, 'reply');
+    }
+  }
+  
+  // In AI-only mode, skip if we couldn't generate content
+  if (!content && GROQ_CONFIG.aiOnly) {
+    console.log('[BOT] AI-only mode: Skipping reply - AI generation failed');
+    return null;
   }
   
   // Get or create bot user
@@ -11248,22 +12790,28 @@ async function createBotReply(threadId, persona, options = {}) {
     isReturning: !!botAccount,
     isPersistentAccount: !!botAccount,
     isDisagreement,
+    isContinuation,
     votesPlaced,
     usedAI,
     contentPreview: content.substring(0, 100)
   };
 }
 
-// Create bot thread - CONTEXT AWARE with PERSISTENT ACCOUNTS
+// Create bot thread - FULLY AI-POWERED with PERSISTENT ACCOUNTS
 async function createBotThread(roomId, persona, options = {}) {
-  const { usePersistentAccount = true } = options;
+  const { usePersistentAccount = true, useQualityWeighting = false } = options;
   
   let botAccount = null;
   let alias, avatar, p;
   
   // Try to use persistent bot account
   if (usePersistentAccount) {
-    botAccount = await getRandomBotAccount(persona, true);
+    // Get a bot account - use quality weighting if enabled
+    if (useQualityWeighting) {
+      botAccount = await getQualityWeightedBotAccount(persona);
+    } else {
+      botAccount = await getRandomBotAccount(persona, true);
+    }
     
     if (botAccount) {
       alias = botAccount.alias;
@@ -11297,20 +12845,43 @@ async function createBotThread(roomId, persona, options = {}) {
     }
   }
   
-  // Generate context-aware title and content
-  // Try Groq AI first for more natural generation
-  let title = await generateThreadTitleWithGroq(p, roomTitle);
+  // Generate title using unified AI
+  let title = await generateAIContent({
+    persona: p,
+    type: 'title',
+    context: { room: roomTitle }
+  });
   let usedAI = !!title;
   
-  if (!title) {
+  if (!title && !GROQ_CONFIG.aiOnly) {
+    // Only fallback to templates if not in AI-only mode
     title = generateThreadTitle(p, roomTitle);
   }
   
-  let content = await generateWithGroq(p, { title, room: roomTitle }, 'thread');
+  // In AI-only mode, skip if we couldn't generate a title
+  if (!title && GROQ_CONFIG.aiOnly) {
+    console.log('[BOT] AI-only mode: Skipping thread - title generation failed');
+    return null;
+  }
+  
+  // Generate content using unified AI
+  let content = await generateAIContent({
+    persona: p,
+    type: 'thread',
+    context: { title, room: roomTitle }
+  });
+  
   if (content) {
     usedAI = true;
-  } else {
+  } else if (!GROQ_CONFIG.aiOnly) {
+    // Only fallback to templates if not in AI-only mode
     content = generateContextAwareContent(p, { title, room: roomTitle }, 'reply');
+  }
+  
+  // In AI-only mode, skip if we couldn't generate content
+  if (!content && GROQ_CONFIG.aiOnly) {
+    console.log('[BOT] AI-only mode: Skipping thread - content generation failed');
+    return null;
   }
   
   // Create thread with persona tracking
@@ -11362,7 +12933,8 @@ app.get('/api/admin/groq/status', authMiddleware, ownerMiddleware, async (req, r
         hasApiKey: !!GROQ_CONFIG.apiKey,
         model: GROQ_CONFIG.model,
         timeout: GROQ_CONFIG.timeout,
-        fallbackToTemplates: GROQ_CONFIG.fallbackToTemplates
+        fallbackToTemplates: GROQ_CONFIG.fallbackToTemplates,
+        aiOnly: GROQ_CONFIG.aiOnly
       },
       connection: connectionTest
     });
@@ -11375,7 +12947,7 @@ app.get('/api/admin/groq/status', authMiddleware, ownerMiddleware, async (req, r
 // Update Groq configuration (runtime only, not persisted)
 app.post('/api/admin/groq/config', authMiddleware, ownerMiddleware, async (req, res) => {
   try {
-    const { enabled, apiKey, model } = req.body;
+    const { enabled, apiKey, model, aiOnly, fallbackToTemplates } = req.body;
     
     if (typeof enabled === 'boolean') {
       GROQ_CONFIG.enabled = enabled;
@@ -11385,6 +12957,12 @@ app.post('/api/admin/groq/config', authMiddleware, ownerMiddleware, async (req, 
     }
     if (model) {
       GROQ_CONFIG.model = model;
+    }
+    if (typeof aiOnly === 'boolean') {
+      GROQ_CONFIG.aiOnly = aiOnly;
+    }
+    if (typeof fallbackToTemplates === 'boolean') {
+      GROQ_CONFIG.fallbackToTemplates = fallbackToTemplates;
     }
     
     // Test the new connection
@@ -11396,7 +12974,9 @@ app.post('/api/admin/groq/config', authMiddleware, ownerMiddleware, async (req, 
       config: {
         enabled: GROQ_CONFIG.enabled,
         hasApiKey: !!GROQ_CONFIG.apiKey,
-        model: GROQ_CONFIG.model
+        model: GROQ_CONFIG.model,
+        aiOnly: GROQ_CONFIG.aiOnly,
+        fallbackToTemplates: GROQ_CONFIG.fallbackToTemplates
       },
       connection: connectionTest
     });
@@ -11439,6 +13019,324 @@ app.post('/api/admin/groq/test', authMiddleware, ownerMiddleware, async (req, re
     }
   } catch (err) {
     console.error('[GROQ TEST ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ================================================
+// BOT SCHEDULER ADMIN ENDPOINTS
+// ================================================
+
+// Get scheduler status
+app.get('/api/admin/bot/scheduler/status', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    initializeDailyTarget();
+    
+    res.json({
+      success: true,
+      scheduler: {
+        enabled: BOT_SCHEDULER.enabled,
+        minPostsPerDay: BOT_SCHEDULER.minPostsPerDay,
+        maxPostsPerDay: BOT_SCHEDULER.maxPostsPerDay,
+        postsToday: BOT_SCHEDULER.postsToday,
+        targetToday: BOT_SCHEDULER.targetToday,
+        nextScheduledRun: BOT_SCHEDULER.nextScheduledRun,
+        isRunning: BOT_SCHEDULER.isRunning,
+        // New user simulation stats
+        newUsersToday: BOT_SCHEDULER.newUsersToday,
+        maxNewUsersPerDay: BOT_SCHEDULER.maxNewUsersPerDay,
+        newUserChance: BOT_SCHEDULER.newUserChance
+      }
+    });
+  } catch (err) {
+    console.error('[SCHEDULER STATUS ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Update scheduler configuration
+app.post('/api/admin/bot/scheduler/config', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { enabled, minPostsPerDay, maxPostsPerDay } = req.body;
+    
+    if (typeof enabled === 'boolean') {
+      BOT_SCHEDULER.enabled = enabled;
+      if (enabled) {
+        startBotScheduler();
+      } else {
+        stopBotScheduler();
+      }
+    }
+    
+    if (minPostsPerDay !== undefined) {
+      BOT_SCHEDULER.minPostsPerDay = Math.max(1, Math.min(50, parseInt(minPostsPerDay)));
+    }
+    
+    if (maxPostsPerDay !== undefined) {
+      BOT_SCHEDULER.maxPostsPerDay = Math.max(BOT_SCHEDULER.minPostsPerDay, Math.min(100, parseInt(maxPostsPerDay)));
+    }
+    
+    // Recalculate today's target if changed
+    if (minPostsPerDay !== undefined || maxPostsPerDay !== undefined) {
+      BOT_SCHEDULER.targetToday = BOT_SCHEDULER.minPostsPerDay + 
+        Math.floor(Math.random() * (BOT_SCHEDULER.maxPostsPerDay - BOT_SCHEDULER.minPostsPerDay + 1));
+      scheduleNextBotRun();
+    }
+    
+    res.json({
+      success: true,
+      message: BOT_SCHEDULER.enabled ? 'Scheduler enabled' : 'Scheduler disabled',
+      scheduler: {
+        enabled: BOT_SCHEDULER.enabled,
+        minPostsPerDay: BOT_SCHEDULER.minPostsPerDay,
+        maxPostsPerDay: BOT_SCHEDULER.maxPostsPerDay,
+        targetToday: BOT_SCHEDULER.targetToday,
+        nextScheduledRun: BOT_SCHEDULER.nextScheduledRun
+      }
+    });
+  } catch (err) {
+    console.error('[SCHEDULER CONFIG ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Manually trigger scheduled activity
+app.post('/api/admin/bot/scheduler/run-now', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    if (BOT_SCHEDULER.isRunning) {
+      return res.json({ success: false, error: 'Scheduler is already running' });
+    }
+    
+    // Temporarily enable for this run
+    const wasEnabled = BOT_SCHEDULER.enabled;
+    BOT_SCHEDULER.enabled = true;
+    
+    await runScheduledBotActivity();
+    
+    BOT_SCHEDULER.enabled = wasEnabled;
+    
+    res.json({
+      success: true,
+      postsToday: BOT_SCHEDULER.postsToday,
+      targetToday: BOT_SCHEDULER.targetToday,
+      nextScheduledRun: BOT_SCHEDULER.nextScheduledRun
+    });
+  } catch (err) {
+    console.error('[SCHEDULER RUN ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Reset daily counter
+app.post('/api/admin/bot/scheduler/reset', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    BOT_SCHEDULER.postsToday = 0;
+    BOT_SCHEDULER.newUsersToday = 0;
+    BOT_SCHEDULER.lastReset = new Date().toDateString();
+    BOT_SCHEDULER.targetToday = BOT_SCHEDULER.minPostsPerDay + 
+      Math.floor(Math.random() * (BOT_SCHEDULER.maxPostsPerDay - BOT_SCHEDULER.minPostsPerDay + 1));
+    scheduleNextBotRun();
+    
+    res.json({
+      success: true,
+      message: 'Daily counter reset',
+      targetToday: BOT_SCHEDULER.targetToday,
+      nextScheduledRun: BOT_SCHEDULER.nextScheduledRun
+    });
+  } catch (err) {
+    console.error('[SCHEDULER RESET ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Manually simulate a new user joining
+app.post('/api/admin/bot/new-user', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const result = await simulateNewUserJoin();
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `New user "${result.alias}" joined and created intro post`,
+        ...result
+      });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
+    }
+  } catch (err) {
+    console.error('[NEW USER MANUAL ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ================================================
+// SEASONAL TOPICS ENDPOINT
+// ================================================
+
+// Get current seasonal context
+app.get('/api/admin/bot/seasonal', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const context = getSeasonalContext();
+    
+    // Get sample content for current season
+    const samplePersonas = ['cynical', 'analytical', 'newcomer'];
+    const samples = {};
+    
+    for (const persona of samplePersonas) {
+      const content = getSeasonalContent(persona);
+      if (content.postContent || content.threadTitle) {
+        samples[persona] = content;
+      }
+    }
+    
+    res.json({
+      success: true,
+      seasonal: {
+        ...context,
+        date: new Date().toISOString(),
+        samples
+      }
+    });
+  } catch (err) {
+    console.error('[SEASONAL CONTEXT ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ================================================
+// QUALITY SCORING ENDPOINTS
+// ================================================
+
+// Get bot quality stats
+app.get('/api/admin/bot/quality', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const stats = await getBotQualityStats();
+    res.json({ success: true, ...stats });
+  } catch (err) {
+    console.error('[QUALITY STATS ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Trigger quality score recalculation
+app.post('/api/admin/bot/quality/refresh', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    await updateAllBotQualityScores();
+    const stats = await getBotQualityStats();
+    res.json({ success: true, message: 'Quality scores refreshed', ...stats });
+  } catch (err) {
+    console.error('[QUALITY REFRESH ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get engagement log for a specific bot
+app.get('/api/admin/bot/quality/:botId/engagement', authMiddleware, ownerMiddleware, async (req, res) => {
+  const botId = parseInt(req.params.botId);
+  
+  try {
+    const engagement = await db.query(`
+      SELECT 
+        bel.engagement_type,
+        bel.created_at,
+        e.content,
+        u.alias as user_alias
+      FROM bot_engagement_log bel
+      LEFT JOIN entries e ON bel.entry_id = e.id
+      LEFT JOIN users u ON bel.real_user_id = u.id
+      WHERE bel.bot_account_id = $1
+      ORDER BY bel.created_at DESC
+      LIMIT 50
+    `, [botId]);
+    
+    const botInfo = await db.query('SELECT alias, persona, quality_score FROM bot_accounts WHERE id = $1', [botId]);
+    
+    res.json({
+      success: true,
+      bot: botInfo.rows[0],
+      engagement: engagement.rows
+    });
+  } catch (err) {
+    console.error('[ENGAGEMENT LOG ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ================================================
+// ACTIVITY HEATMAP ENDPOINT
+// ================================================
+
+// Get activity heatmap data (shows when bots are "active")
+app.get('/api/admin/bot/activity-heatmap', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    // Activity weights by UTC hour (matches isGoodTimeForActivity patterns)
+    const activityWeights = {
+      0: 0.9,  1: 0.8,  2: 0.6,  3: 0.4,  4: 0.3,  5: 0.2,
+      6: 0.15, 7: 0.1,  8: 0.1,  9: 0.15, 10: 0.2, 11: 0.3,
+      12: 0.4, 13: 0.5, 14: 0.5, 15: 0.6, 16: 0.7, 17: 0.8,
+      18: 0.9, 19: 1.0, 20: 1.0, 21: 1.0, 22: 1.0, 23: 0.95
+    };
+
+    // Get bot count from database
+    const botsResult = await db.query(`
+      SELECT COUNT(*) as count FROM users WHERE is_bot = true
+    `);
+    const totalBots = parseInt(botsResult.rows[0].count) || 0;
+
+    // Current hour UTC
+    const currentHour = new Date().getUTCHours();
+    const currentWeight = activityWeights[currentHour] || 0.5;
+
+    // Simulate online bots based on current weight + randomness
+    const baseOnline = Math.floor(totalBots * currentWeight * 0.3);
+    const variance = Math.floor(Math.random() * Math.ceil(totalBots * 0.1));
+    const simulatedOnline = Math.min(totalBots, Math.max(1, baseOnline + variance));
+
+    // Build heatmap data for all 24 hours
+    const heatmapData = [];
+    for (let hour = 0; hour < 24; hour++) {
+      const weight = activityWeights[hour] || 0.5;
+      heatmapData.push({
+        hour,
+        weight,
+        intensity: weight, // 0-1 scale for color intensity
+        label: `${hour.toString().padStart(2, '0')}:00 UTC`,
+        estimatedActive: Math.floor(totalBots * weight * 0.3)
+      });
+    }
+
+    // Get recent activity from last 24 hours
+    const recentActivity = await db.query(`
+      SELECT 
+        EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC') as hour,
+        COUNT(*) as posts
+      FROM posts 
+      WHERE created_at > NOW() - INTERVAL '24 hours'
+        AND user_id IN (SELECT id FROM users WHERE is_bot = true)
+      GROUP BY EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')
+      ORDER BY hour
+    `);
+
+    // Merge actual activity into heatmap
+    const actualActivity = {};
+    recentActivity.rows.forEach(row => {
+      actualActivity[parseInt(row.hour)] = parseInt(row.posts);
+    });
+
+    res.json({
+      success: true,
+      heatmap: {
+        data: heatmapData,
+        actualActivity,
+        currentHour,
+        simulatedOnline,
+        totalBots,
+        schedulerEnabled: BOT_SCHEDULER.enabled,
+        postsToday: BOT_SCHEDULER.postsToday
+      }
+    });
+  } catch (err) {
+    console.error('[ACTIVITY HEATMAP ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -11620,6 +13518,13 @@ migrate().then(() => {
       updateAllEpithets();
       setInterval(updateAllEpithets, 6 * 60 * 60 * 1000);
     }, 60000); // Start 1 minute after boot
+    
+    // Start bot scheduler if enabled (delayed start)
+    setTimeout(() => {
+      if (BOT_SCHEDULER.enabled) {
+        startBotScheduler();
+      }
+    }, 30000); // Start 30 seconds after boot
   });
 }).catch(err => {
   console.error('[FATAL] Failed to start server:', err);

@@ -12,6 +12,10 @@
   <link rel="apple-touch-icon" href="sigil.png">
   <link rel="stylesheet" href="css/style.css">
   <style>
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
     .admin-container {
       display: flex;
       flex-direction: column;
@@ -581,6 +585,174 @@
               </button>
             </div>
             
+            <!-- Scheduled Automation -->
+            <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: var(--spacing-sm); margin-bottom: var(--spacing-md); border-radius: 4px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-sm);">
+                <span style="font-size: 0.5rem; font-weight: 600; color: var(--text-primary);">⏰ SCHEDULED AUTOMATION</span>
+                <span id="scheduler-status-badge" style="font-size: 0.4375rem; padding: 2px 6px; border-radius: 3px; background: #4a4a4a; color: #888;">OFF</span>
+              </div>
+              
+              <div style="display: flex; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm); align-items: center;">
+                <div style="flex: 1;">
+                  <label style="font-size: 0.4375rem; color: var(--text-muted); display: block;">POSTS PER DAY</label>
+                  <div style="display: flex; gap: 4px; align-items: center;">
+                    <input type="number" class="admin-input" id="scheduler-min-posts" value="5" min="1" max="50" style="width: 50px; font-size: 0.4375rem; padding: 4px; text-align: center;">
+                    <span style="font-size: 0.4375rem; color: var(--text-muted);">to</span>
+                    <input type="number" class="admin-input" id="scheduler-max-posts" value="15" min="1" max="100" style="width: 50px; font-size: 0.4375rem; padding: 4px; text-align: center;">
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 0.4375rem; color: var(--text-muted);">TODAY</div>
+                  <div style="font-size: 0.625rem; font-weight: 600; color: var(--text-primary);">
+                    <span id="scheduler-posts-today">0</span>/<span id="scheduler-target-today">0</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div id="scheduler-next-run" style="font-size: 0.375rem; color: var(--text-muted); margin-bottom: var(--spacing-sm); display: none;">
+                Next run: <span id="scheduler-next-time">-</span>
+              </div>
+              
+              <div style="display: flex; gap: var(--spacing-xs);">
+                <button class="admin-btn" id="scheduler-toggle" style="flex: 1; font-size: 0.4375rem; padding: 4px;">
+                  ENABLE AUTO-POST
+                </button>
+                <button class="admin-btn" id="scheduler-run-now" style="font-size: 0.4375rem; padding: 4px 8px;" title="Run now">
+                  ▶
+                </button>
+                <button class="admin-btn" id="scheduler-reset" style="font-size: 0.4375rem; padding: 4px 8px;" title="Reset daily counter">
+                  ↻
+                </button>
+              </div>
+              
+              <!-- New User Simulation -->
+              <div style="margin-top: var(--spacing-sm); padding-top: var(--spacing-sm); border-top: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-xs);">
+                  <span style="font-size: 0.4375rem; color: var(--text-muted);">👤 NEW USER SIMULATION</span>
+                  <span style="font-size: 0.375rem; color: var(--text-muted);">
+                    <span id="new-users-today">0</span>/<span id="max-new-users">3</span> today
+                  </span>
+                </div>
+                <div style="display: flex; gap: var(--spacing-xs); align-items: center;">
+                  <span style="font-size: 0.375rem; color: var(--text-muted); flex: 1;">Bots join as new members with intro posts</span>
+                  <button class="admin-btn" id="simulate-new-user" style="font-size: 0.4375rem; padding: 4px 8px;" title="Simulate new user joining">
+                    + NEW USER
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Activity Heatmap -->
+            <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: var(--spacing-sm); margin-bottom: var(--spacing-md); border-radius: 4px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-sm);">
+                <span style="font-size: 0.5rem; font-weight: 600; color: var(--text-primary);">📊 ACTIVITY HEATMAP</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="heatmap-online" style="font-size: 0.4375rem; color: #6a9a6a;">
+                    <span style="display: inline-block; width: 6px; height: 6px; background: #4a9a4a; border-radius: 50%; margin-right: 3px; animation: pulse 2s infinite;"></span>
+                    <span id="online-count">0</span> bots online
+                  </span>
+                  <button class="admin-btn" id="heatmap-refresh" style="font-size: 0.375rem; padding: 2px 6px;" title="Refresh">↻</button>
+                </div>
+              </div>
+              
+              <!-- 24-hour heatmap grid -->
+              <div id="activity-heatmap" style="display: flex; gap: 2px; margin-bottom: var(--spacing-xs);">
+                <!-- Hours 0-23 will be rendered by JS -->
+              </div>
+              
+              <div style="display: flex; justify-content: space-between; margin-bottom: var(--spacing-xs);">
+                <span style="font-size: 0.3125rem; color: var(--text-muted);">00:00 UTC</span>
+                <span style="font-size: 0.3125rem; color: var(--text-muted);">12:00 UTC</span>
+                <span style="font-size: 0.3125rem; color: var(--text-muted);">23:00 UTC</span>
+              </div>
+              
+              <!-- Legend -->
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="font-size: 0.3125rem; color: var(--text-muted);">LOW</span>
+                  <div style="display: flex; gap: 1px;">
+                    <div style="width: 12px; height: 8px; background: rgba(74, 154, 74, 0.1); border-radius: 1px;"></div>
+                    <div style="width: 12px; height: 8px; background: rgba(74, 154, 74, 0.3); border-radius: 1px;"></div>
+                    <div style="width: 12px; height: 8px; background: rgba(74, 154, 74, 0.5); border-radius: 1px;"></div>
+                    <div style="width: 12px; height: 8px; background: rgba(74, 154, 74, 0.7); border-radius: 1px;"></div>
+                    <div style="width: 12px; height: 8px; background: rgba(74, 154, 74, 1.0); border-radius: 1px;"></div>
+                  </div>
+                  <span style="font-size: 0.3125rem; color: var(--text-muted);">HIGH</span>
+                </div>
+                <div id="heatmap-current-hour" style="font-size: 0.3125rem; color: #4a9a4a; font-weight: 600;">
+                  Now: --:00 UTC
+                </div>
+              </div>
+              
+              <!-- Stats row -->
+              <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-sm); padding-top: var(--spacing-sm); border-top: 1px solid var(--border-color);">
+                <div style="flex: 1; text-align: center;">
+                  <div style="font-size: 0.625rem; font-weight: 600; color: var(--text-primary);" id="heatmap-total-bots">0</div>
+                  <div style="font-size: 0.3125rem; color: var(--text-muted);">TOTAL BOTS</div>
+                </div>
+                <div style="flex: 1; text-align: center;">
+                  <div style="font-size: 0.625rem; font-weight: 600; color: #6a9a6a;" id="heatmap-posts-today">0</div>
+                  <div style="font-size: 0.3125rem; color: var(--text-muted);">POSTS TODAY</div>
+                </div>
+                <div style="flex: 1; text-align: center;">
+                  <div style="font-size: 0.625rem; font-weight: 600; color: #9a8a4a;" id="heatmap-peak-hour">--</div>
+                  <div style="font-size: 0.3125rem; color: var(--text-muted);">PEAK HOUR</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Seasonal Topics -->
+            <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: var(--spacing-sm); margin-bottom: var(--spacing-md); border-radius: 4px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-xs);">
+                <span style="font-size: 0.5rem; font-weight: 600; color: var(--text-primary);">🗓️ SEASONAL TOPICS</span>
+                <span id="seasonal-badge" style="font-size: 0.4375rem; padding: 2px 6px; border-radius: 3px; background: #4a5a4a; color: #8a9a8a;">...</span>
+              </div>
+              <div style="font-size: 0.375rem; color: var(--text-muted); margin-bottom: var(--spacing-xs);">
+                Bots discuss seasonal content: holidays, seasons, events
+              </div>
+              <div id="seasonal-info" style="font-size: 0.4375rem; color: var(--text-secondary);">
+                <div style="margin-bottom: 4px;">
+                  <span style="color: var(--text-muted);">Season:</span> <span id="seasonal-season">-</span>
+                </div>
+                <div style="margin-bottom: 4px;">
+                  <span style="color: var(--text-muted);">Holiday:</span> <span id="seasonal-holiday">None</span>
+                </div>
+                <div>
+                  <span style="color: var(--text-muted);">Events:</span> <span id="seasonal-events">-</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Quality Scoring -->
+            <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: var(--spacing-sm); margin-bottom: var(--spacing-md); border-radius: 4px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-xs);">
+                <span style="font-size: 0.5rem; font-weight: 600; color: var(--text-primary);">📊 QUALITY SCORING</span>
+                <button class="admin-btn admin-btn-secondary" onclick="refreshQualityScores()" style="font-size: 0.375rem; padding: 2px 6px;">⟳ REFRESH</button>
+              </div>
+              <div style="font-size: 0.375rem; color: var(--text-muted); margin-bottom: var(--spacing-xs);">
+                Tracks real user engagement to favor high-performing patterns
+              </div>
+              <div id="quality-stats" style="font-size: 0.4375rem; color: var(--text-secondary);">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+                  <div style="background: var(--bg-panel); padding: 6px; border-radius: 3px;">
+                    <div style="color: var(--text-muted); font-size: 0.375rem;">AVG SCORE</div>
+                    <div id="quality-avg-score" style="font-size: 0.625rem; font-weight: 600; color: #7a9a7a;">0.50</div>
+                  </div>
+                  <div style="background: var(--bg-panel); padding: 6px; border-radius: 3px;">
+                    <div style="color: var(--text-muted); font-size: 0.375rem;">REAL REPLIES</div>
+                    <div id="quality-total-replies" style="font-size: 0.625rem; font-weight: 600; color: #7a9a7a;">0</div>
+                  </div>
+                </div>
+                <div style="margin-bottom: 4px;">
+                  <span style="color: var(--text-muted);">Top Persona:</span> <span id="quality-top-persona">-</span>
+                </div>
+                <div id="quality-top-bots" style="margin-top: 6px;">
+                  <div style="color: var(--text-muted); margin-bottom: 4px;">Top Performers:</div>
+                  <div id="quality-top-list" style="font-size: 0.375rem;"></div>
+                </div>
+              </div>
+            </div>
+            
             <!-- Target Selection -->
             <div style="margin-bottom: var(--spacing-md);">
               <label style="font-size: 0.5rem; color: var(--text-secondary); display: block; margin-bottom: var(--spacing-xs);">TARGET ROOM</label>
@@ -652,6 +824,18 @@
                 <button class="admin-btn" id="groq-disable" style="font-size: 0.4375rem; padding: 4px 8px;" title="Disable AI">
                   ✕
                 </button>
+              </div>
+              
+              <!-- AI Mode Toggle -->
+              <div style="margin-top: var(--spacing-sm); display: flex; align-items: center; justify-content: space-between;">
+                <label style="font-size: 0.4375rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="groq-ai-only" style="margin: 0;">
+                  <span>AI-ONLY MODE</span>
+                </label>
+                <span id="groq-ai-mode-label" style="font-size: 0.375rem; color: var(--text-muted);">With template fallback</span>
+              </div>
+              <div style="font-size: 0.3125rem; color: var(--text-muted); margin-top: 2px;">
+                When enabled, Groq generates ALL content. Templates only used if AI fails.
               </div>
               
               <div id="groq-test-result" style="font-size: 0.4375rem; color: var(--text-muted); margin-top: var(--spacing-xs); display: none; background: var(--bg-primary); padding: 6px; border-radius: 3px; max-height: 80px; overflow-y: auto;"></div>
@@ -1330,9 +1514,20 @@
               }
             }
             
+            // Update AI-only checkbox
+            var aiOnlyCheckbox = document.getElementById('groq-ai-only');
+            var aiModeLabel = document.getElementById('groq-ai-mode-label');
+            if (aiOnlyCheckbox) {
+              aiOnlyCheckbox.checked = data.config.aiOnly || false;
+              if (aiModeLabel) {
+                aiModeLabel.textContent = data.config.aiOnly ? 'Full AI mode' : 'With template fallback';
+                aiModeLabel.style.color = data.config.aiOnly ? '#7aca7a' : 'var(--text-muted)';
+              }
+            }
+            
             if (data.config.hasApiKey && data.connection.available) {
               updateGroqStatusBadge('enabled', 'CONNECTED');
-              logBot('🤖 Groq AI connected: ' + data.config.model, 'success');
+              logBot('🤖 Groq AI connected: ' + data.config.model + (data.config.aiOnly ? ' (AI-only)' : ''), 'success');
             } else if (data.config.hasApiKey) {
               updateGroqStatusBadge('error', 'INVALID KEY');
               logBot('🤖 Groq API key invalid or expired', 'error');
@@ -1404,6 +1599,29 @@
         });
       });
       
+      // AI-Only mode toggle
+      document.getElementById('groq-ai-only')?.addEventListener('change', function() {
+        var checkbox = this;
+        var label = document.getElementById('ai-mode-label');
+        
+        AuthState.apiRequest('/api/admin/groq/config', {
+          method: 'POST',
+          body: JSON.stringify({ aiOnly: checkbox.checked })
+        }).then(function(data) {
+          if (data.success) {
+            if (label) {
+              label.textContent = checkbox.checked ? 'Full AI mode' : 'With template fallback';
+              label.style.color = checkbox.checked ? '#4ade80' : '#888';
+            }
+            logBot('🤖 AI-Only mode ' + (checkbox.checked ? 'ENABLED - no templates' : 'DISABLED - templates as fallback'), 'info');
+          }
+        }).catch(function(err) {
+          // Revert checkbox on error
+          checkbox.checked = !checkbox.checked;
+          logBot('🤖 Failed to update AI mode: ' + err.message, 'error');
+        });
+      });
+      
       // Groq test button
       document.getElementById('groq-test')?.addEventListener('click', function() {
         var resultDiv = document.getElementById('groq-test-result');
@@ -1443,6 +1661,413 @@
         });
       });
       
+      // ============================================
+      // SCHEDULER CONTROLS
+      // ============================================
+      
+      var schedulerEnabled = false;
+      
+      function updateSchedulerBadge(enabled) {
+        var badge = document.getElementById('scheduler-status-badge');
+        var toggleBtn = document.getElementById('scheduler-toggle');
+        if (!badge) return;
+        
+        if (enabled) {
+          badge.style.background = '#4a6a4a';
+          badge.style.color = '#6a9a6a';
+          badge.textContent = 'ACTIVE';
+          if (toggleBtn) toggleBtn.textContent = 'DISABLE AUTO-POST';
+        } else {
+          badge.style.background = '#4a4a4a';
+          badge.style.color = '#888';
+          badge.textContent = 'OFF';
+          if (toggleBtn) toggleBtn.textContent = 'ENABLE AUTO-POST';
+        }
+      }
+      
+      function loadSchedulerStatus() {
+        AuthState.apiRequest('/api/admin/bot/scheduler/status')
+          .then(function(data) {
+            if (!data.success) return;
+            
+            schedulerEnabled = data.scheduler.enabled;
+            updateSchedulerBadge(schedulerEnabled);
+            
+            // Update inputs
+            var minInput = document.getElementById('scheduler-min-posts');
+            var maxInput = document.getElementById('scheduler-max-posts');
+            if (minInput) minInput.value = data.scheduler.minPostsPerDay;
+            if (maxInput) maxInput.value = data.scheduler.maxPostsPerDay;
+            
+            // Update progress
+            var postsToday = document.getElementById('scheduler-posts-today');
+            var targetToday = document.getElementById('scheduler-target-today');
+            if (postsToday) postsToday.textContent = data.scheduler.postsToday;
+            if (targetToday) targetToday.textContent = data.scheduler.targetToday;
+            
+            // Update next run time
+            var nextRunDiv = document.getElementById('scheduler-next-run');
+            var nextTimeSpan = document.getElementById('scheduler-next-time');
+            if (data.scheduler.nextScheduledRun && schedulerEnabled) {
+              nextRunDiv.style.display = 'block';
+              var nextTime = new Date(data.scheduler.nextScheduledRun);
+              nextTimeSpan.textContent = nextTime.toLocaleTimeString();
+            } else {
+              nextRunDiv.style.display = 'none';
+            }
+            
+            // Update new user simulation stats
+            var newUsersToday = document.getElementById('new-users-today');
+            var maxNewUsers = document.getElementById('max-new-users');
+            if (newUsersToday) newUsersToday.textContent = data.scheduler.newUsersToday || 0;
+            if (maxNewUsers) maxNewUsers.textContent = data.scheduler.maxNewUsersPerDay || 3;
+            
+            if (schedulerEnabled) {
+              logBot('⏰ Scheduler active: ' + data.scheduler.postsToday + '/' + data.scheduler.targetToday + ' posts today', 'info');
+            }
+          })
+          .catch(function(err) {
+            logBot('⏰ Scheduler status error: ' + err.message, 'error');
+          });
+      }
+      
+      // Scheduler toggle
+      document.getElementById('scheduler-toggle')?.addEventListener('click', function() {
+        var newState = !schedulerEnabled;
+        var minPosts = parseInt(document.getElementById('scheduler-min-posts')?.value) || 5;
+        var maxPosts = parseInt(document.getElementById('scheduler-max-posts')?.value) || 15;
+        
+        AuthState.apiRequest('/api/admin/bot/scheduler/config', {
+          method: 'POST',
+          body: JSON.stringify({
+            enabled: newState,
+            minPostsPerDay: minPosts,
+            maxPostsPerDay: maxPosts
+          })
+        }).then(function(data) {
+          if (data.success) {
+            schedulerEnabled = data.scheduler.enabled;
+            updateSchedulerBadge(schedulerEnabled);
+            
+            var targetToday = document.getElementById('scheduler-target-today');
+            if (targetToday) targetToday.textContent = data.scheduler.targetToday;
+            
+            if (schedulerEnabled) {
+              logBot('⏰ Scheduler ENABLED: ' + minPosts + '-' + maxPosts + ' posts/day (today: ' + data.scheduler.targetToday + ')', 'success');
+              var nextRunDiv = document.getElementById('scheduler-next-run');
+              var nextTimeSpan = document.getElementById('scheduler-next-time');
+              if (data.scheduler.nextScheduledRun) {
+                nextRunDiv.style.display = 'block';
+                var nextTime = new Date(data.scheduler.nextScheduledRun);
+                nextTimeSpan.textContent = nextTime.toLocaleTimeString();
+              }
+            } else {
+              logBot('⏰ Scheduler DISABLED', 'info');
+              document.getElementById('scheduler-next-run').style.display = 'none';
+            }
+          } else {
+            logBot('⏰ Scheduler config failed', 'error');
+          }
+        }).catch(function(err) {
+          logBot('⏰ Scheduler error: ' + err.message, 'error');
+        });
+      });
+      
+      // Run now button
+      document.getElementById('scheduler-run-now')?.addEventListener('click', function() {
+        logBot('⏰ Running scheduled activity...', 'info');
+        
+        AuthState.apiRequest('/api/admin/bot/scheduler/run-now', {
+          method: 'POST'
+        }).then(function(data) {
+          if (data.success) {
+            var postsToday = document.getElementById('scheduler-posts-today');
+            if (postsToday) postsToday.textContent = data.postsToday;
+            logBot('⏰ Run complete: ' + data.postsToday + '/' + data.targetToday + ' posts today', 'success');
+            loadBotTargets();
+          } else {
+            logBot('⏰ Run failed: ' + (data.error || 'Unknown'), 'error');
+          }
+        }).catch(function(err) {
+          logBot('⏰ Run error: ' + err.message, 'error');
+        });
+      });
+      
+      // Reset button
+      document.getElementById('scheduler-reset')?.addEventListener('click', function() {
+        if (!confirm('Reset daily counter and pick new target?')) return;
+        
+        AuthState.apiRequest('/api/admin/bot/scheduler/reset', {
+          method: 'POST'
+        }).then(function(data) {
+          if (data.success) {
+            document.getElementById('scheduler-posts-today').textContent = '0';
+            document.getElementById('scheduler-target-today').textContent = data.targetToday;
+            document.getElementById('new-users-today').textContent = '0';
+            logBot('⏰ Counter reset. New target: ' + data.targetToday + ' posts', 'success');
+          }
+        }).catch(function(err) {
+          logBot('⏰ Reset error: ' + err.message, 'error');
+        });
+      });
+      
+      // Simulate new user button
+      document.getElementById('simulate-new-user')?.addEventListener('click', function() {
+        logBot('👤 Simulating new user join...', 'info');
+        
+        AuthState.apiRequest('/api/admin/bot/new-user', {
+          method: 'POST'
+        }).then(function(data) {
+          if (data.success) {
+            var aiNote = data.usedAI ? ' 🤖AI' : '';
+            logBot('👤 NEW USER: ' + data.alias + ' (' + data.persona + ')' + aiNote + ' → "' + data.threadTitle + '" in ' + data.roomTitle, 'success');
+            
+            // Update new users count
+            var newUsersEl = document.getElementById('new-users-today');
+            if (newUsersEl) {
+              var current = parseInt(newUsersEl.textContent) || 0;
+              newUsersEl.textContent = current + 1;
+            }
+            
+            // Update posts count
+            var postsToday = document.getElementById('scheduler-posts-today');
+            if (postsToday) {
+              var currentPosts = parseInt(postsToday.textContent) || 0;
+              postsToday.textContent = currentPosts + 1;
+            }
+            
+            loadBotTargets(); // Refresh thread list
+          } else {
+            logBot('👤 New user failed: ' + (data.error || 'Unknown'), 'error');
+          }
+        }).catch(function(err) {
+          logBot('👤 New user error: ' + err.message, 'error');
+        });
+      });
+      
+      // ============================================
+      // ACTIVITY HEATMAP
+      // ============================================
+      
+      function renderHeatmap(heatmapData) {
+        var container = document.getElementById('activity-heatmap');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        var currentHour = heatmapData.currentHour;
+        
+        heatmapData.data.forEach(function(hourData) {
+          var cell = document.createElement('div');
+          var intensity = hourData.intensity;
+          var isCurrentHour = hourData.hour === currentHour;
+          
+          // Calculate color based on intensity (green gradient)
+          var alpha = 0.1 + (intensity * 0.9);
+          var bgColor = 'rgba(74, 154, 74, ' + alpha + ')';
+          
+          cell.style.cssText = 'flex: 1; height: 24px; background: ' + bgColor + '; border-radius: 2px; cursor: pointer; position: relative;' + 
+            (isCurrentHour ? 'box-shadow: 0 0 0 2px #4a9a4a; z-index: 1;' : '');
+          
+          cell.title = hourData.label + '\nActivity: ' + Math.round(intensity * 100) + '%\nEstimated active: ' + hourData.estimatedActive + ' bots';
+          
+          // Show actual activity indicator if available
+          var actualPosts = heatmapData.actualActivity[hourData.hour];
+          if (actualPosts && actualPosts > 0) {
+            var indicator = document.createElement('div');
+            var indicatorHeight = Math.min(100, Math.max(20, actualPosts * 10));
+            indicator.style.cssText = 'position: absolute; bottom: 0; left: 0; right: 0; height: ' + indicatorHeight + '%; background: rgba(255, 200, 100, 0.4); border-radius: 0 0 2px 2px;';
+            indicator.title = actualPosts + ' posts in last 24h at this hour';
+            cell.appendChild(indicator);
+          }
+          
+          container.appendChild(cell);
+        });
+      }
+      
+      function loadActivityHeatmap() {
+        AuthState.apiRequest('/api/admin/bot/activity-heatmap')
+          .then(function(data) {
+            if (!data.success) return;
+            
+            var heatmap = data.heatmap;
+            
+            // Update online count
+            var onlineCount = document.getElementById('online-count');
+            if (onlineCount) onlineCount.textContent = heatmap.simulatedOnline;
+            
+            // Update stats
+            var totalBots = document.getElementById('heatmap-total-bots');
+            if (totalBots) totalBots.textContent = heatmap.totalBots;
+            
+            var postsToday = document.getElementById('heatmap-posts-today');
+            if (postsToday) postsToday.textContent = heatmap.postsToday;
+            
+            // Find peak hour from data
+            var peakHour = 0;
+            var peakWeight = 0;
+            heatmap.data.forEach(function(h) {
+              if (h.weight > peakWeight) {
+                peakWeight = h.weight;
+                peakHour = h.hour;
+              }
+            });
+            var peakHourEl = document.getElementById('heatmap-peak-hour');
+            if (peakHourEl) peakHourEl.textContent = peakHour.toString().padStart(2, '0') + ':00';
+            
+            // Update current hour display
+            var currentHourEl = document.getElementById('heatmap-current-hour');
+            if (currentHourEl) currentHourEl.textContent = 'Now: ' + heatmap.currentHour.toString().padStart(2, '0') + ':00 UTC';
+            
+            // Render the heatmap
+            renderHeatmap(heatmap);
+            
+            logBot('📊 Heatmap: ' + heatmap.simulatedOnline + '/' + heatmap.totalBots + ' bots online', 'info');
+          })
+          .catch(function(err) {
+            console.error('Heatmap error:', err);
+          });
+      }
+      
+      // Heatmap refresh button
+      document.getElementById('heatmap-refresh')?.addEventListener('click', function() {
+        loadActivityHeatmap();
+      });
+      
+      // Auto-refresh heatmap every 5 minutes
+      setInterval(function() {
+        if (document.getElementById('activity-heatmap')) {
+          loadActivityHeatmap();
+        }
+      }, 5 * 60 * 1000);
+      
+      // ============================================
+      // SEASONAL TOPICS
+      // ============================================
+      
+      function loadSeasonalContext() {
+        AuthState.apiRequest('/api/admin/bot/seasonal')
+          .then(function(data) {
+            if (!data.success) return;
+            
+            var seasonal = data.seasonal;
+            
+            // Update badge with holiday or season
+            var badge = document.getElementById('seasonal-badge');
+            if (badge) {
+              if (seasonal.holidays && seasonal.holidays.length > 0) {
+                badge.textContent = '🎉 ' + seasonal.holidays[0].label;
+                badge.style.background = '#5a4a3a';
+                badge.style.color = '#caa';
+              } else if (seasonal.season) {
+                var seasonEmojis = { winter: '❄️', spring: '🌱', summer: '☀️', fall: '🍂' };
+                badge.textContent = (seasonEmojis[seasonal.season] || '') + ' ' + seasonal.season.toUpperCase();
+                badge.style.background = '#4a5a4a';
+                badge.style.color = '#8a9a8a';
+              }
+            }
+            
+            // Update info
+            var seasonEl = document.getElementById('seasonal-season');
+            if (seasonEl) seasonEl.textContent = seasonal.season || '-';
+            
+            var holidayEl = document.getElementById('seasonal-holiday');
+            if (holidayEl) {
+              if (seasonal.holidays && seasonal.holidays.length > 0) {
+                holidayEl.textContent = seasonal.holidays.map(function(h) { return h.label; }).join(', ');
+              } else {
+                holidayEl.textContent = 'None';
+              }
+            }
+            
+            var eventsEl = document.getElementById('seasonal-events');
+            if (eventsEl) {
+              if (seasonal.events && seasonal.events.length > 0) {
+                eventsEl.textContent = seasonal.events.map(function(e) { 
+                  return e.replace(/_/g, ' '); 
+                }).join(', ');
+              } else {
+                eventsEl.textContent = seasonal.isWeekend ? 'Weekend' : 'Weekday';
+              }
+            }
+          })
+          .catch(function(err) {
+            console.error('Seasonal context error:', err);
+          });
+      }
+      
+      // ============================================
+      // QUALITY SCORING
+      // ============================================
+      
+      function loadQualityStats() {
+        AuthState.apiRequest('/api/admin/bot/quality')
+          .then(function(data) {
+            if (!data.success) return;
+            
+            // Update average score
+            var avgScoreEl = document.getElementById('quality-avg-score');
+            if (avgScoreEl && data.overall) {
+              var avgScore = parseFloat(data.overall.avg_score) || 0.5;
+              avgScoreEl.textContent = avgScore.toFixed(2);
+              // Color based on score
+              if (avgScore >= 0.6) {
+                avgScoreEl.style.color = '#7aca7a';
+              } else if (avgScore >= 0.4) {
+                avgScoreEl.style.color = '#9a9a7a';
+              } else {
+                avgScoreEl.style.color = '#ca7a7a';
+              }
+            }
+            
+            // Update total replies
+            var repliesEl = document.getElementById('quality-total-replies');
+            if (repliesEl && data.overall) {
+              repliesEl.textContent = data.overall.total_replies || '0';
+            }
+            
+            // Find top persona
+            var topPersonaEl = document.getElementById('quality-top-persona');
+            if (topPersonaEl && data.byPersona && data.byPersona.length > 0) {
+              var top = data.byPersona[0];
+              topPersonaEl.textContent = top.persona + ' (' + parseFloat(top.avg_score).toFixed(2) + ')';
+            }
+            
+            // List top bots
+            var topListEl = document.getElementById('quality-top-list');
+            if (topListEl && data.topBots) {
+              topListEl.innerHTML = data.topBots.slice(0, 5).map(function(bot) {
+                var scoreColor = bot.quality_score >= 0.6 ? '#7aca7a' : bot.quality_score >= 0.4 ? '#9a9a7a' : '#ca7a7a';
+                return '<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">' +
+                  '<span>' + bot.alias + ' <span style="color: var(--text-muted);">(' + bot.persona + ')</span></span>' +
+                  '<span style="color: ' + scoreColor + ';">' + parseFloat(bot.quality_score).toFixed(2) + '</span>' +
+                '</div>';
+              }).join('');
+            }
+            
+            logBot('📊 Quality: avg=' + (data.overall?.avg_score || 0).toFixed(2) + ', replies=' + (data.overall?.total_replies || 0), 'info');
+          })
+          .catch(function(err) {
+            console.error('Quality stats error:', err);
+          });
+      }
+      
+      function refreshQualityScores() {
+        logBot('Refreshing quality scores...', 'info');
+        AuthState.apiRequest('/api/admin/bot/quality/refresh', { method: 'POST' })
+          .then(function(data) {
+            if (data.success) {
+              logBot('✓ Quality scores refreshed', 'success');
+              loadQualityStats();
+            } else {
+              logBot('Failed to refresh scores', 'error');
+            }
+          })
+          .catch(function(err) {
+            logBot('Error: ' + err.message, 'error');
+          });
+      }
+
       // Generate single reply
       document.getElementById('bot-generate-reply')?.addEventListener('click', function() {
         if (!isOwner) return;
@@ -1569,6 +2194,10 @@
         origLoadOwnerTools();
         loadBotTargets();
         loadGroqStatus();
+        loadSchedulerStatus();
+        loadActivityHeatmap();
+        loadSeasonalContext();
+        loadQualityStats();
       };
 
       // Audit Log
