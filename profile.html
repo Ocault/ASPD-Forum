@@ -96,6 +96,43 @@
       gap: var(--spacing-xs);
       cursor: pointer;
     }
+    
+    /* Profile Responsive Styles */
+    @media (max-width: 768px) {
+      .followers-list {
+        gap: var(--spacing-xs);
+      }
+      .follower-item {
+        font-size: 0.4375rem;
+        padding: 4px 6px;
+      }
+      .follower-item canvas {
+        width: 20px;
+        height: 20px;
+      }
+      .followers-tab {
+        font-size: 0.4375rem;
+        padding: 4px 8px;
+      }
+      .privacy-toggle-row {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+        text-align: center;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .followers-tabs {
+        flex-direction: column;
+      }
+      .followers-tab {
+        width: 100%;
+        text-align: center;
+      }
+      .follower-item {
+        flex: 1 1 100%;
+      }
+    }
   </style>
 </head>
 <body>

@@ -44,6 +44,8 @@
 html {
   font-size: 16px;
   line-height: 1.5;
+  /* Fluid scaling for different viewport widths */
+  font-size: clamp(14px, 2vw, 16px);
 }
 
 body {
@@ -70,8 +72,8 @@ body::before {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 500px;
-  height: 500px;
+  width: min(500px, 80vw);
+  height: min(500px, 80vw);
   background-image: url('../sigil.png');
   background-size: contain;
   background-repeat: no-repeat;
@@ -8840,5 +8842,355 @@ img.loaded {
   .header-admin {
     font-size: 0.5rem;
     padding: var(--spacing-xs);
+  }
+}
+
+/* ========================================
+   COMPREHENSIVE RESPONSIVE SCALING
+   Handles half-width windows and all sizes
+======================================== */
+
+/* Tablet / Half-width desktop (900px - 1200px) */
+@media (max-width: 1200px) and (min-width: 769px) {
+  .main {
+    padding: var(--spacing-lg);
+    max-width: 100%;
+  }
+  
+  .rooms-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .thread-list {
+    gap: var(--spacing-sm);
+  }
+  
+  .entry-content {
+    font-size: 0.8125rem;
+  }
+  
+  .panel-header {
+    font-size: 0.6875rem;
+  }
+}
+
+/* Small tablet / narrow window (600px - 768px) */
+@media (max-width: 768px) and (min-width: 481px) {
+  html {
+    font-size: 15px;
+  }
+  
+  .main {
+    padding: var(--spacing-md);
+    gap: var(--spacing-md);
+  }
+  
+  .panel {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+  
+  .rooms-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+  }
+  
+  .room-node {
+    padding: var(--spacing-md);
+  }
+  
+  .room-title {
+    font-size: 0.75rem;
+  }
+  
+  .room-desc {
+    font-size: 0.625rem;
+  }
+  
+  .thread-item {
+    padding: var(--spacing-sm);
+  }
+  
+  .thread-title {
+    font-size: 0.75rem;
+  }
+  
+  .thread-meta {
+    font-size: 0.5625rem;
+  }
+  
+  .entry {
+    padding: var(--spacing-sm);
+  }
+  
+  .entry-content {
+    font-size: 0.75rem;
+  }
+  
+  .entry-meta {
+    font-size: 0.5625rem;
+  }
+  
+  .profile-header {
+    flex-direction: column;
+    text-align: center;
+    gap: var(--spacing-md);
+  }
+  
+  .profile-stats {
+    justify-content: center;
+  }
+}
+
+/* Mobile (480px and below) */
+@media (max-width: 480px) {
+  html {
+    font-size: 14px;
+  }
+  
+  .main {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+  
+  .header {
+    padding: var(--spacing-sm);
+  }
+  
+  .header-logo {
+    font-size: 0.625rem;
+  }
+  
+  .header-right {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .room-node {
+    padding: var(--spacing-sm);
+  }
+  
+  .room-title {
+    font-size: 0.6875rem;
+  }
+  
+  .room-desc {
+    font-size: 0.5625rem;
+    -webkit-line-clamp: 2;
+  }
+  
+  .thread-title {
+    font-size: 0.6875rem;
+  }
+  
+  .thread-meta {
+    font-size: 0.5rem;
+    flex-wrap: wrap;
+  }
+  
+  .entry-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+  
+  .entry-content {
+    font-size: 0.6875rem;
+  }
+  
+  .entry-actions {
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+  
+  .entry-action {
+    font-size: 0.5rem;
+    padding: 2px 4px;
+  }
+  
+  .reply-box {
+    padding: var(--spacing-sm);
+  }
+  
+  .reply-textarea {
+    font-size: 0.75rem;
+    min-height: 80px;
+  }
+  
+  .btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.625rem;
+  }
+  
+  /* Profile page mobile */
+  .profile-avatar-section {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .profile-alias {
+    font-size: 0.875rem;
+  }
+  
+  .profile-bio {
+    font-size: 0.6875rem;
+  }
+  
+  .profile-stat-value {
+    font-size: 0.75rem;
+  }
+  
+  .profile-stat-label {
+    font-size: 0.5rem;
+  }
+  
+  /* Admin page mobile */
+  .admin-panel {
+    padding: var(--spacing-sm);
+  }
+  
+  .admin-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .admin-tab {
+    font-size: 0.5rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  .permission-card {
+    padding: var(--spacing-sm);
+  }
+  
+  .permission-card-title {
+    font-size: 0.625rem;
+  }
+  
+  /* Messages mobile */
+  .message-list {
+    max-height: 300px;
+  }
+  
+  .message-item {
+    padding: var(--spacing-sm);
+  }
+  
+  .message-content {
+    font-size: 0.6875rem;
+  }
+}
+
+/* Very narrow windows (less than 360px) */
+@media (max-width: 360px) {
+  html {
+    font-size: 13px;
+  }
+  
+  .main {
+    padding: var(--spacing-xs);
+  }
+  
+  .header-right > * {
+    font-size: 0.5rem;
+  }
+  
+  .panel-header {
+    font-size: 0.5625rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  .room-node {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  .thread-item {
+    padding: var(--spacing-xs);
+  }
+  
+  .entry {
+    padding: var(--spacing-xs);
+  }
+  
+  .landing-enter {
+    font-size: 0.625rem;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+}
+
+/* Landscape mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+  .main {
+    padding: var(--spacing-sm);
+  }
+  
+  .header {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  .mobile-nav {
+    display: none;
+  }
+  
+  .landing-hero {
+    min-height: auto;
+    padding: var(--spacing-md);
+  }
+}
+
+/* Ensure containers don't overflow */
+.main,
+.panel,
+.entry,
+.thread-item,
+.room-node,
+.message-item,
+.profile-content,
+.settings-content,
+.admin-content {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Flexible text that doesn't overflow */
+.thread-title,
+.room-title,
+.entry-content,
+.message-content,
+.profile-bio,
+.room-desc {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Ensure images don't overflow */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Flexible grids */
+.rooms-grid,
+.thread-list,
+.stats-grid,
+.profile-stats {
+  width: 100%;
+}
+
+/* Better touch targets on mobile */
+@media (hover: none) and (pointer: coarse) {
+  .btn,
+  .entry-action,
+  .nav-item,
+  .thread-item,
+  .room-node {
+    min-height: 44px;
+  }
+  
+  a, button {
+    min-height: 44px;
+    min-width: 44px;
   }
 }

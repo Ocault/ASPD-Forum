@@ -32,6 +32,9 @@
   <style>
     .h-captcha { margin: 1rem 0; display: flex; justify-content: center; }
     .h-captcha iframe { filter: grayscale(0.8) brightness(0.9); }
+    @media (max-width: 480px) {
+      .h-captcha { transform: scale(0.9); transform-origin: center; }
+    }
   </style>
 </head>
 <body>

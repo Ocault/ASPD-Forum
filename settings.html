@@ -249,6 +249,36 @@
       gap: 1rem;
       justify-content: flex-end;
     }
+    
+    /* Settings Responsive Styles */
+    @media (max-width: 768px) {
+      .modal-content {
+        padding: 1.5rem;
+        max-width: 95%;
+      }
+      .modal-title {
+        font-size: 0.75rem;
+      }
+      .modal-text {
+        font-size: 0.7rem;
+      }
+      .modal-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .modal-content {
+        padding: 1rem;
+      }
+      .modal-title {
+        font-size: 0.65rem;
+      }
+      .modal-text {
+        font-size: 0.6rem;
+      }
+    }
   </style>
 </head>
 <body>

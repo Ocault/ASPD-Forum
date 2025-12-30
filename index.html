@@ -516,7 +516,47 @@
       opacity: 0.5;
     }
     
-    /* Mobile adjustments */
+    /* Responsive adjustments - all screen sizes */
+    @media (max-width: 1200px) {
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    
+    @media (max-width: 900px) {
+      .hero {
+        padding: 100px 30px;
+      }
+      
+      .hero-title {
+        font-size: clamp(1.5rem, 5vw, 2.5rem);
+      }
+      
+      .hero-subtitle {
+        font-size: clamp(0.5rem, 2vw, 0.75rem);
+      }
+      
+      .void-container {
+        width: clamp(100px, 30vw, 180px);
+        height: clamp(100px, 30vw, 180px);
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .features-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+      }
+      
+      .feature-card {
+        padding: var(--spacing-md);
+      }
+      
+      .intro-title {
+        font-size: clamp(0.4rem, 2vw, 0.5rem);
+      }
+    }
+    
     @media (max-width: 600px) {
       .hero {
         padding: 60px 20px;
@@ -525,16 +565,50 @@
       .hero-cta {
         flex-direction: column;
         align-items: center;
+        gap: var(--spacing-sm);
       }
       
       .cta-primary, .cta-secondary {
         width: 100%;
         max-width: 250px;
         text-align: center;
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: 0.5rem;
       }
       
-      .features-grid {
-        grid-template-columns: 1fr;
+      .feature-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+      }
+      
+      .landing-footer {
+        padding: var(--spacing-md);
+      }
+      
+      .footer-links {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+      }
+    }
+    
+    @media (max-width: 400px) {
+      .void-container {
+        width: 80px;
+        height: 80px;
+      }
+      
+      .hero-title {
+        font-size: 1.25rem;
+      }
+      
+      .hero-subtitle {
+        font-size: 0.4rem;
+      }
+      
+      .cta-primary, .cta-secondary {
+        font-size: 0.4375rem;
+        padding: var(--spacing-xs) var(--spacing-sm);
       }
     }
   </style>
