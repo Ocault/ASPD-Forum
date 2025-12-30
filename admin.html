@@ -2047,12 +2047,21 @@
         loadActivityHeatmap();
       });
       
-      // Auto-refresh heatmap every 5 minutes
+      // Auto-refresh bot stats every 30 seconds when on owner section
       setInterval(function() {
-        if (document.getElementById('activity-heatmap')) {
+        if (currentSection === 'owner') {
           loadActivityHeatmap();
+          loadSchedulerStatus();
+          loadBotProfiles();
         }
-      }, 5 * 60 * 1000);
+      }, 30 * 1000);
+      
+      // Also refresh stats section every 60 seconds
+      setInterval(function() {
+        if (currentSection === 'stats') {
+          loadStats();
+        }
+      }, 60 * 1000);
       
       // ============================================
       // SEASONAL TOPICS
@@ -3550,6 +3559,13 @@
 
       // Initial load
       loadDashboard();
+      
+      // Pre-load owner section data if user is owner (so stats are ready)
+      if (isOwner) {
+        loadSchedulerStatus();
+        loadActivityHeatmap();
+        loadBotProfiles();
+      }
     })();
   </script>
 
