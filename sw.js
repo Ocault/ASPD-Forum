@@ -1,5 +1,5 @@
 // Service Worker for ASPD Forum
-const CACHE_NAME = 'aspd-forum-v2';
+const CACHE_NAME = 'aspd-forum-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

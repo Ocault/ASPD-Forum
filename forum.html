@@ -309,13 +309,26 @@
             if (data.success && data.users) {
               var container = document.getElementById('whos-online-list');
               var countEl = document.getElementById('online-count');
+              var footerStatus = document.querySelector('[data-bind="connection-status"]');
               
-              if (countEl) countEl.textContent = data.count + ' ONLINE';
+              // Update the count display
+              var countText = data.count + ' ONLINE';
+              if (countEl) countEl.textContent = countText;
+              
+              // Also update footer with real breakdown
+              if (footerStatus) {
+                if (data.botCount > 0) {
+                  footerStatus.textContent = data.count + ' ONLINE (' + data.realCount + ' users, ' + data.botCount + ' bots)';
+                } else {
+                  footerStatus.textContent = data.count + ' ONLINE';
+                }
+              }
               
               if (container && data.users.length > 0) {
                 container.innerHTML = data.users.map(function(u) {
                   var label = u.customTitle || u.rank || '';
-                  return '<a href="profile.html?alias=' + encodeURIComponent(u.alias) + '" class="online-user">' +
+                  var botClass = u.isBot ? ' online-user--bot' : '';
+                  return '<a href="profile.html?alias=' + encodeURIComponent(u.alias) + '" class="online-user' + botClass + '">' +
                     '<span class="online-indicator"></span>' +
                     '<span>' + escapeHtml(u.alias) + '</span>' +
                     (label ? '<span class="online-rank">[' + label + ']</span>' : '') +
@@ -326,7 +339,13 @@
               }
             }
           })
-          .catch(function() {});
+          .catch(function(err) {
+            console.error('[WHO\'S ONLINE ERROR]', err);
+            var container = document.getElementById('whos-online-list');
+            if (container) {
+              container.innerHTML = '<span style="color: var(--text-muted); font-size: 0.5rem;">Could not load</span>';
+            }
+          });
       }
 
       /**
@@ -353,8 +372,22 @@
         
         // Load who's online
         loadWhosOnline();
-        // Refresh every 60 seconds
-        setInterval(loadWhosOnline, 60000);
+        // Refresh every 30 seconds for more responsive updates
+        setInterval(loadWhosOnline, 30000);
+        
+        // Also listen for WebSocket updates
+        if (window.ForumWebSocket) {
+          window.ForumWebSocket.on('online_update', function(data) {
+            if (data && typeof data.count === 'number') {
+              var countEl = document.getElementById('online-count');
+              var footerStatus = document.querySelector('[data-bind="connection-status"]');
+              if (countEl) countEl.textContent = data.count + ' ONLINE';
+              if (footerStatus) footerStatus.textContent = data.count + ' ONLINE';
+              // Refresh the full list
+              loadWhosOnline();
+            }
+          });
+        }
         
         // Initialize keyboard shortcuts
         initKeyboardShortcuts();

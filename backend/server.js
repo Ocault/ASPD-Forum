@@ -6505,13 +6505,13 @@ app.get('/api/users/:alias/last-seen', async (req, res) => {
 // WHO'S ONLINE
 // ========================================
 
-// Get users who were active in the last 5 minutes (includes simulated bot activity)
+// Get users who were active in the last 5 minutes + online bots
 app.get('/api/users/online', authMiddleware, async (req, res) => {
   try {
     // Also update the requesting user's last_seen_at (acts as implicit heartbeat)
     await db.query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [req.user.userId]);
     
-    // Get real online users
+    // Get real online users (non-bots active in last 5 mins)
     const result = await db.query(
       `SELECT alias, avatar_config, custom_title, role, is_bot,
               (SELECT COUNT(*) FROM entries WHERE user_id = users.id AND is_deleted = FALSE) as post_count
@@ -6538,37 +6538,26 @@ app.get('/api/users/online', authMiddleware, async (req, res) => {
         alias: u.alias,
         avatarConfig: u.avatar_config,
         customTitle: u.custom_title,
-        rank: u.custom_title ? null : rank
+        rank: u.custom_title ? null : rank,
+        isBot: false
       };
     });
     
-    // Simulate bot users online based on time of day
-    const activityWeights = {
-      0: 0.9,  1: 0.8,  2: 0.6,  3: 0.4,  4: 0.3,  5: 0.2,
-      6: 0.15, 7: 0.1,  8: 0.1,  9: 0.15, 10: 0.2, 11: 0.3,
-      12: 0.4, 13: 0.5, 14: 0.5, 15: 0.6, 16: 0.7, 17: 0.8,
-      18: 0.9, 19: 1.0, 20: 1.0, 21: 1.0, 22: 1.0, 23: 0.95
-    };
-    
-    const currentHour = new Date().getUTCHours();
-    const currentWeight = activityWeights[currentHour] || 0.5;
-    
-    // Get some random bot users to show as "online"
-    const botsToShow = Math.max(2, Math.floor(12 * currentWeight));
-    const botResult = await db.query(
-      `SELECT alias, avatar_config, custom_title,
-              (SELECT COUNT(*) FROM entries WHERE user_id = users.id AND is_deleted = FALSE) as post_count
-       FROM users 
-       WHERE is_bot = true AND banned = false
-       ORDER BY RANDOM()
-       LIMIT $1`,
-      [botsToShow]
+    // Get ACTUALLY online bots from bot_accounts table
+    const onlineBotsResult = await db.query(
+      `SELECT ba.alias, u.avatar_config, u.custom_title,
+              (SELECT COUNT(*) FROM entries WHERE user_id = u.id AND is_deleted = FALSE) as post_count
+       FROM bot_accounts ba
+       JOIN users u ON u.alias = ba.alias
+       WHERE ba.is_online = TRUE
+       ORDER BY ba.session_start DESC
+       LIMIT 30`
     );
     
-    // Add simulated bot users
-    const simulatedBots = botResult.rows.map(u => {
+    // Format online bots
+    const onlineBots = onlineBotsResult.rows.map(u => {
       let rank = 'MEMBER';
-      const postCount = parseInt(u.post_count);
+      const postCount = parseInt(u.post_count || 0);
       if (postCount >= 200) rank = 'EXPERT';
       else if (postCount >= 100) rank = 'REGULAR';
       else if (postCount >= 50) rank = 'MEMBER';
@@ -6579,28 +6568,25 @@ app.get('/api/users/online', authMiddleware, async (req, res) => {
         alias: u.alias,
         avatarConfig: u.avatar_config,
         customTitle: u.custom_title,
-        rank: u.custom_title ? null : rank
+        rank: u.custom_title ? null : rank,
+        isBot: true
       };
     });
     
-    // Combine and shuffle
-    const allOnline = [...onlineUsers, ...simulatedBots];
-    for (let i = allOnline.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [allOnline[i], allOnline[j]] = [allOnline[j], allOnline[i]];
-    }
+    // Combine real users first, then bots
+    const allOnline = [...onlineUsers, ...onlineBots];
     
-    // Get total count
-    const countResult = await db.query(
-      `SELECT COUNT(*) FROM users WHERE last_seen_at > NOW() - INTERVAL '5 minutes' AND is_bot = false`
-    );
-    const realOnlineCount = parseInt(countResult.rows[0].count);
-    const totalOnline = realOnlineCount + simulatedBots.length;
+    // Get counts
+    const realOnlineCount = onlineUsers.length;
+    const botOnlineCount = onlineBots.length;
+    const totalOnline = realOnlineCount + botOnlineCount;
     
     res.json({ 
       success: true, 
       users: allOnline.slice(0, 50), // Cap at 50
-      count: totalOnline
+      count: totalOnline,
+      realCount: realOnlineCount,
+      botCount: botOnlineCount
     });
   } catch (err) {
     console.error('[ONLINE USERS ERROR]', err);
