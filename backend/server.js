@@ -9202,6 +9202,575 @@ app.get('/api/public/sitemap', async (req, res) => {
   }
 });
 
+// ================================================
+// AI BOT SYSTEM - Owner Only
+// ================================================
+
+// Bot personas with distinct writing styles
+const BOT_PERSONAS = {
+  analytical: {
+    name: 'ANALYST',
+    style: 'Logical, clinical, uses data and patterns. Detached observations. Tends to analyze rather than share feelings.',
+    traits: ['methodical', 'precise', 'cold logic', 'pattern recognition']
+  },
+  cynical: {
+    name: 'CYNIC',
+    style: 'Sardonic humor, skeptical of everything, sharp wit. Questions everything and everyone.',
+    traits: ['sarcastic', 'doubtful', 'dark humor', 'defensive']
+  },
+  pragmatic: {
+    name: 'PRAGMATIST',
+    style: 'Practical advice only, results-focused. No patience for theory or feelings, just what works.',
+    traits: ['direct', 'solution-oriented', 'impatient', 'efficient']
+  },
+  observer: {
+    name: 'OBSERVER',
+    style: 'Quiet insights, watches before speaking. Notes patterns others miss. Brief but impactful.',
+    traits: ['perceptive', 'reserved', 'insightful', 'minimal words']
+  },
+  blunt: {
+    name: 'BLUNT',
+    style: 'No sugar-coating ever. Says what others think but won\'t say. Zero social filter.',
+    traits: ['honest', 'abrasive', 'no filter', 'confrontational']
+  },
+  strategic: {
+    name: 'STRATEGIST',
+    style: 'Sees everything as a game or system to optimize. Talks about moves, plays, and positioning.',
+    traits: ['calculating', 'chess-minded', 'long-term thinking', 'manipulative awareness']
+  },
+  nihilist: {
+    name: 'NIHILIST',
+    style: 'Philosophical, existential, finds dark comfort in meaninglessness. Detached from outcomes.',
+    traits: ['apathetic', 'philosophical', 'void-gazing', 'accepting']
+  },
+  survivor: {
+    name: 'SURVIVOR',
+    style: 'Been through the system - prison, hospitals, streets. Hard-won wisdom, street smart.',
+    traits: ['tough', 'experienced', 'cautious', 'protective']
+  },
+  scientist: {
+    name: 'SCIENTIST',
+    style: 'Research-focused, cites studies, interested in neuroscience and genetics of ASPD.',
+    traits: ['academic', 'curious', 'evidence-based', 'nerdy']
+  },
+  newcomer: {
+    name: 'NEWCOMER',
+    style: 'Recently diagnosed, still processing. Asks questions, shares fresh perspectives.',
+    traits: ['questioning', 'unsure', 'open', 'searching']
+  },
+  veteran: {
+    name: 'VETERAN',
+    style: 'Decades of experience. Seen it all, patient with newbies. Offers hard-won wisdom.',
+    traits: ['wise', 'patient', 'experienced', 'mentoring']
+  },
+  dark_humor: {
+    name: 'COMEDIAN',
+    style: 'Copes through dark comedy. Makes light of heavy topics. Gallows humor specialist.',
+    traits: ['funny', 'deflecting', 'coping mechanism', 'relatable']
+  }
+};
+
+// Generate random avatar config for bots
+function generateBotAvatar() {
+  return JSON.stringify({
+    head: Math.floor(Math.random() * 8),
+    eyes: Math.floor(Math.random() * 6),
+    overlays: {
+      static: Math.random() > 0.7,
+      crack: Math.random() > 0.8
+    }
+  });
+}
+
+// Generate bot alias
+function generateBotAlias() {
+  const prefixes = ['ANON', 'NULL', 'VOID', 'ZERO', 'NODE', 'MASK', 'SHADE', 'GHOST', 'ECHO', 'STATIC', 'CIPHER', 'HOLLOW'];
+  const suffix = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+  return prefixes[Math.floor(Math.random() * prefixes.length)] + '-' + suffix;
+}
+
+// Simple AI text generation using built-in templates (no external API needed)
+function generateBotContent(persona, context, type) {
+  const p = BOT_PERSONAS[persona] || BOT_PERSONAS.analytical;
+  
+  // Template responses based on persona and context
+  const templates = {
+    analytical: {
+      reply: [
+        "interesting pattern here. {observation}. the data suggests {conclusion}.",
+        "breaking this down logically: {point}. statistically speaking, {stat}.",
+        "ive noticed {pattern}. correlates with {correlation}. worth examining.",
+        "the underlying mechanism seems to be {mechanism}. observable in {example}.",
+        "objectively, {fact}. subjectively irrelevant, but the pattern is clear."
+      ],
+      thread: [
+        "Observing a pattern - {topic}",
+        "Data point: {topic}",
+        "Analysis request: {topic}"
+      ]
+    },
+    cynical: {
+      reply: [
+        "oh sure, because {sarcasm}. worked great for everyone else right.",
+        "let me guess - {assumption}. seen this movie before.",
+        "ah yes the classic {thing} approach. how refreshingly naive.",
+        "fascinating how {observation}. almost like {cynical_take}.",
+        "not to be that person but {reality_check}. just saying."
+      ],
+      thread: [
+        "Anyone else tired of {topic}?",
+        "The {topic} myth needs to die",
+        "Hot take: {topic}"
+      ]
+    },
+    pragmatic: {
+      reply: [
+        "skip the theory - heres what actually works: {solution}.",
+        "tried this. results: {outcome}. adjust and try {alternative}.",
+        "dont overthink it. {step1}, then {step2}. done.",
+        "waste of time unless you {practical_advice}. trust me.",
+        "bottom line: {bottom_line}. everything else is noise."
+      ],
+      thread: [
+        "What actually works for {topic}",
+        "Practical guide: {topic}",
+        "{topic} - results only"
+      ]
+    },
+    observer: {
+      reply: [
+        "noticed something. {observation}.",
+        "{insight}. just an observation.",
+        "watching this thread. {thought}.",
+        "patterns emerging. {pattern}.",
+        "hmm. {brief_insight}."
+      ],
+      thread: [
+        "Noticed this about {topic}",
+        "Pattern: {topic}",
+        "Observation on {topic}"
+      ]
+    },
+    blunt: {
+      reply: [
+        "gonna be real with you - {truth}. dont like it? too bad.",
+        "no ones gonna say it so i will: {harsh_truth}.",
+        "straight up: {direct_statement}. fight me.",
+        "not sugarcoating this: {reality}.",
+        "everyone thinking it, im saying it: {thought}."
+      ],
+      thread: [
+        "Unpopular opinion: {topic}",
+        "Nobody wants to hear this about {topic}",
+        "Hard truth about {topic}"
+      ]
+    },
+    strategic: {
+      reply: [
+        "the play here is {strategy}. positions you for {advantage}.",
+        "three moves ahead: {move1}, {move2}, {move3}. checkmate.",
+        "seen this game before. counter with {counter}.",
+        "optimal strategy: {strategy}. suboptimal players wont see it coming.",
+        "the meta is {meta}. adapt or lose."
+      ],
+      thread: [
+        "Strategic approach to {topic}",
+        "Game theory and {topic}",
+        "Optimizing {topic}"
+      ]
+    },
+    nihilist: {
+      reply: [
+        "does it matter though? {nihilistic_observation}. we keep playing anyway.",
+        "interesting that we pretend {pretense}. but sure, lets discuss.",
+        "in the grand scheme: {perspective}. comforting in a way.",
+        "meaningless but not pointless. {observation}.",
+        "the void doesnt care about {thing}. liberating honestly."
+      ],
+      thread: [
+        "Does {topic} even matter?",
+        "The point of {topic} (if any)",
+        "Meaningless yet here we are: {topic}"
+      ]
+    },
+    survivor: {
+      reply: [
+        "been there. {experience}. what got me through: {solution}.",
+        "system tried {thing}. heres what i learned: {lesson}.",
+        "from experience: {warning}. dont make my mistakes.",
+        "survived {situation}. advice: {advice}.",
+        "trust no one who says {lie}. reality is {truth}."
+      ],
+      thread: [
+        "Lessons from {topic}",
+        "What they dont tell you about {topic}",
+        "Survived {topic} - sharing notes"
+      ]
+    },
+    scientist: {
+      reply: [
+        "theres actually research on this. {study_reference}. suggests {finding}.",
+        "neurologically speaking, {brain_thing}. fascinating implications.",
+        "the literature indicates {finding}. though sample sizes are {caveat}.",
+        "amygdala/prefrontal interaction here: {mechanism}.",
+        "genetic component is about {percent}. rest is {rest}."
+      ],
+      thread: [
+        "Research question: {topic}",
+        "Study discussion: {topic}",
+        "Neuroscience of {topic}"
+      ]
+    },
+    newcomer: {
+      reply: [
+        "still figuring this out but {thought}. am i off base?",
+        "recently diagnosed. {question}. is this common?",
+        "never thought about it that way. {reaction}.",
+        "wait so {realization}? that explains a lot.",
+        "is it just me or {observation}? genuinely asking."
+      ],
+      thread: [
+        "New here - questions about {topic}",
+        "Is {topic} normal for us?",
+        "Trying to understand {topic}"
+      ]
+    },
+    veteran: {
+      reply: [
+        "been dealing with this for 20+ years. {wisdom}.",
+        "younger me would have {old_approach}. now i know {better_approach}.",
+        "seen a lot of us go through this. {advice}.",
+        "patience. {long_term_perspective}.",
+        "this too shall pass. {reassurance}."
+      ],
+      thread: [
+        "Long-term perspective on {topic}",
+        "Decades later: thoughts on {topic}",
+        "What I wish I knew about {topic}"
+      ]
+    },
+    dark_humor: {
+      reply: [
+        "lmao {dark_joke}. but seriously {point}.",
+        "at least were not {worse_thing}. silver linings.",
+        "therapist: you cant just {thing}. me: watch me.",
+        "the duality of aspd: {contrast}. hilarious really.",
+        "laughing to keep from {alternative}. anyway {point}."
+      ],
+      thread: [
+        "ASPD memes that hit different",
+        "You know youre ASPD when {topic}",
+        "Cursed {topic} thread"
+      ]
+    }
+  };
+  
+  // Topic fragments to inject
+  const topics = [
+    "emotional responses", "masking fatigue", "workplace dynamics", "relationship patterns",
+    "diagnosis experiences", "therapy effectiveness", "impulse control", "boredom management",
+    "empathy differences", "manipulation awareness", "self-perception", "stigma handling",
+    "medication", "coping mechanisms", "social strategies", "identity questions",
+    "anger management", "trust issues", "attachment styles", "childhood patterns"
+  ];
+  
+  const observations = [
+    "the pattern repeats", "most people miss this", "correlation is strong",
+    "deviation from baseline is notable", "this tracks with the research"
+  ];
+  
+  const conclusions = [
+    "adaptation is key", "variance is expected", "context matters more than people admit",
+    "individual results vary wildly", "the sample is biased"
+  ];
+  
+  // Select random template
+  const personaTemplates = templates[persona] || templates.analytical;
+  const templateList = type === 'thread' ? personaTemplates.thread : personaTemplates.reply;
+  let template = templateList[Math.floor(Math.random() * templateList.length)];
+  
+  // Fill in placeholders with random content
+  template = template.replace(/{topic}/g, topics[Math.floor(Math.random() * topics.length)]);
+  template = template.replace(/{observation}/g, observations[Math.floor(Math.random() * observations.length)]);
+  template = template.replace(/{conclusion}/g, conclusions[Math.floor(Math.random() * conclusions.length)]);
+  
+  // Generic placeholder fills
+  const genericFills = {
+    '{pattern}': 'recurring behavior here',
+    '{correlation}': 'what the research suggests',
+    '{mechanism}': 'cognitive override of emotional response',
+    '{example}': 'most of us at some point',
+    '{fact}': 'the data is clear',
+    '{sarcasm}': 'that always works perfectly',
+    '{assumption}': 'someone read one article and became an expert',
+    '{thing}': 'conventional wisdom',
+    '{cynical_take}': 'nobody actually learns',
+    '{reality_check}': 'this is wishful thinking',
+    '{solution}': 'set boundaries and stick to them',
+    '{outcome}': 'mixed but mostly positive',
+    '{alternative}': 'different approach next time',
+    '{step1}': 'identify the pattern',
+    '{step2}': 'interrupt it consciously',
+    '{practical_advice}': 'actually commit to it',
+    '{bottom_line}': 'do what works, ignore what doesnt',
+    '{insight}': 'we adapt faster than most realize',
+    '{thought}': 'something to consider',
+    '{brief_insight}': 'interesting',
+    '{truth}': 'most advice here doesnt apply to us',
+    '{harsh_truth}': 'nobody owes us understanding',
+    '{direct_statement}': 'stop making excuses',
+    '{reality}': 'we chose this path even if we didnt choose the condition',
+    '{strategy}': 'play the long game',
+    '{advantage}': 'better outcomes',
+    '{move1}': 'assess',
+    '{move2}': 'position',
+    '{move3}': 'execute',
+    '{counter}': 'unexpected honesty',
+    '{meta}': 'controlled transparency',
+    '{nihilistic_observation}': 'were all just passing time',
+    '{pretense}': 'any of this has inherent meaning',
+    '{perspective}': 'nothing really matters',
+    '{experience}': 'did the time, learned the lesson',
+    '{lesson}': 'trust yourself first',
+    '{warning}': 'dont trust anyone who promises easy fixes',
+    '{situation}': 'the system',
+    '{advice}': 'keep your head down and play smart',
+    '{lie}': 'it gets easier',
+    '{study_reference}': 'that 2019 neuroimaging study',
+    '{finding}': 'structural differences in prefrontal regions',
+    '{brain_thing}': 'reduced amygdala reactivity',
+    '{caveat}': 'small unfortunately',
+    '{percent}': '50-60%',
+    '{rest}': 'environmental factors',
+    '{question}': 'does anyone else feel like theyre performing constantly',
+    '{reaction}': 'makes sense now',
+    '{realization}': 'this was never about learning to feel more',
+    '{wisdom}': 'it gets different, not easier',
+    '{old_approach}': 'fought everything',
+    '{better_approach}': 'choose my battles',
+    '{long_term_perspective}': 'most of this wont matter in 5 years',
+    '{reassurance}': 'youll figure it out like we all did',
+    '{dark_joke}': 'when the therapist asks if you feel remorse and you have to google what that means',
+    '{point}': 'we cope how we cope',
+    '{worse_thing}': 'NPD subreddit',
+    '{contrast}': 'too self-aware to be happy, too detached to be sad',
+    '{alternative}': 'screaming into the void'
+  };
+  
+  Object.keys(genericFills).forEach(key => {
+    template = template.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), genericFills[key]);
+  });
+  
+  return template.toLowerCase();
+}
+
+// Get random thread for replies
+async function getRandomThread() {
+  const result = await db.query(`
+    SELECT t.id, t.title, t.room_id
+    FROM threads t
+    WHERE t.is_locked = FALSE AND t.is_deleted = FALSE
+    ORDER BY RANDOM()
+    LIMIT 1
+  `);
+  return result.rows[0];
+}
+
+// Get random room for new threads
+async function getRandomRoom() {
+  const result = await db.query(`
+    SELECT id, slug, title FROM rooms
+    WHERE is_locked = FALSE OR is_locked IS NULL
+    ORDER BY RANDOM()
+    LIMIT 1
+  `);
+  return result.rows[0];
+}
+
+// Create bot post (reply)
+async function createBotReply(threadId, persona) {
+  const p = persona || Object.keys(BOT_PERSONAS)[Math.floor(Math.random() * Object.keys(BOT_PERSONAS).length)];
+  const alias = generateBotAlias();
+  const avatar = generateBotAvatar();
+  const content = generateBotContent(p, null, 'reply');
+  
+  // Get or create bot user
+  let userId = 1; // Default to system user
+  
+  const result = await db.query(`
+    INSERT INTO entries (thread_id, user_id, content, alias, avatar_config, is_bot)
+    VALUES ($1, $2, $3, $4, $5, TRUE)
+    RETURNING id
+  `, [threadId, userId, content, alias, avatar]);
+  
+  return { 
+    success: true, 
+    entryId: result.rows[0].id,
+    botAlias: alias,
+    threadId,
+    persona: p
+  };
+}
+
+// Create bot thread
+async function createBotThread(roomId, persona) {
+  const p = persona || Object.keys(BOT_PERSONAS)[Math.floor(Math.random() * Object.keys(BOT_PERSONAS).length)];
+  const alias = generateBotAlias();
+  const avatar = generateBotAvatar();
+  
+  // Generate title and content
+  const titleTemplate = generateBotContent(p, null, 'thread');
+  const title = titleTemplate.charAt(0).toUpperCase() + titleTemplate.slice(1);
+  const content = generateBotContent(p, null, 'reply');
+  
+  let userId = 1; // System user
+  
+  // Get room DB id from slug if string passed
+  let roomDbId = roomId;
+  if (typeof roomId === 'string' && roomId.startsWith('room-')) {
+    const roomResult = await db.query('SELECT id FROM rooms WHERE slug = $1', [roomId]);
+    if (roomResult.rows.length > 0) {
+      roomDbId = roomResult.rows[0].id;
+    }
+  }
+  
+  // Create thread
+  const threadResult = await db.query(`
+    INSERT INTO threads (room_id, title, user_id, is_bot)
+    VALUES ($1, $2, $3, TRUE)
+    RETURNING id
+  `, [roomDbId, title, userId]);
+  
+  const threadId = threadResult.rows[0].id;
+  
+  // Create initial post
+  await db.query(`
+    INSERT INTO entries (thread_id, user_id, content, alias, avatar_config, is_bot)
+    VALUES ($1, $2, $3, $4, $5, TRUE)
+  `, [threadId, userId, content, alias, avatar]);
+  
+  return {
+    success: true,
+    threadId,
+    title,
+    botAlias: alias,
+    persona: p
+  };
+}
+
+// API: Generate single reply
+app.post('/api/admin/bot/reply', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { threadId, persona } = req.body;
+    
+    let targetThread = threadId;
+    if (!targetThread) {
+      const randomThread = await getRandomThread();
+      if (!randomThread) {
+        return res.status(404).json({ success: false, error: 'no_threads_found' });
+      }
+      targetThread = randomThread.id;
+    }
+    
+    const result = await createBotReply(targetThread, persona);
+    res.json(result);
+  } catch (err) {
+    console.error('[BOT REPLY ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API: Generate new thread
+app.post('/api/admin/bot/thread', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { roomId, persona } = req.body;
+    
+    let targetRoom = roomId;
+    if (!targetRoom) {
+      const randomRoom = await getRandomRoom();
+      if (!randomRoom) {
+        return res.status(404).json({ success: false, error: 'no_rooms_found' });
+      }
+      targetRoom = randomRoom.id;
+    }
+    
+    const result = await createBotThread(targetRoom, persona);
+    res.json(result);
+  } catch (err) {
+    console.error('[BOT THREAD ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API: Bulk activity (creates mix of threads and replies)
+app.post('/api/admin/bot/bulk', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const count = Math.min(req.body.count || 5, 20); // Max 20 at a time
+    let postsCreated = 0;
+    let threadsCreated = 0;
+    
+    for (let i = 0; i < count; i++) {
+      // 30% chance of new thread, 70% chance of reply
+      if (Math.random() < 0.3) {
+        const room = await getRandomRoom();
+        if (room) {
+          await createBotThread(room.id, null);
+          threadsCreated++;
+        }
+      } else {
+        const thread = await getRandomThread();
+        if (thread) {
+          await createBotReply(thread.id, null);
+          postsCreated++;
+        }
+      }
+      
+      // Small delay between posts
+      await new Promise(r => setTimeout(r, 100));
+    }
+    
+    res.json({ success: true, postsCreated, threadsCreated });
+  } catch (err) {
+    console.error('[BOT BULK ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API: Simulate a day's activity (10-20 posts)
+app.post('/api/admin/bot/simulate-day', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const count = 10 + Math.floor(Math.random() * 11); // 10-20 posts
+    let totalPosts = 0;
+    
+    for (let i = 0; i < count; i++) {
+      const persona = Object.keys(BOT_PERSONAS)[Math.floor(Math.random() * Object.keys(BOT_PERSONAS).length)];
+      
+      // 20% chance of new thread
+      if (Math.random() < 0.2) {
+        const room = await getRandomRoom();
+        if (room) {
+          await createBotThread(room.id, persona);
+          totalPosts++;
+        }
+      } else {
+        const thread = await getRandomThread();
+        if (thread) {
+          await createBotReply(thread.id, persona);
+          totalPosts++;
+        }
+      }
+      
+      // Random delay between posts (100-500ms)
+      await new Promise(r => setTimeout(r, 100 + Math.random() * 400));
+    }
+    
+    res.json({ success: true, totalPosts });
+  } catch (err) {
+    console.error('[BOT SIMULATE ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 404 catch-all route (must be last)
 app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, '..', '404.html'));

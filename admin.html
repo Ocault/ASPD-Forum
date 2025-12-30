@@ -542,6 +542,89 @@
             These tools are only available to the site owner. Use with caution.
           </p>
           
+          <!-- AI Bot System -->
+          <div class="permission-card" style="margin-bottom: var(--spacing-md);">
+            <div class="permission-card-title">🤖 AI BOT SYSTEM</div>
+            <p style="font-size: 0.4375rem; color: var(--text-muted); margin-bottom: var(--spacing-md);">
+              Generate realistic community activity using AI bots. Bots will create posts and reply to threads as community members.
+            </p>
+            
+            <!-- Bot Status -->
+            <div style="display: flex; gap: var(--spacing-md); margin-bottom: var(--spacing-md);">
+              <div class="stat-box" style="flex: 1; padding: var(--spacing-sm);">
+                <div class="stat-value" style="font-size: 1rem;" id="bot-total-posts">0</div>
+                <div class="stat-label" style="font-size: 0.4375rem;">BOT POSTS</div>
+              </div>
+              <div class="stat-box" style="flex: 1; padding: var(--spacing-sm);">
+                <div class="stat-value" style="font-size: 1rem;" id="bot-active-count">12</div>
+                <div class="stat-label" style="font-size: 0.4375rem;">BOT PERSONAS</div>
+              </div>
+              <div class="stat-box" style="flex: 1; padding: var(--spacing-sm);">
+                <div class="stat-value" style="font-size: 1rem;" id="bot-status">IDLE</div>
+                <div class="stat-label" style="font-size: 0.4375rem;">STATUS</div>
+              </div>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm); margin-bottom: var(--spacing-md);">
+              <button class="admin-btn" id="bot-generate-reply" style="padding: var(--spacing-sm);">
+                GENERATE REPLY
+              </button>
+              <button class="admin-btn" id="bot-generate-thread" style="padding: var(--spacing-sm);">
+                CREATE NEW THREAD
+              </button>
+              <button class="admin-btn" id="bot-bulk-activity" style="padding: var(--spacing-sm);">
+                BULK ACTIVITY (5 POSTS)
+              </button>
+              <button class="admin-btn" id="bot-simulate-day" style="padding: var(--spacing-sm);">
+                SIMULATE DAY (10-20 POSTS)
+              </button>
+            </div>
+            
+            <!-- Target Selection -->
+            <div style="margin-bottom: var(--spacing-md);">
+              <label style="font-size: 0.5rem; color: var(--text-secondary); display: block; margin-bottom: var(--spacing-xs);">TARGET ROOM</label>
+              <select class="admin-select" id="bot-target-room" style="width: 100%;">
+                <option value="random">RANDOM ROOM</option>
+              </select>
+            </div>
+            
+            <div style="margin-bottom: var(--spacing-md);">
+              <label style="font-size: 0.5rem; color: var(--text-secondary); display: block; margin-bottom: var(--spacing-xs);">TARGET THREAD (for replies)</label>
+              <select class="admin-select" id="bot-target-thread" style="width: 100%;">
+                <option value="random">RANDOM THREAD</option>
+              </select>
+            </div>
+            
+            <!-- Bot Persona Selection -->
+            <div style="margin-bottom: var(--spacing-md);">
+              <label style="font-size: 0.5rem; color: var(--text-secondary); display: block; margin-bottom: var(--spacing-xs);">BOT PERSONA</label>
+              <select class="admin-select" id="bot-persona" style="width: 100%;">
+                <option value="random">RANDOM PERSONA</option>
+                <option value="analytical">THE ANALYST - Logical, detached, clinical observations</option>
+                <option value="cynical">THE CYNIC - Sardonic humor, sharp wit, skeptical</option>
+                <option value="pragmatic">THE PRAGMATIST - Practical advice, results-focused</option>
+                <option value="observer">THE OBSERVER - Quiet insights, pattern recognition</option>
+                <option value="blunt">THE BLUNT ONE - Direct, no sugar-coating, honest</option>
+                <option value="strategic">THE STRATEGIST - Game theory, social chess</option>
+                <option value="nihilist">THE NIHILIST - Philosophical, existential, detached</option>
+                <option value="survivor">THE SURVIVOR - Been through the system, street smart</option>
+                <option value="scientist">THE SCIENTIST - Research-focused, cites studies</option>
+                <option value="newcomer">THE NEWCOMER - Recently diagnosed, still learning</option>
+                <option value="veteran">THE VETERAN - Decades of experience, wisdom</option>
+                <option value="dark_humor">THE DARK HUMORIST - Gallows humor, coping through comedy</option>
+              </select>
+            </div>
+            
+            <!-- Activity Log -->
+            <div style="margin-bottom: var(--spacing-sm);">
+              <label style="font-size: 0.5rem; color: var(--text-secondary); display: block; margin-bottom: var(--spacing-xs);">ACTIVITY LOG</label>
+              <div id="bot-activity-log" style="background: var(--bg-primary); border: 1px solid var(--border-color); height: 150px; overflow-y: auto; padding: var(--spacing-sm); font-family: var(--font-mono); font-size: 0.4375rem; color: var(--text-muted);">
+                <div>System ready. Select an action above.</div>
+              </div>
+            </div>
+          </div>
+          
           <div class="permission-card" style="margin-bottom: var(--spacing-md);">
             <div class="permission-card-title">DOWNLOAD USER DATA (GDPR)</div>
             <div class="admin-form-row" style="margin-bottom: var(--spacing-sm);">
@@ -1096,6 +1179,175 @@
             Notify.show(data.error || 'Failed', 'error');
           }
         });
+      };
+
+      // ============================================
+      // AI BOT SYSTEM
+      // ============================================
+      
+      var botLog = document.getElementById('bot-activity-log');
+      var botTotalPosts = 0;
+      
+      function logBot(msg, type) {
+        if (!botLog) return;
+        var time = new Date().toLocaleTimeString();
+        var color = type === 'success' ? '#6a9a7a' : type === 'error' ? '#9a6a6a' : '#707070';
+        botLog.innerHTML = '<div style="color:' + color + ';">[' + time + '] ' + msg + '</div>' + botLog.innerHTML;
+      }
+      
+      function updateBotStatus(status) {
+        var el = document.getElementById('bot-status');
+        if (el) el.textContent = status;
+      }
+      
+      function incrementBotPosts(count) {
+        botTotalPosts += (count || 1);
+        var el = document.getElementById('bot-total-posts');
+        if (el) el.textContent = botTotalPosts;
+      }
+      
+      // Load rooms and threads for dropdowns
+      function loadBotTargets() {
+        AuthState.apiRequest('/api/rooms')
+          .then(function(data) {
+            if (!data.success) return;
+            var roomSelect = document.getElementById('bot-target-room');
+            if (!roomSelect) return;
+            roomSelect.innerHTML = '<option value="random">RANDOM ROOM</option>';
+            data.rooms.forEach(function(room) {
+              roomSelect.innerHTML += '<option value="' + room.id + '">' + room.title + '</option>';
+            });
+          });
+        
+        AuthState.apiRequest('/api/admin/threads?limit=50')
+          .then(function(data) {
+            if (!data.success) return;
+            var threadSelect = document.getElementById('bot-target-thread');
+            if (!threadSelect) return;
+            threadSelect.innerHTML = '<option value="random">RANDOM THREAD</option>';
+            (data.threads || []).forEach(function(t) {
+              var title = (t.title || 'Untitled').substring(0, 40);
+              threadSelect.innerHTML += '<option value="' + t.id + '">' + title + '</option>';
+            });
+          })
+          .catch(function() {
+            // fallback if admin threads endpoint not available
+          });
+      }
+      
+      // Generate single reply
+      document.getElementById('bot-generate-reply')?.addEventListener('click', function() {
+        if (!isOwner) return;
+        updateBotStatus('WORKING');
+        logBot('Generating reply...', 'info');
+        
+        var threadId = document.getElementById('bot-target-thread').value;
+        var persona = document.getElementById('bot-persona').value;
+        
+        AuthState.apiRequest('/api/admin/bot/reply', {
+          method: 'POST',
+          body: JSON.stringify({ 
+            threadId: threadId === 'random' ? null : parseInt(threadId),
+            persona: persona === 'random' ? null : persona
+          })
+        }).then(function(data) {
+          if (data.success) {
+            logBot('✓ Reply posted by ' + data.botAlias + ' in thread #' + data.threadId, 'success');
+            incrementBotPosts();
+          } else {
+            logBot('✗ Failed: ' + (data.error || 'Unknown error'), 'error');
+          }
+          updateBotStatus('IDLE');
+        }).catch(function(err) {
+          logBot('✗ Error: ' + err.message, 'error');
+          updateBotStatus('IDLE');
+        });
+      });
+      
+      // Generate new thread
+      document.getElementById('bot-generate-thread')?.addEventListener('click', function() {
+        if (!isOwner) return;
+        updateBotStatus('WORKING');
+        logBot('Creating new thread...', 'info');
+        
+        var roomId = document.getElementById('bot-target-room').value;
+        var persona = document.getElementById('bot-persona').value;
+        
+        AuthState.apiRequest('/api/admin/bot/thread', {
+          method: 'POST',
+          body: JSON.stringify({ 
+            roomId: roomId === 'random' ? null : roomId,
+            persona: persona === 'random' ? null : persona
+          })
+        }).then(function(data) {
+          if (data.success) {
+            logBot('✓ Thread "' + data.title + '" created by ' + data.botAlias, 'success');
+            incrementBotPosts();
+            loadBotTargets(); // refresh thread list
+          } else {
+            logBot('✗ Failed: ' + (data.error || 'Unknown error'), 'error');
+          }
+          updateBotStatus('IDLE');
+        }).catch(function(err) {
+          logBot('✗ Error: ' + err.message, 'error');
+          updateBotStatus('IDLE');
+        });
+      });
+      
+      // Bulk activity
+      document.getElementById('bot-bulk-activity')?.addEventListener('click', function() {
+        if (!isOwner) return;
+        updateBotStatus('WORKING');
+        logBot('Starting bulk activity (5 posts)...', 'info');
+        
+        AuthState.apiRequest('/api/admin/bot/bulk', {
+          method: 'POST',
+          body: JSON.stringify({ count: 5 })
+        }).then(function(data) {
+          if (data.success) {
+            logBot('✓ Bulk complete: ' + data.postsCreated + ' posts, ' + data.threadsCreated + ' threads', 'success');
+            incrementBotPosts(data.postsCreated + data.threadsCreated);
+            loadBotTargets();
+          } else {
+            logBot('✗ Failed: ' + (data.error || 'Unknown error'), 'error');
+          }
+          updateBotStatus('IDLE');
+        }).catch(function(err) {
+          logBot('✗ Error: ' + err.message, 'error');
+          updateBotStatus('IDLE');
+        });
+      });
+      
+      // Simulate day
+      document.getElementById('bot-simulate-day')?.addEventListener('click', function() {
+        if (!isOwner) return;
+        if (!confirm('This will create 10-20 posts across the forum. Continue?')) return;
+        
+        updateBotStatus('SIMULATING');
+        logBot('Simulating day activity (10-20 posts)...', 'info');
+        
+        AuthState.apiRequest('/api/admin/bot/simulate-day', {
+          method: 'POST'
+        }).then(function(data) {
+          if (data.success) {
+            logBot('✓ Day simulation complete: ' + data.totalPosts + ' posts created', 'success');
+            incrementBotPosts(data.totalPosts);
+            loadBotTargets();
+          } else {
+            logBot('✗ Failed: ' + (data.error || 'Unknown error'), 'error');
+          }
+          updateBotStatus('IDLE');
+        }).catch(function(err) {
+          logBot('✗ Error: ' + err.message, 'error');
+          updateBotStatus('IDLE');
+        });
+      });
+      
+      // Load bot targets when owner section loads
+      var origLoadOwnerTools = loadOwnerTools;
+      loadOwnerTools = function() {
+        origLoadOwnerTools();
+        loadBotTargets();
       };
 
       // Audit Log
