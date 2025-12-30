@@ -9118,6 +9118,24 @@ async function migrate() {
       UPDATE users SET role = 'admin' 
       WHERE is_admin = TRUE AND (role IS NULL OR role = 'user') AND role != 'owner';
       
+      -- Bot accounts table (must exist before ALTER statements)
+      CREATE TABLE IF NOT EXISTS bot_accounts (
+        id SERIAL PRIMARY KEY,
+        persona VARCHAR(50) NOT NULL,
+        alias VARCHAR(100) UNIQUE NOT NULL,
+        avatar_config JSONB NOT NULL,
+        bio TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        last_active TIMESTAMP DEFAULT NOW(),
+        post_count INTEGER DEFAULT 0,
+        thread_count INTEGER DEFAULT 0,
+        timezone_offset INTEGER DEFAULT 0,
+        peak_hours JSONB DEFAULT '[18,19,20,21,22,23]',
+        activity_level VARCHAR(20) DEFAULT 'normal'
+      );
+      CREATE INDEX IF NOT EXISTS idx_bot_accounts_persona ON bot_accounts(persona);
+      CREATE INDEX IF NOT EXISTS idx_bot_accounts_last_active ON bot_accounts(last_active);
+      
       -- Bot personality columns (015)
       ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS writing_style JSONB DEFAULT '{}';
       ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS personality_traits JSONB DEFAULT '[]';
