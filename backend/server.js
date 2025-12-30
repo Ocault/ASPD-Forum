@@ -9117,6 +9117,20 @@ async function migrate() {
       -- Sync role field for legacy admin accounts (is_admin = true but role is null/user)
       UPDATE users SET role = 'admin' 
       WHERE is_admin = TRUE AND (role IS NULL OR role = 'user') AND role != 'owner';
+      
+      -- Bot personality columns (015)
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS writing_style JSONB DEFAULT '{}';
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS personality_traits JSONB DEFAULT '[]';
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS favorite_topics JSONB DEFAULT '[]';
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS age_range VARCHAR(20);
+      
+      -- Bot online status columns (014) 
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT FALSE;
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS next_status_change TIMESTAMP;
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS session_start TIMESTAMP;
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS avg_session_minutes INTEGER DEFAULT 60;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT FALSE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP;
     `);
     console.log('[MIGRATE] Database tables ready');
   } catch (err) {
@@ -9860,7 +9874,8 @@ async function generateAIContent(options = {}) {
     persona = 'analytical',
     type = 'reply', // 'reply', 'thread', 'intro', 'disagreement', 'continuation'
     context = {},
-    temperature = 0.8
+    temperature = 0.8,
+    botAccount = null  // Pass the full bot account for personality traits
   } = options;
   
   if (!GROQ_CONFIG.enabled || !GROQ_CONFIG.apiKey) {
@@ -9880,6 +9895,47 @@ async function generateAIContent(options = {}) {
     seasonalHint = `\nContext: It's ${seasonalContext.season}. Seasonal references are okay if they fit naturally.`;
   }
   
+  // Build personality hints from bot account
+  let personalityHints = '';
+  if (botAccount) {
+    const ws = botAccount.writing_style || {};
+    const age = botAccount.age_range;
+    const topics = botAccount.favorite_topics || [];
+    
+    // Writing style instructions
+    if (ws.abbreviation_level === 'high') {
+      personalityHints += '\n- Use lots of abbreviations (tbh, idk, ngl, rn, imo, iirc, smh)';
+    } else if (ws.abbreviation_level === 'low') {
+      personalityHints += '\n- Rarely use abbreviations, spell things out';
+    }
+    
+    if (ws.punctuation === 'minimal') {
+      personalityHints += '\n- Minimal punctuation (no periods at end of sentences)';
+    } else if (ws.punctuation === 'proper') {
+      personalityHints += '\n- Use proper punctuation';
+    }
+    
+    if (ws.capitalization === 'none') {
+      personalityHints += '\n- All lowercase, never capitalize';
+    } else if (ws.capitalization === 'proper') {
+      personalityHints += '\n- Use proper capitalization';
+    }
+    
+    if (ws.response_length === 'brief') {
+      personalityHints += '\n- Keep responses very short (1-2 sentences max)';
+    } else if (ws.response_length === 'verbose') {
+      personalityHints += '\n- Can write longer responses when you have something to say (3-5 sentences)';
+    }
+    
+    if (age) {
+      personalityHints += `\n- You're in your ${age}, reflect this in your perspective`;
+    }
+    
+    if (topics.length > 0) {
+      personalityHints += `\n- Topics you connect with: ${topics.join(', ')}`;
+    }
+  }
+  
   // Base system prompt for all content types
   const baseSystemPrompt = `You are roleplaying as an anonymous user on an online forum for people with Antisocial Personality Disorder (ASPD).
 
@@ -9897,7 +9953,7 @@ CRITICAL RULES:
 - Sound like a real person, not an AI
 - Reference ASPD experiences authentically but not dramatically
 - Never break character or mention being an AI
-- Match the tone: anonymous, supportive but blunt${seasonalHint}`;
+- Match the tone: anonymous, supportive but blunt${seasonalHint}${personalityHints}`;
 
   let userPrompt = '';
   let maxTokens = 300;
@@ -10475,8 +10531,10 @@ async function getRandomBotAccount(persona = null, respectTimePreference = true)
     query += ` AND persona = $${params.length}`;
   }
   
-  // Weight by activity level and time preference
+  // Weight by activity level and time preference, but with more randomness
   if (respectTimePreference) {
+    // Multiply RANDOM by a larger factor to ensure variety
+    // The base weights (1-7) are now just mild preferences, not deterministic
     query += `
       ORDER BY 
         CASE 
@@ -10494,7 +10552,7 @@ async function getRandomBotAccount(persona = null, respectTimePreference = true)
               WHEN 'normal' THEN 5
               WHEN 'lurker' THEN 7
             END
-        END + RANDOM()
+        END + (RANDOM() * 10)
       LIMIT 1
     `;
   } else {
@@ -10597,12 +10655,36 @@ async function createPersistentBotAccount(persona = null) {
       (avgSession * 0.5 + Math.random() * avgSession) * 60000 :
       (15 + Math.random() * 120) * 60000));
     
-    // Create the bot account
+    // Generate unique personality traits for this bot
+    const abbreviationLevels = ['low', 'medium', 'high'];
+    const punctuationStyles = ['minimal', 'normal', 'proper'];
+    const capitalizationStyles = ['none', 'sentences', 'proper'];
+    const emojiUsages = ['never', 'rare', 'sometimes'];
+    const responseLengths = ['brief', 'medium', 'verbose'];
+    const ageRanges = ['20s', '30s', '30s', '40s']; // weighted toward 30s
+    const allTopics = ['work', 'relationships', 'therapy', 'diagnosis', 'coping', 'family', 'anger', 'manipulation', 'empathy', 'identity', 'legal', 'substances'];
+    
+    const writingStyle = {
+      abbreviation_level: abbreviationLevels[Math.floor(Math.random() * abbreviationLevels.length)],
+      punctuation: punctuationStyles[Math.floor(Math.random() * punctuationStyles.length)],
+      capitalization: capitalizationStyles[Math.floor(Math.random() * capitalizationStyles.length)],
+      emoji_usage: emojiUsages[Math.floor(Math.random() * emojiUsages.length)],
+      response_length: responseLengths[Math.floor(Math.random() * responseLengths.length)]
+    };
+    
+    const ageRange = ageRanges[Math.floor(Math.random() * ageRanges.length)];
+    
+    // Select 2-4 random favorite topics
+    const numTopics = 2 + Math.floor(Math.random() * 3);
+    const shuffledTopics = [...allTopics].sort(() => Math.random() - 0.5);
+    const favoriteTopics = shuffledTopics.slice(0, numTopics);
+    
+    // Create the bot account with personality
     const result = await db.query(`
-      INSERT INTO bot_accounts (persona, alias, avatar_config, bio, activity_level, peak_hours, is_online, next_status_change, session_start, avg_session_minutes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      INSERT INTO bot_accounts (persona, alias, avatar_config, bio, activity_level, peak_hours, is_online, next_status_change, session_start, avg_session_minutes, writing_style, age_range, favorite_topics)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
-    `, [selectedPersona, alias, avatar, bio, activityLevel, JSON.stringify(peakHours), isOnline, nextChange, isOnline ? new Date() : null, avgSession]);
+    `, [selectedPersona, alias, avatar, bio, activityLevel, JSON.stringify(peakHours), isOnline, nextChange, isOnline ? new Date() : null, avgSession, JSON.stringify(writingStyle), ageRange, JSON.stringify(favoriteTopics)]);
     
     const botAccountId = result.rows[0].id;
     
@@ -13126,18 +13208,19 @@ async function createBotReply(threadId, persona, options = {}) {
   
   // Try to use persistent bot account
   if (usePersistentAccount) {
-    // First try to find a bot that has already participated in this thread
+    // First try to find a bot that has already participated in this thread (low chance for variety)
     const existingBot = await getBotAccountFromThread(threadId);
     
-    if (existingBot && Math.random() < 0.6) {
-      // 60% chance to use a returning bot account
+    if (existingBot && Math.random() < 0.2) {
+      // Only 20% chance to use a returning bot - more variety
       botAccount = existingBot;
     } else {
-      // Get a bot account - use quality weighting if enabled
+      // Get a completely random bot account (don't pass persona to get full variety)
+      const useRandomPersona = !persona && Math.random() < 0.7; // 70% chance for random persona
       if (useQualityWeighting) {
-        botAccount = await getQualityWeightedBotAccount(persona);
+        botAccount = await getQualityWeightedBotAccount(useRandomPersona ? null : persona);
       } else {
-        botAccount = await getRandomBotAccount(persona, true);
+        botAccount = await getRandomBotAccount(useRandomPersona ? null : persona, false); // false = pure random
       }
     }
     
@@ -13178,6 +13261,7 @@ async function createBotReply(threadId, persona, options = {}) {
         content = await generateAIContent({
           persona: p,
           type: 'disagreement',
+          botAccount: botAccount,
           context: {
             ...context,
             targetContent: recentPost.content,
@@ -13204,6 +13288,7 @@ async function createBotReply(threadId, persona, options = {}) {
     content = await generateAIContent({
       persona: p,
       type: 'continuation',
+      botAccount: botAccount,
       context: {
         ...context,
         previousPostCount: botAccount.post_count,
@@ -13223,6 +13308,7 @@ async function createBotReply(threadId, persona, options = {}) {
     content = await generateAIContent({
       persona: p,
       type: 'reply',
+      botAccount: botAccount,
       context: context
     });
     
@@ -13311,11 +13397,12 @@ async function createBotThread(roomId, persona, options = {}) {
   
   // Try to use persistent bot account
   if (usePersistentAccount) {
-    // Get a bot account - use quality weighting if enabled
+    // Get a completely random bot account for variety (don't pass persona unless specified)
+    const useRandomPersona = !persona && Math.random() < 0.8; // 80% chance for random persona
     if (useQualityWeighting) {
-      botAccount = await getQualityWeightedBotAccount(persona);
+      botAccount = await getQualityWeightedBotAccount(useRandomPersona ? null : persona);
     } else {
-      botAccount = await getRandomBotAccount(persona, true);
+      botAccount = await getRandomBotAccount(useRandomPersona ? null : persona, false); // false = pure random
     }
     
     if (botAccount) {
@@ -13379,6 +13466,7 @@ async function createBotThread(roomId, persona, options = {}) {
   let title = await generateAIContent({
     persona: p,
     type: 'title',
+    botAccount: botAccount,
     context: { room: roomTitle }
   });
   let usedAI = !!title;
@@ -13398,6 +13486,7 @@ async function createBotThread(roomId, persona, options = {}) {
   let content = await generateAIContent({
     persona: p,
     type: 'thread',
+    botAccount: botAccount,
     context: { title, room: roomTitle }
   });
   
