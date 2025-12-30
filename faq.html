@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0a">
+  
+  <!-- SEO -->
+  <title>FAQ — ASPD Forum Questions Answered</title>
+  <meta name="description" content="Frequently asked questions about Antisocial Personality Disorder and the ASPD Forum. Diagnosis, treatment, relationships, work, and community questions answered.">
+  <meta name="keywords" content="ASPD FAQ, antisocial personality disorder questions, ASPD diagnosis, ASPD treatment, can ASPD be cured, ASPD relationships">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://www.aspdforum.com/faq.html">
+  
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://www.aspdforum.com/faq.html">
+  <meta property="og:title" content="FAQ — ASPD Forum">
+  <meta property="og:description" content="Common questions about ASPD and the forum answered.">
+  <meta property="og:image" content="https://www.aspdforum.com/sigil.png">
+  
+  <!-- Structured Data for FAQ -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is Antisocial Personality Disorder (ASPD)?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "ASPD is a personality disorder characterized by a persistent pattern of disregard for and violation of others' rights. Key features include lack of empathy, impulsivity, deceitfulness, and disregard for social norms. It requires evidence of conduct disorder before age 15 and can only be diagnosed at 18 or older."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is ASPD the same as psychopathy or sociopathy?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Not exactly. ASPD is a clinical diagnosis in the DSM-5 that focuses on behavioral patterns. Psychopathy is a personality construct measured by the PCL-R that focuses more on traits like lack of empathy and shallow emotions. Most psychopaths meet ASPD criteria, but not everyone with ASPD is a psychopath. Sociopathy isn't a clinical term anymore."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can ASPD be cured or treated?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "There's no cure for ASPD - it's a personality structure, not an illness. Treatment focuses on managing behaviors and consequences rather than changing the underlying personality. Some people develop better impulse control and decision-making with age. Therapy can help with specific issues like anger management or substance abuse, but traditional therapy approaches often don't work well."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do people with ASPD feel emotions?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, but often differently. Common experiences include shallow or short-lived emotions, difficulty identifying what you're feeling, not feeling guilt or remorse the way others describe it, and reduced fear response. It varies - some people feel anger intensely but little else, others have a generally muted emotional experience."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can people with ASPD have relationships?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Relationships might look different - less based on emotional bonding and more on practical compatibility, loyalty, or mutual benefit. Finding partners who don't need constant emotional validation and who value direct communication helps. Many people with ASPD maintain long-term relationships successfully."
+        }
+      }
+    ]
+  }
+  </script>
+  
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="sigil.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  
+  <style>
+    .faq-page {
+      min-height: 100vh;
+      height: auto !important;
+      overflow: visible !important;
+      overflow-y: auto !important;
+    }
+    
+    .faq-main {
+      padding: var(--spacing-xl) var(--spacing-lg);
+      max-width: 850px;
+      margin: 0 auto;
+    }
+    
+    .faq-intro {
+      margin-bottom: var(--spacing-xl);
+      padding: var(--spacing-lg);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .faq-intro p {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      line-height: 1.9;
+      margin: 0;
+    }
+    
+    .faq-section {
+      margin-bottom: var(--spacing-xl);
+    }
+    
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: var(--text-secondary);
+      letter-spacing: 0.15em;
+      margin-bottom: var(--spacing-lg);
+      padding-bottom: var(--spacing-sm);
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .section-icon {
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+    
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+    
+    .faq-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .faq-question {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: var(--text-primary);
+      letter-spacing: 0.03em;
+      padding: var(--spacing-lg);
+      margin: 0;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    
+    .faq-question:hover {
+      background: var(--bg-panel);
+    }
+    
+    .faq-toggle {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      transition: transform 0.2s ease;
+    }
+    
+    .faq-item.open .faq-toggle {
+      transform: rotate(45deg);
+    }
+    
+    .faq-answer {
+      display: none;
+      padding: 0 var(--spacing-lg) var(--spacing-lg);
+      border-top: 1px solid var(--border-color);
+    }
+    
+    .faq-item.open .faq-answer {
+      display: block;
+    }
+    
+    .faq-answer p {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      line-height: 1.9;
+      margin: var(--spacing-md) 0 0 0;
+    }
+    
+    .faq-answer p:first-child {
+      margin-top: var(--spacing-lg);
+    }
+    
+    .faq-answer ul {
+      margin: var(--spacing-sm) 0;
+      padding-left: var(--spacing-lg);
+    }
+    
+    .faq-answer li {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+      line-height: 2;
+    }
+    
+    .faq-cta {
+      margin-top: var(--spacing-xl);
+      padding: var(--spacing-lg);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      text-align: center;
+    }
+    
+    .faq-cta p {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      margin: 0 0 var(--spacing-md) 0;
+    }
+    
+    .faq-cta a {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      color: var(--text-secondary);
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      padding: var(--spacing-sm) var(--spacing-lg);
+      text-decoration: none;
+      display: inline-block;
+      transition: all 0.15s ease;
+    }
+    
+    .faq-cta a:hover {
+      border-color: var(--border-hover);
+      color: var(--text-primary);
+    }
+    
+    .faq-footer {
+      padding: var(--spacing-lg);
+      text-align: center;
+      border-top: 1px solid var(--border-color);
+      margin-top: var(--spacing-xl);
+    }
+    
+    .faq-footer span,
+    .faq-footer a {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      margin: 0 var(--spacing-md);
+    }
+    
+    @media (max-width: 600px) {
+      .faq-main {
+        padding: var(--spacing-md);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="noise" aria-hidden="true"></div>
+
+  <div class="forum-container faq-page">
+
+    <header class="forum-header" role="banner">
+      <a href="index.html" class="forum-logo" aria-label="ASPD Forum Home">ASPD.FORUM</a>
+      <nav class="header-right" aria-label="Main navigation">
+        <span class="forum-status">FAQ</span>
+        <a href="forum.html" class="header-link" title="Forum">[FORUM]</a>
+        <a href="search.html" class="header-search" title="Search">[SEARCH]</a>
+        <a href="login.html" class="header-link">LOGIN</a>
+      </nav>
+    </header>
+
+    <main class="faq-main" role="main">
+      
+      <section class="faq-intro">
+        <p>questions we see constantly. read these before posting the same thing again. if your question isnt here, thats what the forum is for.</p>
+      </section>
+
+      <!-- About ASPD -->
+      <section class="faq-section">
+        <h2 class="section-header">
+          <span class="section-icon">[01]</span>
+          ABOUT ASPD
+        </h2>
+        
+        <div class="faq-list">
+          <div class="faq-item open">
+            <h3 class="faq-question">
+              What actually is ASPD?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>antisocial personality disorder is a personality disorder - not a mood disorder, not a psychotic disorder, not something that comes and goes. its a persistent pattern of how you think, feel, and behave thats been there since adolescence.</p>
+              <p>the DSM-5 criteria focus on: disregard for right/wrong, lying and manipulation, impulsivity, aggression/irritability, reckless disregard for safety, irresponsibility, and lack of remorse. you need evidence of conduct disorder before age 15 and you have to be at least 18 to be diagnosed.</p>
+              <p>its not about being a loner or not liking people (thats just antisocial in the colloquial sense). its about consistently violating social norms and others rights without the guilt that normally stops people.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              Is ASPD the same as being a psychopath/sociopath?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>short answer: no, but theres overlap.</p>
+              <p>ASPD is a clinical diagnosis in the DSM-5. it focuses on behavioral patterns - the things you do.</p>
+              <p>psychopathy is measured by the PCL-R and focuses more on personality traits - who you are. things like shallow emotions, lack of empathy, grandiosity.</p>
+              <p>most people who score high on psychopathy also meet ASPD criteria. but plenty of people with ASPD dont meet the psychopathy threshold - theyre more impulsive and reactive, less cold and calculated.</p>
+              <p>"sociopathy" isnt a clinical term anymore. people use it casually to mean the same thing as ASPD or psychopathy, but its not in any diagnostic manual.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              Can ASPD be cured?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>no. its a personality structure, not an illness you recover from.</p>
+              <p>what can change: impulse control often improves with age. you can learn better strategies for getting what you want without the blowback. specific issues like anger or substance abuse can be addressed.</p>
+              <p>what doesnt change: the core way you experience (or dont experience) emotions, empathy, remorse. you can learn to work around it but you cant become neurotypical.</p>
+              <p>most traditional therapy doesnt work because it assumes you feel guilty and want to change. approaches that focus on practical outcomes rather than emotional insight tend to work better.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              Do people with ASPD feel emotions?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>yes, but usually differently. common patterns:</p>
+              <ul>
+                <li>emotions are shallow or short-lived - intense in the moment but gone quickly</li>
+                <li>difficulty identifying or naming emotions (alexithymia is common)</li>
+                <li>reduced or absent guilt, remorse, fear</li>
+                <li>anger often remains intact or even heightened</li>
+                <li>boredom is frequent and difficult to tolerate</li>
+              </ul>
+              <p>it varies a lot. some people feel almost nothing. others feel specific emotions strongly (usually anger) while others are muted. "shallow affect" doesnt mean no affect.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              What causes ASPD?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>combination of genetics and environment. research suggests:</p>
+              <ul>
+                <li>strong genetic component - runs in families, twin studies show heritability</li>
+                <li>brain differences - reduced amygdala activity, prefrontal cortex differences</li>
+                <li>childhood environment - abuse, neglect, inconsistent parenting increase risk</li>
+                <li>early conduct problems that werent addressed</li>
+              </ul>
+              <p>theres probably not one cause. different paths lead to similar outcomes. some people seem born this way, others developed it from environment, most are probably both.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Diagnosis -->
+      <section class="faq-section">
+        <h2 class="section-header">
+          <span class="section-icon">[02]</span>
+          DIAGNOSIS
+        </h2>
+        
+        <div class="faq-list">
+          <div class="faq-item">
+            <h3 class="faq-question">
+              How do I get diagnosed?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>you need evaluation by a psychologist or psychiatrist. the process usually involves:</p>
+              <ul>
+                <li>clinical interview about your history, behavior patterns, relationships</li>
+                <li>review of records if available (school, legal, previous treatment)</li>
+                <li>possibly psychological testing</li>
+                <li>sometimes interviews with family members</li>
+              </ul>
+              <p>most voluntary diagnoses happen when someone is in therapy for something else and the clinician identifies it. some people seek diagnosis specifically to understand themselves.</p>
+              <p>court-ordered evaluations are common too - forensic psychologists assess ASPD in legal contexts.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              Should I pursue a diagnosis?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>depends on why you want it.</p>
+              <p>reasons it might help: understanding yourself better, explaining patterns in your life, finding appropriate resources, self-acceptance.</p>
+              <p>reasons to be cautious: ASPD diagnosis in your medical record can cause problems. some providers will refuse to treat you, insurance can be affected, its discoverable in certain legal situations.</p>
+              <p>many people choose to understand their traits without seeking formal diagnosis. you dont need a diagnosis to implement strategies that work for people with ASPD.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              I think I have ASPD but I'm under 18
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>you cant be diagnosed with ASPD until youre 18. before that, the diagnosis would be conduct disorder.</p>
+              <p>but honestly - personality is still forming in adolescence. many traits that look like ASPD in teenagers dont persist into adulthood. wait it out.</p>
+              <p>if youre having serious behavioral problems, getting help now is still useful. conduct disorder can be addressed, and early intervention has better outcomes than waiting.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              Can online tests diagnose ASPD?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>no. those tests (including self-administered PCL-R type checklists) are not valid diagnostic tools. they can indicate traits but:</p>
+              <ul>
+                <li>self-report is unreliable for ASPD specifically</li>
+                <li>the tests require trained administration and clinical judgment</li>
+                <li>many other conditions have overlapping features</li>
+              </ul>
+              <p>if you consistently score high on multiple tests and relate to descriptions, thats data. but its not a diagnosis.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Daily Life -->
+      <section class="faq-section">
+        <h2 class="section-header">
+          <span class="section-icon">[03]</span>
+          DAILY LIFE
+        </h2>
+        
+        <div class="faq-list">
+          <div class="faq-item">
+            <h3 class="faq-question">
+              Can people with ASPD have relationships?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>yes. they just look different.</p>
+              <p>challenges: not bonding emotionally the way partners expect, getting bored in long-term relationships, impulsivity affecting commitment, partners feeling like you dont care.</p>
+              <p>what works: partners who are emotionally independent and dont need constant reassurance. direct communication. being upfront about what you can and cant provide. showing up consistently even without strong emotional motivation.</p>
+              <p>many people with ASPD maintain long-term relationships. attachment might be based more on routine, practical compatibility, or possession rather than deep emotional bonding - but relationships dont require a specific type of attachment to function.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              Should I tell people about my diagnosis?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>probably not most people.</p>
+              <p>ASPD has massive stigma. people hear it and think serial killer, not "has reduced empathy and impulse control issues." disclosing usually leads to:</p>
+              <ul>
+                <li>people being scared of you</li>
+                <li>everything you do being interpreted through "ASPD lens"</li>
+                <li>people distancing themselves or treating you differently</li>
+                <li>potential professional consequences</li>
+              </ul>
+              <p>close partners or family might benefit from understanding, but frame it carefully. lead with specific traits and how they affect you rather than the diagnosis label.</p>
+              <p>never disclose at work unless legally required for specific accommodations (which is rare for ASPD).</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              What careers work well for ASPD?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>generally: high autonomy, results-based evaluation, low requirement for emotional labor or teamwork.</p>
+              <p>specific areas that tend to work:</p>
+              <ul>
+                <li>entrepreneurship - youre the boss, results matter more than process</li>
+                <li>sales - performance based, social manipulation is an asset</li>
+                <li>trades - work with your hands, often independent</li>
+                <li>surgery/emergency medicine - requires emotional detachment</li>
+                <li>law - especially litigation, adversarial by nature</li>
+                <li>finance/trading - high stakes, analytical</li>
+                <li>certain tech roles - can work independently</li>
+              </ul>
+              <p>avoid: heavy team collaboration, micromanagement, roles requiring emotional support of others (nursing, teaching, HR), anything with extensive bureaucratic rules you cant bypass.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              How do I deal with boredom?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>boredom is genuinely one of the hardest parts. that understimulated state leads to bad decisions.</p>
+              <p>what helps:</p>
+              <ul>
+                <li>physical activity - burns energy, provides stimulation</li>
+                <li>high-stimulation hobbies - gaming, extreme sports, etc.</li>
+                <li>career that keeps you engaged - avoid repetitive work</li>
+                <li>always having something planned - structure reduces dead time</li>
+                <li>recognizing boredom as dangerous and taking proactive steps before you do something stupid</li>
+              </ul>
+              <p>the goal is legitimate stimulation, not stimulation that creates problems.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- About This Forum -->
+      <section class="faq-section">
+        <h2 class="section-header">
+          <span class="section-icon">[04]</span>
+          ABOUT THIS FORUM
+        </h2>
+        
+        <div class="faq-list">
+          <div class="faq-item">
+            <h3 class="faq-question">
+              Why does this forum exist?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>because there wasnt one.</p>
+              <p>every other ASPD space online is either: 1) for family members/victims, 2) heavily moderated with neurotypical rules, 3) people larping as psychopaths for edginess, or 4) research-focused without actual community.</p>
+              <p>this is a space for people who actually have ASPD to discuss practical life stuff without moral lectures or being treated like monsters. thats it.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              Is this forum anonymous?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>as anonymous as you make it. we dont require real names, dont track more than necessary for the site to function, and dont share data with anyone.</p>
+              <p>but no internet activity is truly anonymous. use common sense - dont post identifying details, consider using a VPN if youre paranoid, dont access from work/school networks.</p>
+              <p>see the <a href="privacy.html">privacy policy</a> for specifics.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              Do I need to have a diagnosis to post?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>no. plenty of people know they have ASPD traits without formal diagnosis. self-identification is fine.</p>
+              <p>if youre a researcher, family member, or just curious - thats fine too. just be honest about where youre coming from. dont pretend to have ASPD if you dont.</p>
+            </div>
+          </div>
+          
+          <div class="faq-item">
+            <h3 class="faq-question">
+              What are the rules?
+              <span class="faq-toggle">+</span>
+            </h3>
+            <div class="faq-answer">
+              <p>short version: no doxxing, no planning illegal activities, no minors, no spam. beyond that, we dont police tone or require you to be nice.</p>
+              <p>full version: <a href="guidelines.html">community guidelines</a></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="faq-cta">
+        <p>question not answered? ask the community.</p>
+        <a href="forum.html">GO TO FORUM</a>
+      </section>
+
+    </main>
+
+    <footer class="faq-footer" role="contentinfo">
+      <a href="index.html">HOME</a>
+      <span>•</span>
+      <a href="resources.html">RESOURCES</a>
+      <span>•</span>
+      <a href="glossary.html">GLOSSARY</a>
+      <span>•</span>
+      <a href="guidelines.html">GUIDELINES</a>
+    </footer>
+
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script>
+    Utils.initTheme();
+    
+    // FAQ accordion functionality
+    document.querySelectorAll('.faq-question').forEach(question => {
+      question.addEventListener('click', () => {
+        const item = question.parentElement;
+        item.classList.toggle('open');
+      });
+    });
+  </script>
+</body>
+</html>

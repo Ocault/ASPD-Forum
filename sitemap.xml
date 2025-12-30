@@ -56,6 +56,30 @@
     <priority>0.8</priority>
   </url>
   
+  <!-- FAQ - High value SEO page with structured data -->
+  <url>
+    <loc>https://www.aspdforum.com/faq.html</loc>
+    <lastmod>2025-12-30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- Glossary - SEO value for ASPD terminology -->
+  <url>
+    <loc>https://www.aspdforum.com/glossary.html</loc>
+    <lastmod>2025-12-30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- Guidelines -->
+  <url>
+    <loc>https://www.aspdforum.com/guidelines.html</loc>
+    <lastmod>2025-12-30</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
   <!-- Legal Pages -->
   <url>
     <loc>https://www.aspdforum.com/privacy.html</loc>

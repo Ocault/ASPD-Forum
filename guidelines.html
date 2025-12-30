@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0a">
+  
+  <!-- SEO -->
+  <title>Community Guidelines — ASPD Forum</title>
+  <meta name="description" content="Forum rules and community guidelines for ASPD Forum. What's allowed, what's not, and how we keep this space useful for everyone.">
+  <meta name="keywords" content="ASPD forum rules, community guidelines, forum policies">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://www.aspdforum.com/guidelines.html">
+  
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://www.aspdforum.com/guidelines.html">
+  <meta property="og:title" content="Community Guidelines — ASPD Forum">
+  <meta property="og:description" content="Forum rules and community guidelines. What's allowed, what's not.">
+  <meta property="og:image" content="https://www.aspdforum.com/sigil.png">
+  
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="sigil.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  
+  <style>
+    .guidelines-page {
+      min-height: 100vh;
+      height: auto !important;
+      overflow: visible !important;
+      overflow-y: auto !important;
+    }
+    
+    .guidelines-main {
+      padding: var(--spacing-xl) var(--spacing-lg);
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    .guidelines-intro {
+      margin-bottom: var(--spacing-xl);
+      padding: var(--spacing-lg);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .guidelines-intro p {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      line-height: 1.9;
+      margin-bottom: var(--spacing-md);
+    }
+    
+    .guidelines-intro p:last-child {
+      margin-bottom: 0;
+    }
+    
+    .guideline-section {
+      margin-bottom: var(--spacing-xl);
+      padding-bottom: var(--spacing-lg);
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .guideline-section:last-of-type {
+      border-bottom: none;
+    }
+    
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: var(--text-secondary);
+      letter-spacing: 0.15em;
+      margin-bottom: var(--spacing-lg);
+    }
+    
+    .section-icon {
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+    
+    .rule-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+    
+    .rule-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      padding: var(--spacing-lg);
+    }
+    
+    .rule-title {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: var(--text-primary);
+      letter-spacing: 0.08em;
+      margin: 0 0 var(--spacing-sm) 0;
+    }
+    
+    .rule-desc {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      line-height: 1.85;
+      margin: 0;
+    }
+    
+    .allowed-box {
+      background: #080c08;
+      border: 1px solid #121a12;
+      padding: var(--spacing-lg);
+      margin-bottom: var(--spacing-lg);
+    }
+    
+    .allowed-box h4 {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: #608060;
+      letter-spacing: 0.1em;
+      margin: 0 0 var(--spacing-md) 0;
+    }
+    
+    .allowed-box ul {
+      margin: 0;
+      padding-left: var(--spacing-lg);
+    }
+    
+    .allowed-box li {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: #506050;
+      line-height: 2;
+    }
+    
+    .banned-box {
+      background: #0c0808;
+      border: 1px solid #1a1212;
+      padding: var(--spacing-lg);
+    }
+    
+    .banned-box h4 {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: #805050;
+      letter-spacing: 0.1em;
+      margin: 0 0 var(--spacing-md) 0;
+    }
+    
+    .banned-box ul {
+      margin: 0;
+      padding-left: var(--spacing-lg);
+    }
+    
+    .banned-box li {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: #605050;
+      line-height: 2;
+    }
+    
+    .enforcement-note {
+      margin-top: var(--spacing-xl);
+      padding: var(--spacing-lg);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .enforcement-note h3 {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      letter-spacing: 0.1em;
+      margin: 0 0 var(--spacing-md) 0;
+    }
+    
+    .enforcement-note p {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      line-height: 1.9;
+      margin: 0;
+    }
+    
+    .guidelines-footer {
+      padding: var(--spacing-lg);
+      text-align: center;
+      border-top: 1px solid var(--border-color);
+      margin-top: var(--spacing-xl);
+    }
+    
+    .guidelines-footer span,
+    .guidelines-footer a {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      margin: 0 var(--spacing-md);
+    }
+    
+    @media (max-width: 600px) {
+      .guidelines-main {
+        padding: var(--spacing-md);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="noise" aria-hidden="true"></div>
+
+  <div class="forum-container guidelines-page">
+
+    <header class="forum-header" role="banner">
+      <a href="index.html" class="forum-logo" aria-label="ASPD Forum Home">ASPD.FORUM</a>
+      <nav class="header-right" aria-label="Main navigation">
+        <span class="forum-status">GUIDELINES</span>
+        <a href="forum.html" class="header-link" title="Forum">[FORUM]</a>
+        <a href="search.html" class="header-search" title="Search">[SEARCH]</a>
+        <a href="login.html" class="header-link">LOGIN</a>
+      </nav>
+    </header>
+
+    <main class="guidelines-main" role="main">
+      
+      <section class="guidelines-intro">
+        <p>this isnt a heavily moderated space. were not going to police your tone or require you to be nice. but there are a few things that will get you banned because they make the forum useless or create legal problems.</p>
+        <p>read this once. its short.</p>
+      </section>
+
+      <!-- Core Rules -->
+      <section class="guideline-section">
+        <h2 class="section-header">
+          <span class="section-icon">[01]</span>
+          THE BASICS
+        </h2>
+        
+        <div class="rule-list">
+          <div class="rule-item">
+            <h3 class="rule-title">NO DOXXING</h3>
+            <p class="rule-desc">dont post anyones real identity, location, workplace, or other identifying information. this includes your own if youre trying to prove a point. anonymity protects everyone here. break this and youre gone immediately, no warnings.</p>
+          </div>
+          
+          <div class="rule-item">
+            <h3 class="rule-title">NO EXPLICIT ILLEGAL PLANNING</h3>
+            <p class="rule-desc">discussing past experiences is fine. asking for advice on active criminal situations is fine. but dont use the forum to plan or coordinate illegal activities. we dont want to give law enforcement reasons to shut this down.</p>
+          </div>
+          
+          <div class="rule-item">
+            <h3 class="rule-title">NO MINORS</h3>
+            <p class="rule-desc">you must be 18+ to use this forum. we discuss adult topics and dont want to deal with the legal implications of minors participating. if youre under 18, come back later.</p>
+          </div>
+          
+          <div class="rule-item">
+            <h3 class="rule-title">NO SPAM OR COMMERCIAL SHIT</h3>
+            <p class="rule-desc">dont advertise your business, promote your youtube channel, or drop affiliate links. this isnt the place. one warning, then ban.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- What's Allowed -->
+      <section class="guideline-section">
+        <h2 class="section-header">
+          <span class="section-icon">[02]</span>
+          WHAT IS AND ISNT ALLOWED
+        </h2>
+        
+        <div class="allowed-box">
+          <h4>✓ ALLOWED</h4>
+          <ul>
+            <li>blunt, direct communication - no need to soften things</li>
+            <li>discussing manipulation, lack of empathy, impulsivity openly</li>
+            <li>talking about past legal issues or criminal history</li>
+            <li>dark humor - we get it</li>
+            <li>disagreeing with people, even harshly</li>
+            <li>discussing controversial coping mechanisms</li>
+            <li>venting about neurotypical expectations</li>
+            <li>asking for practical advice on difficult situations</li>
+            <li>questioning your diagnosis or others experiences</li>
+          </ul>
+        </div>
+        
+        <div class="banned-box">
+          <h4>✗ NOT ALLOWED</h4>
+          <ul>
+            <li>posting identifying information about anyone</li>
+            <li>coordinating illegal activities</li>
+            <li>targeting specific individuals for harassment</li>
+            <li>posting content involving minors in any harmful context</li>
+            <li>spam, advertising, or self-promotion</li>
+            <li>intentionally disrupting discussions with no purpose</li>
+            <li>creating multiple accounts to evade bans</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Community Expectations -->
+      <section class="guideline-section">
+        <h2 class="section-header">
+          <span class="section-icon">[03]</span>
+          COMMUNITY EXPECTATIONS
+        </h2>
+        
+        <div class="rule-list">
+          <div class="rule-item">
+            <h3 class="rule-title">DONT FAKE IT</h3>
+            <p class="rule-desc">if you dont have ASPD, youre still welcome to lurk or participate, but dont pretend you do. researchers, family members, curious people - fine. just be honest about where youre coming from. we can usually tell anyway.</p>
+          </div>
+          
+          <div class="rule-item">
+            <h3 class="rule-title">DONT PLAY THERAPIST</h3>
+            <p class="rule-desc">share your experience, not medical advice. "this worked for me" is fine. "you should definitely do X" when youre not a professional isnt helpful and could be harmful. we all hate unsolicited advice - dont become what you hate.</p>
+          </div>
+          
+          <div class="rule-item">
+            <h3 class="rule-title">CONTRIBUTE SOMETHING</h3>
+            <p class="rule-desc">if youre going to post, say something worth reading. low-effort trolling, constant negativity with no substance, or just being annoying for the sake of it makes the forum worse for everyone. theres a difference between being blunt and being useless.</p>
+          </div>
+          
+          <div class="rule-item">
+            <h3 class="rule-title">USE THE RIGHT ROOM</h3>
+            <p class="rule-desc">we have different rooms for different topics. relationship stuff goes in relationships, legal questions go in legal, etc. it keeps things organized and makes the forum more useful for everyone searching for specific topics.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Enforcement -->
+      <section class="enforcement-note">
+        <h3>HOW WE HANDLE VIOLATIONS</h3>
+        <p>minor stuff: warning, then temp ban, then permanent ban. major stuff (doxxing, illegal coordination, anything involving minors): immediate permanent ban, no appeals. we dont have time for drama or lengthy debates about moderation decisions. if you get banned and think it was wrong, you can email but dont expect much. the forum works because we keep it clean of the stuff that would destroy it.</p>
+      </section>
+
+    </main>
+
+    <footer class="guidelines-footer" role="contentinfo">
+      <a href="index.html">HOME</a>
+      <span>•</span>
+      <a href="forum.html">FORUM</a>
+      <span>•</span>
+      <a href="resources.html">RESOURCES</a>
+      <span>•</span>
+      <a href="faq.html">FAQ</a>
+    </footer>
+
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script>Utils.initTheme();</script>
+</body>
+</html>
