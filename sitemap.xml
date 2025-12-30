@@ -48,6 +48,14 @@
     <priority>0.5</priority>
   </url>
   
+  <!-- Resources - High value SEO page -->
+  <url>
+    <loc>https://www.aspdforum.com/resources.html</loc>
+    <lastmod>2025-12-30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
   <!-- Legal Pages -->
   <url>
     <loc>https://www.aspdforum.com/privacy.html</loc>
