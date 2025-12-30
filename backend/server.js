@@ -9136,6 +9136,29 @@ async function migrate() {
       ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS avg_session_minutes INTEGER DEFAULT 60;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT FALSE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP;
+      
+      -- Bot quality scoring columns
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS quality_score DECIMAL(5,4) DEFAULT 0.5;
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS total_upvotes INTEGER DEFAULT 0;
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS total_downvotes INTEGER DEFAULT 0;
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS real_user_replies INTEGER DEFAULT 0;
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS real_user_reactions INTEGER DEFAULT 0;
+      ALTER TABLE bot_accounts ADD COLUMN IF NOT EXISTS last_quality_update TIMESTAMP;
+      
+      -- Bot engagement log table
+      CREATE TABLE IF NOT EXISTS bot_engagement_log (
+        id SERIAL PRIMARY KEY,
+        bot_account_id INTEGER REFERENCES bot_accounts(id) ON DELETE CASCADE,
+        entry_id INTEGER REFERENCES entries(id) ON DELETE CASCADE,
+        engagement_type VARCHAR(20) NOT NULL,
+        real_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_bot_engagement_bot ON bot_engagement_log(bot_account_id);
+      CREATE INDEX IF NOT EXISTS idx_bot_engagement_entry ON bot_engagement_log(entry_id);
+      
+      -- Bot account voting support
+      ALTER TABLE entry_votes ADD COLUMN IF NOT EXISTS bot_account_id INTEGER REFERENCES bot_accounts(id) ON DELETE CASCADE;
     `);
     console.log('[MIGRATE] Database tables ready');
   } catch (err) {
