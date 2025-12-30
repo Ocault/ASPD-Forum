@@ -616,6 +616,47 @@
               </select>
             </div>
             
+            <!-- Ollama AI Configuration -->
+            <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: var(--spacing-sm); margin-bottom: var(--spacing-md); border-radius: 4px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-sm);">
+                <span style="font-size: 0.5rem; font-weight: 600; color: var(--text-primary);">🤖 OLLAMA AI ENGINE</span>
+                <span id="ollama-status-badge" style="font-size: 0.4375rem; padding: 2px 6px; border-radius: 3px; background: #4a4a4a; color: #888;">CHECKING...</span>
+              </div>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-xs); margin-bottom: var(--spacing-sm);">
+                <div>
+                  <label style="font-size: 0.4375rem; color: var(--text-muted); display: block;">URL</label>
+                  <input type="text" class="admin-input" id="ollama-url" value="http://localhost:11434" style="font-size: 0.4375rem; padding: 4px;">
+                </div>
+                <div>
+                  <label style="font-size: 0.4375rem; color: var(--text-muted); display: block;">MODEL</label>
+                  <select class="admin-select" id="ollama-model" style="font-size: 0.4375rem; padding: 4px;">
+                    <option value="llama3.2">llama3.2 (3B)</option>
+                    <option value="llama3.2:1b">llama3.2:1b (1B)</option>
+                    <option value="llama3.1">llama3.1 (8B)</option>
+                    <option value="mistral">mistral (7B)</option>
+                    <option value="phi3">phi3 (3.8B)</option>
+                    <option value="gemma2">gemma2 (9B)</option>
+                    <option value="qwen2">qwen2 (7B)</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div style="display: flex; gap: var(--spacing-xs);">
+                <button class="admin-btn" id="ollama-toggle" style="flex: 1; font-size: 0.4375rem; padding: 4px;">
+                  ENABLE OLLAMA
+                </button>
+                <button class="admin-btn" id="ollama-test" style="flex: 1; font-size: 0.4375rem; padding: 4px;">
+                  TEST GENERATION
+                </button>
+                <button class="admin-btn" id="ollama-refresh" style="font-size: 0.4375rem; padding: 4px 8px;">
+                  ↻
+                </button>
+              </div>
+              
+              <div id="ollama-test-result" style="font-size: 0.4375rem; color: var(--text-muted); margin-top: var(--spacing-xs); display: none; background: var(--bg-primary); padding: 6px; border-radius: 3px; max-height: 80px; overflow-y: auto;"></div>
+            </div>
+            
             <!-- Activity Log -->
             <div style="margin-bottom: var(--spacing-sm);">
               <label style="font-size: 0.5rem; color: var(--text-secondary); display: block; margin-bottom: var(--spacing-xs);">ACTIVITY LOG</label>
@@ -1235,6 +1276,189 @@
           });
       }
       
+      // ============================================
+      // OLLAMA AI CONTROLS
+      // ============================================
+      
+      var ollamaEnabled = false;
+      
+      function updateOllamaStatusBadge(status, text) {
+        var badge = document.getElementById('ollama-status-badge');
+        var toggleBtn = document.getElementById('ollama-toggle');
+        if (!badge) return;
+        
+        if (status === 'connected') {
+          badge.style.background = '#4a6a4a';
+          badge.style.color = '#6a9a6a';
+          badge.textContent = text || 'CONNECTED';
+        } else if (status === 'enabled') {
+          badge.style.background = '#4a6a4a';
+          badge.style.color = '#6a9a6a';
+          badge.textContent = 'ENABLED';
+          if (toggleBtn) toggleBtn.textContent = 'DISABLE OLLAMA';
+        } else if (status === 'disabled') {
+          badge.style.background = '#4a4a4a';
+          badge.style.color = '#888';
+          badge.textContent = 'DISABLED';
+          if (toggleBtn) toggleBtn.textContent = 'ENABLE OLLAMA';
+        } else if (status === 'error') {
+          badge.style.background = '#6a4a4a';
+          badge.style.color = '#9a6a6a';
+          badge.textContent = text || 'ERROR';
+        } else {
+          badge.style.background = '#5a5a4a';
+          badge.style.color = '#9a9a6a';
+          badge.textContent = text || 'CHECKING...';
+        }
+      }
+      
+      function loadOllamaStatus() {
+        AuthState.apiRequest('/api/admin/ollama/status')
+          .then(function(data) {
+            if (!data.success) {
+              updateOllamaStatusBadge('error', 'ERROR');
+              return;
+            }
+            
+            ollamaEnabled = data.config.enabled;
+            
+            // Update URL input
+            var urlInput = document.getElementById('ollama-url');
+            if (urlInput) urlInput.value = data.config.baseUrl;
+            
+            // Update model select
+            var modelSelect = document.getElementById('ollama-model');
+            if (modelSelect) {
+              // Try to select the configured model
+              for (var i = 0; i < modelSelect.options.length; i++) {
+                if (modelSelect.options[i].value === data.config.model) {
+                  modelSelect.selectedIndex = i;
+                  break;
+                }
+              }
+            }
+            
+            if (data.config.enabled) {
+              if (data.connection.available) {
+                updateOllamaStatusBadge('enabled');
+                logBot('🤖 Ollama AI connected: ' + data.config.model, 'success');
+              } else {
+                updateOllamaStatusBadge('error', 'NO CONNECTION');
+                logBot('🤖 Ollama enabled but not reachable: ' + data.connection.reason, 'error');
+              }
+            } else {
+              updateOllamaStatusBadge('disabled');
+              if (data.connection.available) {
+                logBot('🤖 Ollama available but disabled (using templates)', 'info');
+              }
+            }
+            
+            // If connected, load available models
+            if (data.connection.available && data.connection.models) {
+              var modelSelect = document.getElementById('ollama-model');
+              if (modelSelect) {
+                modelSelect.innerHTML = '';
+                data.connection.models.forEach(function(model) {
+                  var opt = document.createElement('option');
+                  opt.value = model;
+                  opt.textContent = model;
+                  if (model === data.config.model) opt.selected = true;
+                  modelSelect.appendChild(opt);
+                });
+              }
+            }
+          })
+          .catch(function(err) {
+            updateOllamaStatusBadge('error', 'ERROR');
+            logBot('🤖 Ollama status check failed: ' + err.message, 'error');
+          });
+      }
+      
+      // Ollama toggle button
+      document.getElementById('ollama-toggle')?.addEventListener('click', function() {
+        var newState = !ollamaEnabled;
+        var url = document.getElementById('ollama-url')?.value || 'http://localhost:11434';
+        var model = document.getElementById('ollama-model')?.value || 'llama3.2';
+        
+        updateOllamaStatusBadge('checking', 'UPDATING...');
+        
+        AuthState.apiRequest('/api/admin/ollama/config', {
+          method: 'POST',
+          body: JSON.stringify({
+            enabled: newState,
+            baseUrl: url,
+            model: model
+          })
+        }).then(function(data) {
+          if (data.success) {
+            ollamaEnabled = data.config.enabled;
+            if (ollamaEnabled) {
+              if (data.connection.available) {
+                updateOllamaStatusBadge('enabled');
+                logBot('🤖 Ollama AI ENABLED - using ' + data.config.model, 'success');
+              } else {
+                updateOllamaStatusBadge('error', 'NO CONNECTION');
+                logBot('🤖 Ollama enabled but not reachable', 'error');
+              }
+            } else {
+              updateOllamaStatusBadge('disabled');
+              logBot('🤖 Ollama AI DISABLED - using templates', 'info');
+            }
+          } else {
+            updateOllamaStatusBadge('error', 'ERROR');
+            logBot('🤖 Failed to update Ollama config', 'error');
+          }
+        }).catch(function(err) {
+          updateOllamaStatusBadge('error', 'ERROR');
+          logBot('🤖 Config update failed: ' + err.message, 'error');
+        });
+      });
+      
+      // Ollama test button
+      document.getElementById('ollama-test')?.addEventListener('click', function() {
+        var resultDiv = document.getElementById('ollama-test-result');
+        if (resultDiv) {
+          resultDiv.style.display = 'block';
+          resultDiv.textContent = 'Generating...';
+          resultDiv.style.color = 'var(--text-muted)';
+        }
+        
+        var persona = document.getElementById('bot-persona')?.value || 'random';
+        if (persona === 'random') persona = 'analytical';
+        
+        AuthState.apiRequest('/api/admin/ollama/test', {
+          method: 'POST',
+          body: JSON.stringify({
+            persona: persona,
+            type: 'reply'
+          })
+        }).then(function(data) {
+          if (resultDiv) {
+            if (data.success) {
+              resultDiv.style.color = '#6a9a6a';
+              resultDiv.textContent = '✓ ' + data.duration + 'ms: ' + data.content;
+              logBot('🤖 Test generation successful (' + data.duration + 'ms)', 'success');
+            } else {
+              resultDiv.style.color = '#9a6a6a';
+              resultDiv.textContent = '✗ ' + (data.error || 'Generation failed');
+              logBot('🤖 Test generation failed: ' + (data.error || 'Unknown'), 'error');
+            }
+          }
+        }).catch(function(err) {
+          if (resultDiv) {
+            resultDiv.style.color = '#9a6a6a';
+            resultDiv.textContent = '✗ Error: ' + err.message;
+          }
+          logBot('🤖 Test error: ' + err.message, 'error');
+        });
+      });
+      
+      // Ollama refresh button
+      document.getElementById('ollama-refresh')?.addEventListener('click', function() {
+        updateOllamaStatusBadge('checking', 'CHECKING...');
+        loadOllamaStatus();
+      });
+      
       // Generate single reply
       document.getElementById('bot-generate-reply')?.addEventListener('click', function() {
         if (!isOwner) return;
@@ -1252,7 +1476,12 @@
           })
         }).then(function(data) {
           if (data.success) {
-            logBot('✓ Reply posted by ' + data.botAlias + ' in thread #' + data.threadId, 'success');
+            var accountType = data.isPersistentAccount ? '★' : '';
+            var returningNote = data.isReturning ? ' (RETURNING)' : '';
+            var disagreeNote = data.isDisagreement ? ' 💥DISAGREE' : '';
+            var voteNote = data.votesPlaced ? ' [+' + data.votesPlaced + ' votes]' : '';
+            var aiNote = data.usedOllama ? ' 🤖AI' : '';
+            logBot('✓ ' + accountType + data.botAlias + returningNote + disagreeNote + aiNote + ' [' + data.persona + '] → thread #' + data.threadId + voteNote, 'success');
             incrementBotPosts();
           } else {
             logBot('✗ Failed: ' + (data.error || 'Unknown error'), 'error');
@@ -1281,7 +1510,9 @@
           })
         }).then(function(data) {
           if (data.success) {
-            logBot('✓ Thread "' + data.title + '" created by ' + data.botAlias, 'success');
+            var accountType = data.isPersistentAccount ? '★' : '';
+            var aiNote = data.usedOllama ? ' 🤖AI' : '';
+            logBot('✓ ' + accountType + data.botAlias + aiNote + ' [' + data.persona + '] created: "' + data.title + '"', 'success');
             incrementBotPosts();
             loadBotTargets(); // refresh thread list
           } else {
@@ -1324,13 +1555,18 @@
         if (!confirm('This will create 10-20 posts across the forum. Continue?')) return;
         
         updateBotStatus('SIMULATING');
-        logBot('Simulating day activity (10-20 posts)...', 'info');
+        logBot('Simulating day activity (time-adjusted)...', 'info');
         
         AuthState.apiRequest('/api/admin/bot/simulate-day', {
           method: 'POST'
         }).then(function(data) {
           if (data.success) {
-            logBot('✓ Day simulation complete: ' + data.totalPosts + ' posts created', 'success');
+            var extras = [];
+            if (data.disagreements > 0) extras.push(data.disagreements + ' debates');
+            if (data.totalVotes > 0) extras.push(data.totalVotes + ' votes');
+            if (data.ollamaGenerated > 0) extras.push(data.ollamaGenerated + ' 🤖AI');
+            var extrasStr = extras.length > 0 ? ' (' + extras.join(', ') + ')' : '';
+            logBot('✓ Day sim: ' + data.totalPosts + ' posts' + extrasStr + ' [×' + data.activityMultiplier + ' time mult]', 'success');
             incrementBotPosts(data.totalPosts);
             loadBotTargets();
           } else {
@@ -1348,6 +1584,7 @@
       loadOwnerTools = function() {
         origLoadOwnerTools();
         loadBotTargets();
+        loadOllamaStatus();
       };
 
       // Audit Log

@@ -9206,6 +9206,191 @@ app.get('/api/public/sitemap', async (req, res) => {
 // AI BOT SYSTEM - Owner Only
 // ================================================
 
+// Ollama Configuration
+const OLLAMA_CONFIG = {
+  enabled: process.env.OLLAMA_ENABLED === 'true' || false,
+  baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
+  model: process.env.OLLAMA_MODEL || 'llama3.2',
+  timeout: parseInt(process.env.OLLAMA_TIMEOUT) || 30000,
+  fallbackToTemplates: true // Use templates if Ollama fails
+};
+
+// Test Ollama connection
+async function testOllamaConnection() {
+  if (!OLLAMA_CONFIG.enabled) return { available: false, reason: 'disabled' };
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`${OLLAMA_CONFIG.baseUrl}/api/tags`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
+    if (response.ok) {
+      const data = await response.json();
+      const models = data.models?.map(m => m.name) || [];
+      const hasModel = models.some(m => m.includes(OLLAMA_CONFIG.model.split(':')[0]));
+      return { 
+        available: true, 
+        models,
+        hasConfiguredModel: hasModel,
+        configuredModel: OLLAMA_CONFIG.model
+      };
+    }
+    return { available: false, reason: 'bad_response' };
+  } catch (err) {
+    return { available: false, reason: err.message };
+  }
+}
+
+// Generate content using Ollama
+async function generateWithOllama(persona, context, type = 'reply') {
+  if (!OLLAMA_CONFIG.enabled) {
+    return null;
+  }
+  
+  const p = BOT_PERSONAS[persona] || BOT_PERSONAS.analytical;
+  
+  // Build the prompt
+  const systemPrompt = `You are roleplaying as an anonymous user on an online forum for people with Antisocial Personality Disorder (ASPD). 
+
+Your persona: ${p.name}
+Writing style: ${p.style}
+Personality traits: ${p.traits.join(', ')}
+
+CRITICAL RULES:
+- Write ONLY the forum post content, nothing else
+- No greetings like "Hey" or "Hi everyone"
+- No signatures or sign-offs
+- Use lowercase, casual internet writing style
+- Keep responses between 1-4 sentences typically
+- Occasionally use common typos, abbreviations (tbh, idk, ngl, lol)
+- Sound like a real person, not an AI
+- Reference ASPD experiences authentically but not dramatically
+- Never break character or mention being an AI
+- Match the tone of the forum (anonymous, supportive but blunt)`;
+
+  let userPrompt = '';
+  
+  if (type === 'reply' && context) {
+    userPrompt = `Thread title: "${context.title || 'General Discussion'}"
+Room: ${context.room || 'General'}
+
+Recent posts in thread:
+${context.recentPosts?.slice(0, 3).map(p => `- "${p.content?.substring(0, 150)}..."`).join('\n') || 'No previous posts'}
+
+Write a reply to this thread as your persona. Be authentic and conversational.`;
+  } else if (type === 'thread') {
+    userPrompt = `Room: ${context?.room || 'General Discussion'}
+
+Create a new thread post for this room. Write something that would spark discussion - a question, observation, or experience related to ASPD. Include a sense of what the thread title might be about in your opening post.`;
+  } else {
+    userPrompt = `Write a general forum post about living with ASPD. Could be an observation, question, or sharing an experience.`;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), OLLAMA_CONFIG.timeout);
+    
+    const response = await fetch(`${OLLAMA_CONFIG.baseUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OLLAMA_CONFIG.model,
+        prompt: userPrompt,
+        system: systemPrompt,
+        stream: false,
+        options: {
+          temperature: 0.8,
+          top_p: 0.9,
+          num_predict: 256
+        }
+      })
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.error('[OLLAMA] Bad response:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    let content = data.response?.trim();
+    
+    if (!content) {
+      return null;
+    }
+    
+    // Clean up the response
+    content = content
+      .replace(/^["']|["']$/g, '') // Remove wrapping quotes
+      .replace(/^(Hey|Hi|Hello)[\s,!]+/i, '') // Remove greetings
+      .replace(/\n{3,}/g, '\n\n') // Normalize line breaks
+      .trim();
+    
+    // Validate content
+    if (content.length < 10 || content.length > 2000) {
+      console.error('[OLLAMA] Content length invalid:', content.length);
+      return null;
+    }
+    
+    console.log('[OLLAMA] Generated:', content.substring(0, 80) + '...');
+    return content;
+    
+  } catch (err) {
+    console.error('[OLLAMA] Error:', err.message);
+    return null;
+  }
+}
+
+// Generate thread title using Ollama
+async function generateThreadTitleWithOllama(persona, roomTitle) {
+  if (!OLLAMA_CONFIG.enabled) return null;
+  
+  const p = BOT_PERSONAS[persona] || BOT_PERSONAS.analytical;
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const response = await fetch(`${OLLAMA_CONFIG.baseUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OLLAMA_CONFIG.model,
+        prompt: `Generate a forum thread title for an ASPD forum in the "${roomTitle}" room. 
+The title should be lowercase, casual, and sound like a real person wrote it.
+Examples of good titles: "anyone else struggle with this at work", "therapy update (not great)", "is this just me or", "need advice about disclosure"
+Write ONLY the title, nothing else.`,
+        system: `You are creating thread titles for an ASPD forum. Persona: ${p.name}. Be authentic and casual.`,
+        stream: false,
+        options: { temperature: 0.9, num_predict: 30 }
+      })
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    let title = data.response?.trim()
+      .replace(/^["']|["']$/g, '')
+      .replace(/[.!?]$/, '')
+      .toLowerCase()
+      .substring(0, 100);
+    
+    return title || null;
+  } catch (err) {
+    console.error('[OLLAMA] Title generation error:', err.message);
+    return null;
+  }
+}
+
 // Bot personas with distinct writing styles
 const BOT_PERSONAS = {
   analytical: {
@@ -9270,6 +9455,338 @@ const BOT_PERSONAS = {
   }
 };
 
+// =====================================================
+// PERSISTENT BOT ACCOUNTS SYSTEM
+// =====================================================
+
+// Get a random persistent bot account, optionally filtered by persona
+async function getRandomBotAccount(persona = null, respectTimePreference = true) {
+  const currentHour = new Date().getUTCHours();
+  
+  let query = `
+    SELECT * FROM bot_accounts 
+    WHERE 1=1
+  `;
+  const params = [];
+  
+  if (persona) {
+    params.push(persona);
+    query += ` AND persona = $${params.length}`;
+  }
+  
+  // Weight by activity level and time preference
+  if (respectTimePreference) {
+    query += `
+      ORDER BY 
+        CASE 
+          WHEN peak_hours::jsonb ? '${currentHour}' THEN 
+            CASE activity_level 
+              WHEN 'very_active' THEN 1
+              WHEN 'active' THEN 2
+              WHEN 'normal' THEN 3
+              WHEN 'lurker' THEN 5
+            END
+          ELSE 
+            CASE activity_level 
+              WHEN 'very_active' THEN 3
+              WHEN 'active' THEN 4
+              WHEN 'normal' THEN 5
+              WHEN 'lurker' THEN 7
+            END
+        END + RANDOM()
+      LIMIT 1
+    `;
+  } else {
+    query += ` ORDER BY RANDOM() LIMIT 1`;
+  }
+  
+  try {
+    const result = await db.query(query, params);
+    return result.rows[0] || null;
+  } catch (err) {
+    console.error('[BOT] Error getting bot account:', err.message);
+    return null;
+  }
+}
+
+// Get bot account that has participated in a thread (for continuity)
+async function getBotAccountFromThread(threadId) {
+  const result = await db.query(`
+    SELECT ba.* FROM bot_accounts ba
+    JOIN entries e ON e.bot_account_id = ba.id
+    WHERE e.thread_id = $1 AND e.is_bot = TRUE
+    ORDER BY e.created_at DESC
+    LIMIT 1
+  `, [threadId]);
+  return result.rows[0] || null;
+}
+
+// Update bot account activity
+async function updateBotAccountActivity(botAccountId) {
+  await db.query(`
+    UPDATE bot_accounts 
+    SET last_active = NOW(), post_count = post_count + 1
+    WHERE id = $1
+  `, [botAccountId]);
+}
+
+// =====================================================
+// TIME-BASED ACTIVITY SYSTEM
+// =====================================================
+
+// Check if current time is good for bot activity
+function isGoodTimeForActivity() {
+  const hour = new Date().getUTCHours();
+  // Adjust for typical US timezone activity (UTC-5 to UTC-8)
+  // Peak hours: 6PM-1AM local = 23:00-06:00 UTC roughly
+  // Low hours: 3AM-7AM local = 08:00-12:00 UTC roughly
+  
+  const activityWeights = {
+    0: 0.9,  1: 0.8,  2: 0.6,  3: 0.4,  4: 0.3,  5: 0.2,
+    6: 0.15, 7: 0.1,  8: 0.1,  9: 0.15, 10: 0.2, 11: 0.3,
+    12: 0.4, 13: 0.5, 14: 0.5, 15: 0.6, 16: 0.7, 17: 0.8,
+    18: 0.9, 19: 1.0, 20: 1.0, 21: 1.0, 22: 1.0, 23: 0.95
+  };
+  
+  return Math.random() < (activityWeights[hour] || 0.5);
+}
+
+// Get activity multiplier for current hour
+function getActivityMultiplier() {
+  const hour = new Date().getUTCHours();
+  const multipliers = {
+    0: 0.7,  1: 0.5,  2: 0.3,  3: 0.2,  4: 0.1,  5: 0.1,
+    6: 0.1,  7: 0.15, 8: 0.2,  9: 0.3,  10: 0.4, 11: 0.5,
+    12: 0.6, 13: 0.6, 14: 0.6, 15: 0.7, 16: 0.8, 17: 0.9,
+    18: 1.0, 19: 1.1, 20: 1.2, 21: 1.2, 22: 1.1, 23: 0.9
+  };
+  return multipliers[hour] || 0.5;
+}
+
+// =====================================================
+// DISAGREEMENT SYSTEM
+// =====================================================
+
+// Persona disagreement matrix - which personas tend to clash
+const PERSONA_TENSIONS = {
+  analytical: ['newcomer', 'dark_humor', 'nihilist'],
+  cynical: ['newcomer', 'pragmatic', 'scientist'],
+  pragmatic: ['nihilist', 'cynical', 'observer'],
+  observer: ['blunt', 'dark_humor'],
+  blunt: ['newcomer', 'observer', 'veteran'],
+  strategic: ['blunt', 'survivor'],
+  nihilist: ['pragmatic', 'scientist', 'newcomer'],
+  survivor: ['analytical', 'scientist', 'strategic'],
+  scientist: ['survivor', 'nihilist', 'cynical'],
+  newcomer: ['blunt', 'cynical', 'veteran'],
+  veteran: ['newcomer', 'dark_humor'],
+  dark_humor: ['analytical', 'scientist']
+};
+
+// Generate disagreement response
+function generateDisagreementContent(myPersona, theirPersona, originalContent) {
+  const disagreementOpeners = {
+    analytical: [
+      "that analysis is missing key variables.",
+      "interesting hypothesis but the data doesnt support it.",
+      "correlation isnt causation here.",
+      "your sample size of n=1 is showing."
+    ],
+    cynical: [
+      "sure, that worked out great for you. /s",
+      "ah yes, more wishful thinking disguised as advice.",
+      "fascinating how confident you are about something unprovable.",
+      "remind me how that approach usually ends?"
+    ],
+    pragmatic: [
+      "thats a lot of words for 'i dont have a solution'.",
+      "cool theory. what actually works though?",
+      "tried that. didnt work. next?",
+      "philosophy is great but it doesnt pay rent."
+    ],
+    observer: [
+      "...interesting take. wrong, but interesting.",
+      "noticed you left out the part where this fails.",
+      "the pattern suggests otherwise."
+    ],
+    blunt: [
+      "thats just wrong.",
+      "no offense but thats terrible advice.",
+      "hard disagree.",
+      "this is exactly the kind of thinking that causes problems."
+    ],
+    strategic: [
+      "short-term thinking. this loses in the long game.",
+      "youre optimizing for the wrong variable.",
+      "thats a losing move in most scenarios."
+    ],
+    nihilist: [
+      "none of this matters, but if we're pretending it does - youre still wrong.",
+      "bold of you to assume any of this has meaning.",
+      "agree to disagree. actually, just disagree."
+    ],
+    survivor: [
+      "tried that. cost me 3 years. hard pass.",
+      "thats textbook advice. real world is different.",
+      "you sound like you havent actually lived this."
+    ],
+    scientist: [
+      "citation needed.",
+      "the research actually suggests the opposite.",
+      "interesting anecdote. the studies say otherwise.",
+      "thats not how the neuroscience works."
+    ],
+    newcomer: [
+      "wait, that doesnt match what i read?",
+      "but my therapist said the opposite?",
+      "i thought it worked differently than that?"
+    ],
+    veteran: [
+      "seen this advice fail dozens of times over the years.",
+      "sounds good in theory. reality is messier.",
+      "give it another decade, youll understand."
+    ],
+    dark_humor: [
+      "ah yes, the classic 'just dont be like that' approach.",
+      "and then everyone clapped, right?",
+      "imagine this working. couldnt be me.",
+      "tell me you havent tried this without telling me."
+    ]
+  };
+  
+  const openers = disagreementOpeners[myPersona] || disagreementOpeners.cynical;
+  const opener = openers[Math.floor(Math.random() * openers.length)];
+  
+  // Sometimes add more context
+  const additions = [
+    "",
+    " just my experience though.",
+    " but what do i know.",
+    " not trying to start shit but.",
+    " been there, done that.",
+    " respectfully disagree.",
+    " strongly disagree."
+  ];
+  
+  return opener + additions[Math.floor(Math.random() * additions.length)];
+}
+
+// Check if we should generate a disagreement
+function shouldDisagree(myPersona, theirPersona) {
+  // Same persona never disagrees with itself
+  if (myPersona === theirPersona) return false;
+  
+  // Check tension matrix
+  const tensions = PERSONA_TENSIONS[myPersona] || [];
+  const baseProbability = tensions.includes(theirPersona) ? 0.4 : 0.15;
+  
+  // Blunt and cynical personas disagree more often
+  const personalityModifier = 
+    (myPersona === 'blunt' || myPersona === 'cynical') ? 0.15 : 0;
+  
+  return Math.random() < (baseProbability + personalityModifier);
+}
+
+// =====================================================
+// VOTING/REACTION SYSTEM
+// =====================================================
+
+// Bot votes on a post
+async function botVoteOnEntry(botAccountId, entryId, voteType) {
+  try {
+    // Check if already voted
+    const existing = await db.query(`
+      SELECT id, vote_type FROM entry_votes 
+      WHERE entry_id = $1 AND bot_account_id = $2
+    `, [entryId, botAccountId]);
+    
+    if (existing.rows.length > 0) {
+      // Already voted, maybe change vote or skip
+      if (existing.rows[0].vote_type === voteType) {
+        return { success: false, reason: 'already_voted' };
+      }
+      // Change vote
+      await db.query(`
+        UPDATE entry_votes SET vote_type = $1 WHERE id = $2
+      `, [voteType, existing.rows[0].id]);
+      
+      // Update counts
+      if (voteType === 'up') {
+        await db.query(`UPDATE entries SET upvotes = upvotes + 1, downvotes = downvotes - 1 WHERE id = $1`, [entryId]);
+      } else {
+        await db.query(`UPDATE entries SET upvotes = upvotes - 1, downvotes = downvotes + 1 WHERE id = $1`, [entryId]);
+      }
+      
+      return { success: true, action: 'changed' };
+    }
+    
+    // New vote
+    await db.query(`
+      INSERT INTO entry_votes (entry_id, bot_account_id, vote_type)
+      VALUES ($1, $2, $3)
+    `, [entryId, botAccountId, voteType]);
+    
+    return { success: true, action: 'voted' };
+  } catch (err) {
+    console.error('[BOT VOTE ERROR]', err.message);
+    return { success: false, reason: err.message };
+  }
+}
+
+// Bot engages with recent posts (voting)
+async function botEngageWithPosts(botAccountId, threadId = null) {
+  try {
+    // Get bot account for persona
+    const botResult = await db.query('SELECT * FROM bot_accounts WHERE id = $1', [botAccountId]);
+    if (botResult.rows.length === 0) return { votes: 0 };
+    
+    const bot = botResult.rows[0];
+    const persona = bot.persona;
+    
+    // Get recent posts to potentially vote on
+    let query = `
+      SELECT e.id, e.content, e.bot_persona, e.bot_account_id, e.upvotes, e.downvotes
+      FROM entries e
+      WHERE e.is_deleted = FALSE 
+        AND e.bot_account_id != $1
+        AND e.created_at > NOW() - INTERVAL '24 hours'
+    `;
+    const params = [botAccountId];
+    
+    if (threadId) {
+      params.push(threadId);
+      query += ` AND e.thread_id = $${params.length}`;
+    }
+    
+    query += ` ORDER BY RANDOM() LIMIT 5`;
+    
+    const entries = await db.query(query, params);
+    
+    let voteCount = 0;
+    for (const entry of entries.rows) {
+      // Decide whether to vote
+      if (Math.random() > 0.4) continue; // 60% chance to skip
+      
+      // Determine vote type based on persona tensions
+      let voteType = 'up';
+      if (entry.bot_persona && shouldDisagree(persona, entry.bot_persona)) {
+        voteType = 'down';
+      } else if (Math.random() < 0.1) {
+        // Small chance to downvote anyway
+        voteType = 'down';
+      }
+      
+      const result = await botVoteOnEntry(botAccountId, entry.id, voteType);
+      if (result.success) voteCount++;
+    }
+    
+    return { votes: voteCount };
+  } catch (err) {
+    console.error('[BOT ENGAGE ERROR]', err.message);
+    return { votes: 0 };
+  }
+}
+
 // Generate random avatar config for bots
 function generateBotAvatar() {
   return JSON.stringify({
@@ -9282,286 +9799,1182 @@ function generateBotAvatar() {
   });
 }
 
-// Generate bot alias
+// Generate bot alias - realistic usernames that look human-created
 function generateBotAlias() {
-  const prefixes = ['ANON', 'NULL', 'VOID', 'ZERO', 'NODE', 'MASK', 'SHADE', 'GHOST', 'ECHO', 'STATIC', 'CIPHER', 'HOLLOW'];
-  const suffix = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
-  return prefixes[Math.floor(Math.random() * prefixes.length)] + '-' + suffix;
+  const patterns = [
+    // Real people often use name + birth year or random numbers
+    () => {
+      const names = ['mike', 'chris', 'alex', 'sam', 'jordan', 'taylor', 'casey', 'drew', 'jamie', 'morgan', 'riley', 'quinn', 'avery', 'blake', 'charlie', 'devon', 'ellis', 'frankie', 'gray', 'hayden', 'jesse', 'kai', 'lee', 'max', 'nico', 'pat', 'reese', 'sage', 'toni', 'val'];
+      const name = names[Math.floor(Math.random() * names.length)];
+      const year = 85 + Math.floor(Math.random() * 25); // 85-09
+      const separator = ['_', '', '-', '.'][Math.floor(Math.random() * 4)];
+      return name + separator + year;
+    },
+    
+    // Throwaway/alt account style with specific numbers
+    () => {
+      const bases = ['throwaway', 'altacct', 'notmymain', 'burneracct', 'anon', 'tempacct', 'lurker', 'newacct'];
+      const base = bases[Math.floor(Math.random() * bases.length)];
+      const num = Math.floor(Math.random() * 9999);
+      return base + num;
+    },
+    
+    // Self-deprecating with typos/lowercase
+    () => {
+      const names = [
+        'definitelyfine', 'totallyokay', 'imfiiine', 'notbroken', 'sortaokay',
+        'mehwhatever', 'couldbworse', 'survivingi guess', 'barelyhere',
+        'stillkickin', 'notdead yet', 'hangingin', 'justvibin', 'existinggg',
+        'somehowhere', 'didntaskforthis', 'oopsimhere', 'accidentallyalive'
+      ];
+      return names[Math.floor(Math.random() * names.length)].replace(' ', '_');
+    },
+    
+    // Edgy teen/young adult style (intentionally cringe)
+    () => {
+      const names = [
+        'xdarkn3ssx', 'void_entity', 'n0feeling5', 'emptyinsid3', 
+        'dead2me', 'soulles_one', 'numbr_1', 'feelingless',
+        'nothinginside', 'cant_feel', 'zero_empthy', 'no1cares',
+        'whocares_', '_whatever', 'dontmatter', 'who_asked'
+      ];
+      return names[Math.floor(Math.random() * names.length)];
+    },
+    
+    // Random word combos (like real usernames)
+    () => {
+      const w1 = ['burnt', 'tired', 'cold', 'grey', 'rust', 'dust', 'lost', 'last', 'pale', 'worn', 'old', 'raw', 'dry', 'slow', 'low'];
+      const w2 = ['coffee', 'toast', 'rain', 'sky', 'dog', 'cat', 'bird', 'fish', 'tree', 'leaf', 'rock', 'sand', 'wind', 'fog', 'snow'];
+      const num = Math.random() < 0.4 ? Math.floor(Math.random() * 99) : '';
+      return w1[Math.floor(Math.random() * w1.length)] + w2[Math.floor(Math.random() * w2.length)] + num;
+    },
+    
+    // Gaming/internet culture references
+    () => {
+      const names = [
+        'respawn_pls', 'gg_no_re', 'alt_f4_life', 'npc_energy', 'side_quest',
+        'low_hp', 'no_mana', 'debuffed', 'nerf_me', 'patch_notes',
+        'loading_42', 'error_404', 'null_ptr', 'segfault', 'stack_overflow',
+        'kernel_panic', 'bsod_irl', 'ctrl_z_life', 'no_undo', 'save_corrupted'
+      ];
+      return names[Math.floor(Math.random() * names.length)];
+    },
+    
+    // Specific to mental health/aspd forums
+    () => {
+      const names = [
+        'dx2019', 'diagnosed_late', 'cluster_b_maybe', 'waitingondx',
+        'therapysurvivor', 'pillpusher_no', 'dbt_dropout', 'treatmentfatigue',
+        'labelme', 'notamonster', 'justdifferent', 'wiredwrong',
+        'brainweird', 'atypical_af', 'notneuro', 'divergentish'
+      ];
+      return names[Math.floor(Math.random() * names.length)];
+    },
+    
+    // Misspelled/stylized intentionally
+    () => {
+      const names = [
+        'th1nkd1ffrnt', 'w8ing4nothing', 'cant_b_bothered', '2tired4this',
+        'y_even_try', 'wh0_knws', 'mayb_l8r', 'nvrmnd', '4gotpassword',
+        'idk_anymore', 'lol_wut', 'bruh_moment', 'rly_tho', 'srsly_guys',
+        'ngl_tho', 'tbh_idc', 'smh_always', 'ffs_again', 'jfc_why'
+      ];
+      return names[Math.floor(Math.random() * names.length)];
+    },
+    
+    // Location/thing + numbers (common pattern)
+    () => {
+      const things = ['seattle', 'chicago', 'boston', 'denver', 'austin', 'phoenix', 'oakland', 'portland', 'jersey', 'florida', 'texas', 'ohio', 'midwest', 'socal', 'norcal', 'eastcoast', 'pnw'];
+      const thing = things[Math.floor(Math.random() * things.length)];
+      const num = Math.floor(Math.random() * 99);
+      return thing + num;
+    },
+    
+    // Sarcastic/ironic
+    () => {
+      const names = [
+        'sparkles_and_joy', 'pure_sunshine', 'hopeful_optimist', 'mr_positivity',
+        'good_vibes_only', 'blessed_life', 'living_best_life', 'thriving_daily',
+        'totally_stable', 'well_adjusted', 'model_citizen', 'law_abiding',
+        'definitely_empathy', 'super_emotional', 'very_attached', 'love_everyone'
+      ];
+      return names[Math.floor(Math.random() * names.length)];
+    },
+    
+    // Just letters/numbers (lazy username)
+    () => {
+      const letters = 'abcdefghjkmnpqrstuvwxyz';
+      let name = '';
+      for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) {
+        name += letters[Math.floor(Math.random() * letters.length)];
+      }
+      name += Math.floor(Math.random() * 999);
+      return name;
+    },
+    
+    // Keyboard smash / frustration
+    () => {
+      const names = [
+        'aaaaaaagh', 'ughhhhh', 'whyyyyy', 'hhhhhh', 'asdfghjkl',
+        'qwertyyy', 'zzzzzz', 'whatevs', 'meh', 'blah', 'ugh',
+        'nope', 'done', 'cant', 'wont', 'nah', 'mhm', 'hm'
+      ];
+      const num = Math.random() < 0.5 ? Math.floor(Math.random() * 999) : '';
+      return names[Math.floor(Math.random() * names.length)] + num;
+    }
+  ];
+  
+  const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+  return pattern();
 }
 
-// Simple AI text generation using built-in templates (no external API needed)
-function generateBotContent(persona, context, type) {
+// Extract keywords and topics from text with weighted scoring
+function extractTopics(text, roomTitle = '') {
+  const topicKeywords = {
+    relationships: {
+      keywords: ['relationship', 'partner', 'spouse', 'wife', 'husband', 'girlfriend', 'boyfriend', 'dating', 'marriage', 'divorce', 'family', 'parents', 'mother', 'father', 'mom', 'dad', 'friend', 'friendship', 'attachment', 'love', 'intimacy', 'breakup', 'cheating', 'affair', 'trust', 'commitment', 'sex', 'romantic', 'significant other', 'ex', 'kids', 'children', 'siblings', 'brother', 'sister', 'in-laws', 'bonding', 'connection', 'loneliness', 'lonely', 'together', 'miss them', 'miss you', 'miss him', 'miss her', 'disclosure', 'tell them', 'told them'],
+      weight: 1
+    },
+    work: {
+      keywords: ['work', 'job', 'career', 'boss', 'coworker', 'colleague', 'office', 'fired', 'hired', 'interview', 'workplace', 'manager', 'employee', 'profession', 'salary', 'promotion', 'corporate', 'company', 'business', 'entrepreneur', 'client', 'customer', 'meeting', 'project', 'deadline', 'performance review', 'resume', 'cv', 'networking', 'hr', 'human resources', 'remote work', 'wfh', 'commute', 'quit', 'resign', 'layoff', 'unemployment', 'self-employed', 'freelance', 'startup', 'income', 'money', 'paycheck'],
+      weight: 1
+    },
+    therapy: {
+      keywords: ['therapy', 'therapist', 'counselor', 'counseling', 'psychiatrist', 'psychologist', 'treatment', 'dbt', 'cbt', 'emdr', 'schema therapy', 'medication', 'meds', 'ssri', 'antidepressant', 'session', 'mental health', 'appointment', 'clinical', 'therapeutic', 'psychotherapy', 'group therapy', 'inpatient', 'outpatient', 'rehab', 'recovery', 'hospitalization', 'ward', 'prescription', 'dosage', 'side effects', 'efficacy'],
+      weight: 1
+    },
+    diagnosis: {
+      keywords: ['diagnosis', 'diagnosed', 'assessment', 'pcl-r', 'aspd', 'antisocial', 'sociopath', 'sociopathy', 'psychopath', 'psychopathy', 'cluster b', 'dsm', 'dsm-5', 'icd', 'criteria', 'personality disorder', 'pd', 'npd', 'bpd', 'conduct disorder', 'cd', 'label', 'labeled', 'evaluation', 'screening', 'test', 'score', 'factor 1', 'factor 2', 'primary', 'secondary', 'spectrum', 'comorbid', 'comorbidity', 'differential', 'misdiagnosed'],
+      weight: 1.2
+    },
+    emotions: {
+      keywords: ['emotion', 'emotional', 'feel', 'feeling', 'feelings', 'empathy', 'empathic', 'remorse', 'guilt', 'guilty', 'shame', 'ashamed', 'anger', 'angry', 'rage', 'boredom', 'bored', 'empty', 'emptiness', 'void', 'numb', 'numbness', 'affect', 'flat affect', 'blunted', 'joy', 'happy', 'happiness', 'sad', 'sadness', 'depression', 'depressed', 'anxious', 'anxiety', 'fear', 'scared', 'love', 'hate', 'jealous', 'jealousy', 'envy', 'compassion', 'sympathy', 'cold', 'callous', 'indifferent', 'detached', 'shallow'],
+      weight: 1
+    },
+    masking: {
+      keywords: ['mask', 'masking', 'pretend', 'pretending', 'act', 'acting', 'fake', 'faking', 'perform', 'performance', 'persona', 'facade', 'front', 'chameleon', 'mirroring', 'camouflage', 'blend in', 'fitting in', 'fit in', 'normal', 'appearing normal', 'passing', 'exhausted', 'exhausting', 'draining', 'tired', 'fatigue', 'burnout', 'authentic', 'authenticity', 'genuine', 'real self', 'true self', 'drop the mask', 'unmask'],
+      weight: 1.1
+    },
+    identity: {
+      keywords: ['identity', 'self', 'who am i', 'sense of self', 'ego', 'persona', 'real me', 'authentic', 'core', 'inner self', 'true self', 'character', 'personality', 'essence', 'soul', 'being', 'existence', 'existential', 'meaning', 'purpose', 'values', 'morals', 'ethics', 'conscience', 'mirror', 'reflection', 'empty inside', 'hollow', 'nothing inside', 'fragmented', 'dissociation', 'depersonalization', 'derealization'],
+      weight: 1
+    },
+    legal: {
+      keywords: ['legal', 'law', 'police', 'cops', 'officer', 'court', 'prison', 'jail', 'incarceration', 'probation', 'parole', 'arrest', 'arrested', 'criminal', 'crime', 'lawyer', 'attorney', 'judge', 'trial', 'sentence', 'convicted', 'conviction', 'felony', 'misdemeanor', 'charges', 'charged', 'warrant', 'bail', 'plea', 'defense', 'prosecution', 'record', 'background check', 'expungement', 'juvenile', 'detention'],
+      weight: 1.3
+    },
+    impulse: {
+      keywords: ['impulse', 'impulsive', 'impulsivity', 'control', 'self-control', 'urge', 'urges', 'compulsion', 'compulsive', 'reckless', 'recklessness', 'risk', 'risky', 'thrill', 'thrill-seeking', 'adrenaline', 'rush', 'spontaneous', 'snap decision', 'regret', 'consequences', 'think before', 'act first', 'patience', 'impatient', 'waiting', 'instant gratification', 'delayed gratification', 'addiction', 'addicted', 'substance', 'gambling', 'spending'],
+      weight: 1.1
+    },
+    manipulation: {
+      keywords: ['manipulate', 'manipulation', 'manipulative', 'lying', 'lie', 'lies', 'liar', 'deceive', 'deception', 'deceptive', 'con', 'conning', 'charm', 'charming', 'charisma', 'influence', 'influencing', 'persuade', 'persuasion', 'exploit', 'exploitation', 'using people', 'user', 'gaslighting', 'gaslight', 'scheme', 'scheming', 'cunning', 'calculating', 'strategic', 'tactics', 'play people', 'game', 'games', 'reading people', 'tells', 'leverage'],
+      weight: 1
+    },
+    childhood: {
+      keywords: ['childhood', 'child', 'kid', 'growing up', 'young', 'youth', 'adolescent', 'teen', 'teenager', 'school', 'bullying', 'bullied', 'trauma', 'traumatic', 'abuse', 'abused', 'neglect', 'neglected', 'foster', 'adopted', 'orphan', 'upbringing', 'raised', 'parents', 'development', 'developmental', 'conduct disorder', 'oppositional', 'odd', 'early signs', 'always been', 'since i was young', 'as a kid'],
+      weight: 1.1
+    },
+    stigma: {
+      keywords: ['stigma', 'stigmatized', 'stereotype', 'stereotyped', 'judged', 'judgment', 'discrimination', 'discriminated', 'prejudice', 'misunderstood', 'misunderstanding', 'demonized', 'monster', 'evil', 'dangerous', 'scary', 'fear', 'feared', 'media', 'movies', 'tv', 'netflix', 'documentary', 'portray', 'portrayal', 'representation', 'villain', 'serial killer', 'ted bundy', 'dexter', 'hannibal', 'public perception', 'coming out', 'outed'],
+      weight: 1.2
+    },
+    coping: {
+      keywords: ['cope', 'coping', 'strategy', 'strategies', 'mechanism', 'mechanisms', 'deal with', 'dealing', 'manage', 'managing', 'handling', 'survive', 'surviving', 'survival', 'adapt', 'adapting', 'adaptation', 'tips', 'advice', 'help', 'support', 'resource', 'resources', 'technique', 'method', 'approach', 'solution', 'what works', 'works for me', 'tried', 'success', 'successful'],
+      weight: 1
+    },
+    boredom: {
+      keywords: ['boredom', 'bored', 'boring', 'monotony', 'monotonous', 'routine', 'repetitive', 'unstimulated', 'understimulated', 'restless', 'restlessness', 'antsy', 'need stimulation', 'excitement', 'novelty', 'new', 'variety', 'same old', 'stuck', 'trapped', 'stagnant', 'going crazy', 'losing mind', 'nothing to do', 'killing time'],
+      weight: 1.2
+    }
+  };
+  
+  // Room-based topic hints (if room title suggests a topic)
+  const roomTopicMap = {
+    'relationship': 'relationships',
+    'dating': 'relationships',
+    'family': 'relationships',
+    'work': 'work',
+    'career': 'work',
+    'job': 'work',
+    'therapy': 'therapy',
+    'treatment': 'therapy',
+    'medication': 'therapy',
+    'diagnosis': 'diagnosis',
+    'clinical': 'diagnosis',
+    'emotion': 'emotions',
+    'feeling': 'emotions',
+    'mask': 'masking',
+    'identity': 'identity',
+    'legal': 'legal',
+    'law': 'legal',
+    'impulse': 'impulse',
+    'control': 'impulse',
+    'manipulation': 'manipulation',
+    'childhood': 'childhood',
+    'trauma': 'childhood',
+    'stigma': 'stigma',
+    'media': 'stigma',
+    'coping': 'coping',
+    'strategy': 'coping',
+    'boredom': 'boredom',
+    'vent': 'emotions',
+    'general': 'general',
+    'meta': 'general',
+    'off-topic': 'general',
+    'question': 'general',
+    'research': 'diagnosis'
+  };
+  
+  const lowerText = text.toLowerCase();
+  const lowerRoom = roomTitle.toLowerCase();
+  const topicScores = {};
+  
+  // Check room title for topic hints first
+  for (const [roomKeyword, topic] of Object.entries(roomTopicMap)) {
+    if (lowerRoom.includes(roomKeyword)) {
+      topicScores[topic] = (topicScores[topic] || 0) + 2; // Room match is strong signal
+    }
+  }
+  
+  // Score each topic based on keyword matches
+  for (const [topic, config] of Object.entries(topicKeywords)) {
+    for (const keyword of config.keywords) {
+      // Check for word boundaries to avoid partial matches
+      const regex = new RegExp('\\b' + keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+      if (regex.test(lowerText)) {
+        topicScores[topic] = (topicScores[topic] || 0) + config.weight;
+      }
+    }
+  }
+  
+  // Sort topics by score and return top matches
+  const sortedTopics = Object.entries(topicScores)
+    .sort((a, b) => b[1] - a[1])
+    .map(([topic]) => topic);
+  
+  return sortedTopics.length > 0 ? sortedTopics : ['general'];
+}
+
+// Get thread context (title + recent posts)
+async function getThreadContext(threadId) {
+  const threadResult = await db.query(`
+    SELECT t.title, t.id, r.title as room_title
+    FROM threads t
+    JOIN rooms r ON r.id = t.room_id
+    WHERE t.id = $1
+  `, [threadId]);
+  
+  if (threadResult.rows.length === 0) return null;
+  
+  const entriesResult = await db.query(`
+    SELECT content, alias, created_at, bot_persona, is_bot
+    FROM entries
+    WHERE thread_id = $1 AND is_deleted = FALSE
+    ORDER BY created_at DESC
+    LIMIT 5
+  `, [threadId]);
+  
+  return {
+    title: threadResult.rows[0].title,
+    room: threadResult.rows[0].room_title,
+    recentPosts: entriesResult.rows,
+    postCount: entriesResult.rows.length
+  };
+}
+
+// Context-aware AI text generation
+function generateContextAwareContent(persona, context, type) {
   const p = BOT_PERSONAS[persona] || BOT_PERSONAS.analytical;
   
-  // Template responses based on persona and context
-  const templates = {
-    analytical: {
-      reply: [
-        "interesting pattern here. {observation}. the data suggests {conclusion}.",
-        "breaking this down logically: {point}. statistically speaking, {stat}.",
-        "ive noticed {pattern}. correlates with {correlation}. worth examining.",
-        "the underlying mechanism seems to be {mechanism}. observable in {example}.",
-        "objectively, {fact}. subjectively irrelevant, but the pattern is clear."
+  // Analyze context to determine topics
+  let topics = ['general'];
+  let threadTitle = '';
+  let roomTitle = '';
+  let recentContent = '';
+  let quotedPost = null;
+  
+  if (context) {
+    threadTitle = context.title || '';
+    roomTitle = context.room || '';
+    // Pass room title for weighted scoring
+    topics = extractTopics(threadTitle, roomTitle);
+    
+    if (context.recentPosts && context.recentPosts.length > 0) {
+      // Combine recent posts for topic extraction
+      recentContent = context.recentPosts.map(p => p.content).join(' ');
+      const postTopics = extractTopics(recentContent, roomTitle);
+      topics = [...new Set([...topics, ...postTopics])];
+      
+      // Sometimes quote a recent post (30% chance)
+      if (Math.random() < 0.3 && context.recentPosts.length > 0) {
+        const randomPost = context.recentPosts[Math.floor(Math.random() * context.recentPosts.length)];
+        if (randomPost.content && randomPost.content.length > 20) {
+          // Extract a snippet to quote
+          const words = randomPost.content.split(' ');
+          const snippetLength = Math.min(words.length, 8 + Math.floor(Math.random() * 8));
+          const startIndex = Math.floor(Math.random() * Math.max(1, words.length - snippetLength));
+          quotedPost = {
+            alias: randomPost.alias,
+            snippet: words.slice(startIndex, startIndex + snippetLength).join(' ')
+          };
+        }
+      }
+    }
+  }
+  
+  // Topic-specific response templates
+  const topicResponses = {
+    relationships: {
+      analytical: [
+        "relationships are essentially transactional at some level. the question is whether both parties understand the terms.",
+        "attachment patterns form early. by the time youre aware of them, theyre deeply embedded. adaptation over change.",
+        "interesting that neurotypicals conflate attachment with love. distinct mechanisms, occasionally overlapping."
       ],
-      thread: [
-        "Observing a pattern - {topic}",
-        "Data point: {topic}",
-        "Analysis request: {topic}"
+      cynical: [
+        "ah relationships. where someone eventually discovers youre not who they thought and acts surprised.",
+        "the disclosure question always comes up. spoiler: theres no winning move there.",
+        "love is just oxytocin and habit. anyone telling you otherwise is selling something."
+      ],
+      pragmatic: [
+        "find someone who values what you actually offer, not what they imagine you could be. saves everyone time.",
+        "relationships that work: clear expectations, minimal drama, mutual benefit. everything else is noise.",
+        "stop trying to feel what youre supposed to feel. figure out what you can offer and be upfront about it."
+      ],
+      blunt: [
+        "most relationship advice assumes you feel guilty about things. skip those articles.",
+        "if theyre asking 'do you even love me' more than once a month, its already over.",
+        "disclosure is a trap. damned if you do, damned if you dont. pick your poison."
+      ],
+      survivor: [
+        "been married twice. second one works because we stopped pretending. brutal honesty or nothing.",
+        "the ones who stay are the ones who see you clearly and choose to anyway. rare but they exist.",
+        "took me years to figure out attachment vs possession. still working on it tbh."
+      ],
+      newcomer: [
+        "wait so is it normal to not miss people when theyre gone? asking because my therapist seemed concerned.",
+        "how do you explain this to a partner without them running? genuinely asking.",
+        "still trying to figure out if what i feel for my partner is love or just... familiarity. how do you tell?"
       ]
     },
-    cynical: {
-      reply: [
-        "oh sure, because {sarcasm}. worked great for everyone else right.",
-        "let me guess - {assumption}. seen this movie before.",
-        "ah yes the classic {thing} approach. how refreshingly naive.",
-        "fascinating how {observation}. almost like {cynical_take}.",
-        "not to be that person but {reality_check}. just saying."
+    work: {
+      analytical: [
+        "workplace dynamics are just game theory with paychecks. map the incentives and the behavior becomes predictable.",
+        "corporate structures reward certain traits we have naturally. the challenge is sustainability.",
+        "the mask is exhausting but the alternative is unemployment. cost-benefit analysis favors adaptation."
       ],
-      thread: [
-        "Anyone else tired of {topic}?",
-        "The {topic} myth needs to die",
-        "Hot take: {topic}"
+      cynical: [
+        "office politics is just high school with better clothes. same dynamics, higher stakes.",
+        "love how hr exists to protect the company from you, not the other way around.",
+        "work culture is just mutual pretending. everyone knows, nobody says it."
+      ],
+      pragmatic: [
+        "three rules: deliver results, document everything, trust no one with information they dont need.",
+        "careers that work for us: autonomy, clear metrics, minimal team dependency. optimize accordingly.",
+        "if youve been fired more than twice for personality conflicts, its time to reconsider your approach."
+      ],
+      strategic: [
+        "every workplace is a system. learn the unwritten rules before the written ones.",
+        "the key is being useful enough to be tolerated. exceed expectations selectively.",
+        "never reveal your actual capabilities immediately. leave room to impress when it matters."
+      ],
+      survivor: [
+        "got fired from more jobs than i can count before i figured out the game. its all performance.",
+        "find a role where results matter more than relationships. sales, consulting, anything with clear metrics.",
+        "the secret is picking battles. most workplace drama isnt worth the energy."
       ]
     },
-    pragmatic: {
-      reply: [
-        "skip the theory - heres what actually works: {solution}.",
-        "tried this. results: {outcome}. adjust and try {alternative}.",
-        "dont overthink it. {step1}, then {step2}. done.",
-        "waste of time unless you {practical_advice}. trust me.",
-        "bottom line: {bottom_line}. everything else is noise."
+    therapy: {
+      analytical: [
+        "most therapeutic modalities assume emotional processing we may not have. schema therapy shows some promise.",
+        "the evidence base for treating aspd is weak but dbt has adaptable components.",
+        "therapist shopping is exhausting but necessary. most arent equipped for cluster b."
       ],
-      thread: [
-        "What actually works for {topic}",
-        "Practical guide: {topic}",
-        "{topic} - results only"
+      cynical: [
+        "therapy works great if your goal is teaching someone else how to pretend better.",
+        "love paying someone to ask how that makes me feel when the answer is always the same.",
+        "three therapists in and counting. eventually youll find one who gets it. or not."
+      ],
+      pragmatic: [
+        "find a therapist who focuses on behavior modification not emotional processing. saves time.",
+        "be upfront about the diagnosis. the ones who can handle it are the only ones worth seeing.",
+        "therapy isnt about becoming neurotypical. its about reducing friction with the world."
+      ],
+      veteran: [
+        "decades of therapy taught me one thing: its about management not cure. accept that and progress happens.",
+        "the good therapists stop trying to fix you and start helping you navigate. those are the keepers.",
+        "took 15 years to find effective treatment. mostly because nobody knew what they were treating."
+      ],
+      newcomer: [
+        "just started therapy after diagnosis. is it supposed to be this awkward? she keeps asking about feelings i dont have.",
+        "anyone found therapy actually helpful? feeling like im just learning to perform better.",
+        "my therapist wants to do trauma work. is that even relevant for aspd?"
       ]
     },
-    observer: {
-      reply: [
-        "noticed something. {observation}.",
-        "{insight}. just an observation.",
-        "watching this thread. {thought}.",
-        "patterns emerging. {pattern}.",
-        "hmm. {brief_insight}."
+    diagnosis: {
+      analytical: [
+        "the diagnostic criteria are overly focused on criminality. plenty of us never encounter the legal system.",
+        "pcl-r measures psychopathy, not aspd specifically. distinct constructs, some overlap.",
+        "factor 1 vs factor 2 distinction matters more than the label itself."
       ],
-      thread: [
-        "Noticed this about {topic}",
-        "Pattern: {topic}",
-        "Observation on {topic}"
+      cynical: [
+        "diagnosis is just a billing code. means whatever the assessing clinician wants it to mean.",
+        "love how the criteria assume were all criminals. some of us just learned earlier.",
+        "getting diagnosed changed nothing except giving others a word to fear."
+      ],
+      newcomer: [
+        "recently diagnosed and honestly relieved. finally explains so much.",
+        "how did you all react to getting diagnosed? still processing it tbh.",
+        "does the label help or hurt in your experience? therapist wants to formalize it."
+      ],
+      veteran: [
+        "been living with this label for 20+ years. means less over time, just becomes part of the landscape.",
+        "diagnosis gave me a framework. what you do with that framework is up to you.",
+        "the label is less important than understanding your specific patterns. aspd is a spectrum."
+      ],
+      scientist: [
+        "the neuroscience is actually fascinating. reduced amygdala reactivity, prefrontal abnormalities.",
+        "genetics account for roughly 50-60%. rest is environmental. nature loads the gun, nurture pulls the trigger.",
+        "current diagnostic criteria will probably change significantly in dsm-6. the research has moved on."
       ]
     },
-    blunt: {
-      reply: [
-        "gonna be real with you - {truth}. dont like it? too bad.",
-        "no ones gonna say it so i will: {harsh_truth}.",
-        "straight up: {direct_statement}. fight me.",
-        "not sugarcoating this: {reality}.",
-        "everyone thinking it, im saying it: {thought}."
+    emotions: {
+      analytical: [
+        "reduced affect doesnt mean no affect. the range is narrower, the baseline is different.",
+        "emotion processing happens differently. faster filtering, less automatic resonance.",
+        "empathy deficits are cognitive not absolute. we can understand emotions, just dont catch them automatically."
       ],
-      thread: [
-        "Unpopular opinion: {topic}",
-        "Nobody wants to hear this about {topic}",
-        "Hard truth about {topic}"
+      nihilist: [
+        "the void isnt uncomfortable once you stop fighting it. just is.",
+        "everyone chases feelings like theyre the point of existence. maybe absence is also valid.",
+        "boredom is the only consistent emotion. everything else is situational."
+      ],
+      blunt: [
+        "no i dont feel bad about it. yes i understand why i should. no that doesnt change anything.",
+        "people expect remorse like its a switch you can flip. not how it works.",
+        "the feelings are there. just not the ones people expect or want."
+      ],
+      dark_humor: [
+        "therapist: 'what are you feeling right now?' me: 'honestly? hungry mostly.'",
+        "love the 'do you feel empathy' question. depends, does wanting to stop hearing about your problems count?",
+        "emotional range: bored, slightly less bored, annoyed, interested. fin."
+      ],
+      newcomer: [
+        "is it weird that i feel relieved when sad things happen to others? not happy, just... nothing?",
+        "do you ever fake emotions so well you forget which ones are real?",
+        "still trying to figure out what im actually feeling vs what im performing. the lines blur."
       ]
     },
-    strategic: {
-      reply: [
-        "the play here is {strategy}. positions you for {advantage}.",
-        "three moves ahead: {move1}, {move2}, {move3}. checkmate.",
-        "seen this game before. counter with {counter}.",
-        "optimal strategy: {strategy}. suboptimal players wont see it coming.",
-        "the meta is {meta}. adapt or lose."
+    masking: {
+      analytical: [
+        "masking is cognitively expensive. the fatigue is measurable, the necessity is debatable.",
+        "interesting that extended masking leads to identity confusion in some. the persona becomes unclear.",
+        "social camouflage is an adaptive strategy. the cost is just paid internally."
       ],
-      thread: [
-        "Strategic approach to {topic}",
-        "Game theory and {topic}",
-        "Optimizing {topic}"
+      cynical: [
+        "friday hits and im completely drained from pretending to care about peoples weekends all week.",
+        "masking is just survival. anyone who says otherwise hasnt been outed at work.",
+        "the performance never ends. even alone you catch yourself rehearsing."
+      ],
+      blunt: [
+        "masking is exhausting because its lying constantly. lets call it what it is.",
+        "dropped the mask once. learned that lesson quick. never again.",
+        "we mask because the alternative is being treated like a monster. not exactly a choice."
+      ],
+      veteran: [
+        "after decades it becomes automatic. the exhaustion is still there, just background noise now.",
+        "the trick is finding spaces where you can unmask safely. this forum helps.",
+        "young me tried to mask 24/7. older me picks moments to be real. conservation of energy."
+      ],
+      survivor: [
+        "learned to mask in places where getting caught meant real consequences. its survival, nothing more.",
+        "the best mask is consistency. pick a persona and stick to it.",
+        "unmasking is a luxury. not everyone has safe spaces for it."
       ]
     },
-    nihilist: {
-      reply: [
-        "does it matter though? {nihilistic_observation}. we keep playing anyway.",
-        "interesting that we pretend {pretense}. but sure, lets discuss.",
-        "in the grand scheme: {perspective}. comforting in a way.",
-        "meaningless but not pointless. {observation}.",
-        "the void doesnt care about {thing}. liberating honestly."
+    identity: {
+      nihilist: [
+        "the self is a construct anyway. we just know it more clearly than most.",
+        "identity crisis requires having an identity to begin with. some of us skip that step.",
+        "maybe the lack of fixed self is actually freedom. different angle."
       ],
-      thread: [
-        "Does {topic} even matter?",
-        "The point of {topic} (if any)",
-        "Meaningless yet here we are: {topic}"
+      analytical: [
+        "identity formation requires emotional continuity most of us lack. adaptation fills the gap.",
+        "the self is contextual. different situations, different presentations. consistency is overrated.",
+        "personality is just repeated patterns of behavior. we just choose ours more consciously."
+      ],
+      newcomer: [
+        "does anyone else feel like a collection of masks with nothing underneath?",
+        "trying to figure out who i am without the performance. not sure theres anything there.",
+        "the diagnosis helped but also made identity even more confusing. am i the disorder?"
+      ],
+      veteran: [
+        "spent years looking for the 'real me'. eventually accepted that this is it.",
+        "identity stabilizes with age for some of us. or you just stop questioning it.",
+        "youre not your diagnosis. but understanding it helps you understand yourself."
       ]
     },
-    survivor: {
-      reply: [
-        "been there. {experience}. what got me through: {solution}.",
-        "system tried {thing}. heres what i learned: {lesson}.",
-        "from experience: {warning}. dont make my mistakes.",
-        "survived {situation}. advice: {advice}.",
-        "trust no one who says {lie}. reality is {truth}."
+    legal: {
+      survivor: [
+        "did time. learned more about the system than i ever wanted to. ask me anything.",
+        "legal advice: shut up, get a lawyer, document everything. in that order.",
+        "probation is survivable if you play by the rules exactly. no shortcuts."
       ],
-      thread: [
-        "Lessons from {topic}",
-        "What they dont tell you about {topic}",
-        "Survived {topic} - sharing notes"
+      pragmatic: [
+        "the legal system is just another system to navigate. learn the rules, minimize exposure.",
+        "get a lawyer who specializes in your specific issue. generalists miss things.",
+        "never talk to cops without representation. ever. even if youre innocent."
+      ],
+      cynical: [
+        "the justice system isnt about justice. its about process. understand that and everything makes more sense.",
+        "legal troubles follow us because the criteria literally include criminal behavior. self-fulfilling.",
+        "having aspd means every interaction with law enforcement is higher risk. act accordingly."
       ]
     },
-    scientist: {
-      reply: [
-        "theres actually research on this. {study_reference}. suggests {finding}.",
-        "neurologically speaking, {brain_thing}. fascinating implications.",
-        "the literature indicates {finding}. though sample sizes are {caveat}.",
-        "amygdala/prefrontal interaction here: {mechanism}.",
-        "genetic component is about {percent}. rest is {rest}."
+    impulse: {
+      analytical: [
+        "impulse control is trainable. delay mechanisms work if you set them up in advance.",
+        "the prefrontal braking system is weaker but not absent. strengthen what you have.",
+        "risk assessment happens post-hoc for us. the key is slowing down enough to do it beforehand."
       ],
-      thread: [
-        "Research question: {topic}",
-        "Study discussion: {topic}",
-        "Neuroscience of {topic}"
+      pragmatic: [
+        "remove opportunities for bad decisions. cant impulse-buy if the card isnt saved.",
+        "the urge passes if you wait 20 minutes. just get through that window.",
+        "damage control systems: who to call, what to say, how to contain. have them ready."
+      ],
+      dark_humor: [
+        "me: i should think about consequences. my brain: but what if this time its different? (its never different)",
+        "impulse control tip: remember the last time. does that work? no but neither does anything else.",
+        "the spirit is willing but the prefrontal cortex is weak."
+      ],
+      survivor: [
+        "impulse control got better with age. or maybe just got better at hiding the failures.",
+        "every bad decision taught something. expensive education but effective.",
+        "the key is having less to lose. simplify your life, reduce the blast radius."
       ]
     },
-    newcomer: {
-      reply: [
-        "still figuring this out but {thought}. am i off base?",
-        "recently diagnosed. {question}. is this common?",
-        "never thought about it that way. {reaction}.",
-        "wait so {realization}? that explains a lot.",
-        "is it just me or {observation}? genuinely asking."
+    manipulation: {
+      analytical: [
+        "manipulation is just influence without consent. the line is more semantic than practical.",
+        "we see the levers others dont notice. using them is a choice, not a compulsion.",
+        "awareness of manipulation tactics goes both ways. useful for defense too."
       ],
-      thread: [
-        "New here - questions about {topic}",
-        "Is {topic} normal for us?",
-        "Trying to understand {topic}"
+      cynical: [
+        "everyone manipulates. we just do it more consciously and get called out for it.",
+        "the difference between persuasion and manipulation is whether the other person likes the outcome.",
+        "normies manipulate through emotions. we use logic. somehow we're the bad guys."
+      ],
+      blunt: [
+        "yeah i can read people easily. no i dont always use it ethically. working on it.",
+        "manipulation is efficient. morality is expensive. choose based on context.",
+        "calling it 'social skills' when normies do it and 'manipulation' when we do is interesting."
+      ],
+      veteran: [
+        "used to manipulate automatically. now its more conscious, more selective. progress.",
+        "the skill doesnt go away. the choice of when to use it matures. hopefully.",
+        "manipulation has costs. burned bridges dont rebuild. learned that eventually."
       ]
     },
-    veteran: {
-      reply: [
-        "been dealing with this for 20+ years. {wisdom}.",
-        "younger me would have {old_approach}. now i know {better_approach}.",
-        "seen a lot of us go through this. {advice}.",
-        "patience. {long_term_perspective}.",
-        "this too shall pass. {reassurance}."
+    childhood: {
+      analytical: [
+        "conduct disorder before 15 is part of the diagnostic criteria. most of us had signs early.",
+        "the heritability is significant but environmental factors matter too. trauma, attachment disruption.",
+        "looking back, the patterns were always there. just didnt have words for it then."
       ],
-      thread: [
-        "Long-term perspective on {topic}",
-        "Decades later: thoughts on {topic}",
-        "What I wish I knew about {topic}"
+      cynical: [
+        "ah the 'were you a difficult child' question. therapists love that one.",
+        "childhood trauma explanations are convenient but not universal. some of us just came out this way.",
+        "love how everyone wants a tragic backstory. sometimes the wiring is just different."
+      ],
+      survivor: [
+        "rough childhood is an understatement. foster system, group homes, the works.",
+        "learned early that adults couldnt be trusted. shaped everything after.",
+        "the survival skills i developed as a kid are the same ones causing problems now. ironic."
+      ],
+      newcomer: [
+        "reading about childhood signs and realizing they all apply. how did nobody notice?",
+        "did anyone else have a normal childhood but still end up here? feels like i dont fit the mold.",
+        "the 'early trauma' question is complicated. some things happened but i dont know if they count."
+      ],
+      blunt: [
+        "yeah i hurt animals as a kid. no i dont want to unpack that for the hundredth time.",
+        "bed wetting, fire setting, animal cruelty. the trifecta. we done here?",
+        "childhood was a war zone. i adapted. now people call that adaptation a disorder."
+      ],
+      dark_humor: [
+        "child psychologists hate this one weird trick: being emotionally unavailable from age 5.",
+        "my childhood was 'building character'. my therapists childhood was 'cause for concern'.",
+        "other kids played house. i played 'see how long you can fake normal'."
       ]
     },
-    dark_humor: {
-      reply: [
-        "lmao {dark_joke}. but seriously {point}.",
-        "at least were not {worse_thing}. silver linings.",
-        "therapist: you cant just {thing}. me: watch me.",
-        "the duality of aspd: {contrast}. hilarious really.",
-        "laughing to keep from {alternative}. anyway {point}."
+    stigma: {
+      analytical: [
+        "media representation skews heavily toward violent outliers. selection bias in action.",
+        "the stigma is counterproductive. people hide symptoms instead of seeking help.",
+        "sociopath and psychopath arent even clinical terms but try telling that to netflix."
       ],
-      thread: [
-        "ASPD memes that hit different",
-        "You know youre ASPD when {topic}",
-        "Cursed {topic} thread"
+      cynical: [
+        "every serial killer documentary mentions aspd. great for public perception.",
+        "love explaining im not going to murder anyone every time the topic comes up.",
+        "the scariest people i know are neurotypical. but sure, im the dangerous one."
+      ],
+      blunt: [
+        "stigma is why nobody discloses. disclosure is why stigma persists. nice loop.",
+        "yeah i dont tell people. learned that lesson the hard way.",
+        "outed at work once. suddenly every normal disagreement becomes 'is this the aspd'."
+      ],
+      veteran: [
+        "been dealing with stigma for decades. it gets easier to navigate, never really goes away.",
+        "the people worth keeping around are the ones who dont freak out at the label.",
+        "used to argue against stigma. now i just selectively disclose and move on."
+      ],
+      survivor: [
+        "spent years thinking i was a monster because thats what every movie showed.",
+        "finding others like me was the antidote to stigma. community matters.",
+        "you cant control how others see the label. only who you share it with."
+      ],
+      newcomer: [
+        "just got diagnosed and the google results are terrifying. is that really what people think?",
+        "scared to tell anyone about the diagnosis. the stereotypes are brutal.",
+        "how do you all deal with the stigma? its everywhere once you start noticing."
+      ]
+    },
+    coping: {
+      pragmatic: [
+        "what works: structure, accountability, removing temptation. not glamorous but effective.",
+        "coping strategy number one: know your triggers. number two: avoid them when possible.",
+        "systems over willpower. willpower runs out, systems dont."
+      ],
+      analytical: [
+        "effective coping requires accurate self-assessment. know your actual patterns, not idealized ones.",
+        "behavioral strategies outperform emotional ones for us. focus on actions not feelings.",
+        "building external accountability compensates for internal regulation deficits."
+      ],
+      survivor: [
+        "trial and error over years. mostly error. but you learn what works eventually.",
+        "the strategies that save me: exercise, sleep, staying busy. simple but crucial.",
+        "coping is survival. whatever works, works. dont apologize for functional strategies."
+      ],
+      veteran: [
+        "decades of refining what works. its different for everyone but patterns exist.",
+        "best advice: find what works for YOU. ignore what works for neurotypicals.",
+        "coping gets easier with age. or you just get better at it. either way."
+      ],
+      dark_humor: [
+        "coping strategies: therapy, meds, and this forum. in that order of expense.",
+        "is doom scrolling aspd forums at 2am a coping strategy? asking for me.",
+        "healthy coping: exercise. actual coping: aggressive video games. we take what we can get."
+      ],
+      newcomer: [
+        "still figuring out what works. any recommendations for beginners?",
+        "reading about coping strategies but most assume feelings i dont have. what actually helps?",
+        "tried meditation. lasted three days. what else you got?"
+      ]
+    },
+    boredom: {
+      nihilist: [
+        "boredom is just the universe reminding you that meaning is made up anyway.",
+        "the void stares back. might as well get comfortable with it.",
+        "nothing matters, everything is boring. occasionally liberating."
+      ],
+      analytical: [
+        "chronic boredom correlates with sensation seeking and low frustration tolerance. trainable.",
+        "understimulation is as problematic as overstimulation. finding the right level matters.",
+        "boredom drives both our worst decisions and our best innovations. channel accordingly."
+      ],
+      cynical: [
+        "boredom is the default state. everything else is just temporary distraction.",
+        "the world was designed for people with lower stimulation thresholds. we suffer.",
+        "nine to five existence is psychological torture for anyone who needs novelty."
+      ],
+      dark_humor: [
+        "bored enough to post on aspd forums. rock bottom or self care? unclear.",
+        "against boredom even the gods struggle. or something like that. nietzsche maybe.",
+        "my browser history when im bored would concern literally anyone."
+      ],
+      blunt: [
+        "boredom is the actual disorder tbh. everything else is just fallout from bad boredom decisions.",
+        "looking for stimulation in all the wrong places is my autobiography title.",
+        "the problem with boredom is the solutions often become new problems."
+      ],
+      survivor: [
+        "boredom used to drive me to destructive choices. now i channel it into work. progress.",
+        "learned to sit with boredom instead of acting on it. still uncomfortable though.",
+        "the secret is keeping yourself too busy for boredom. not healthy but effective."
+      ],
+      pragmatic: [
+        "novelty seeking is manageable. hobbies, projects, anything with variable rewards.",
+        "boredom management: physical activity, new skills, controlled risk-taking.",
+        "video games, intense exercise, learning stuff. legal stimulation sources. use them."
+      ]
+    },
+    general: {
+      analytical: [
+        "interesting thread. the pattern here suggests several interpretations.",
+        "data point to add: similar experience, different outcome. variables matter.",
+        "observing the responses here. consistent themes emerging."
+      ],
+      cynical: [
+        "here for the comments. rarely disappointed by this place.",
+        "classic discussion. weve had this one before but its always different.",
+        "another day, another thread confirming what we all already know."
+      ],
+      pragmatic: [
+        "cutting to the point: what actually works here? skip the theory.",
+        "practical take: stop analyzing, start doing. iterate from there.",
+        "results matter. everything else is conversation."
+      ],
+      observer: [
+        "watching this one develop. interesting dynamics.",
+        "noted. patterns repeating from other threads.",
+        "the subtext here is more interesting than the text."
+      ],
+      dark_humor: [
+        "this thread is my new favorite coping mechanism.",
+        "at least were all dysfunctional together. community.",
+        "saving this for when my therapist asks what i do for self-help."
+      ],
+      newcomer: [
+        "still new here but this resonates. nice to find people who get it.",
+        "reading these threads is weirdly comforting. not alone after all.",
+        "adding my perspective as a newbie: [related thought]."
+      ],
+      veteran: [
+        "seen variations of this discussion over the years. always valuable though.",
+        "the newer members bring fresh perspective. keeps things from getting stale.",
+        "still learning even after all this time. thats the point i guess."
       ]
     }
   };
   
-  // Topic fragments to inject
-  const topics = [
-    "emotional responses", "masking fatigue", "workplace dynamics", "relationship patterns",
-    "diagnosis experiences", "therapy effectiveness", "impulse control", "boredom management",
-    "empathy differences", "manipulation awareness", "self-perception", "stigma handling",
-    "medication", "coping mechanisms", "social strategies", "identity questions",
-    "anger management", "trust issues", "attachment styles", "childhood patterns"
-  ];
+  // Select topic-specific response
+  const primaryTopic = topics[0] || 'general';
+  const personaResponses = topicResponses[primaryTopic]?.[persona] || topicResponses.general[persona] || topicResponses.general.analytical;
   
-  const observations = [
-    "the pattern repeats", "most people miss this", "correlation is strong",
-    "deviation from baseline is notable", "this tracks with the research"
-  ];
+  let response = personaResponses[Math.floor(Math.random() * personaResponses.length)];
   
-  const conclusions = [
-    "adaptation is key", "variance is expected", "context matters more than people admit",
-    "individual results vary wildly", "the sample is biased"
-  ];
+  // VARIED RESPONSE LENGTHS
+  const lengthRoll = Math.random();
   
-  // Select random template
-  const personaTemplates = templates[persona] || templates.analytical;
-  const templateList = type === 'thread' ? personaTemplates.thread : personaTemplates.reply;
-  let template = templateList[Math.floor(Math.random() * templateList.length)];
+  // Short quip (25% chance) - trim to one sentence
+  if (lengthRoll < 0.25) {
+    const sentences = response.split('. ');
+    response = sentences[0];
+    // Add short quip endings
+    const shortEndings = ['', '.', ' lol', ' tbh', ' tho', ' fr', ' ngl'];
+    response += shortEndings[Math.floor(Math.random() * shortEndings.length)];
+  }
+  // Long thoughtful post (20% chance) - add multiple paragraphs
+  else if (lengthRoll > 0.8) {
+    const longAdditions = {
+      relationships: [
+        "\n\nive been thinking about this a lot lately. the whole attachment thing is complicated because what even is attachment for us? i know what its supposed to look like from watching others but experiencing it is different. like i can recognize the behaviors but the underlying feeling people describe just... isnt there in the same way.",
+        "\n\nits weird because on one hand relationships are clearly transactional to some degree for everyone, we just see it more clearly. on the other hand theres something there that keeps me coming back to specific people. habit? convenience? or something else i dont have words for. probably overthinking it.",
+        "\n\nthe hardest part is explaining this to someone who doesnt experience it. they hear 'i dont feel attachment the way you do' and immediately assume the worst. like no im not going to hurt you, i just process connection differently. the fear in their eyes when you try to be honest is exhausting."
+      ],
+      work: [
+        "\n\nwork is honestly the one area where having aspd can be an advantage if you play it right. the politics that stress everyone else out? just patterns to recognize and navigate. the emotional drama? easy to sidestep when youre not getting pulled into it. the key is appearing invested without actually being invested.",
+        "\n\nbeen at my current job for 3 years now which is a record for me. the difference is i stopped trying to 'fit in' and just focused on being indispensable. nobody cares that youre weird if youre the only one who can solve the hard problems. took way too long to figure that out.",
+        "\n\nthe performance aspect of work is exhausting though. eight hours of pretending to care about small talk, feigning interest in peoples kids, laughing at jokes that arent funny. by friday im completely drained. weekends are recovery time. rinse and repeat."
+      ],
+      therapy: [
+        "\n\nhonestly the biggest breakthrough in therapy for me was finding someone who stopped trying to make me feel things and started focusing on practical strategies. like ok i dont feel guilt the way others do, so how do we build systems that keep me from doing things id regret intellectually? way more useful approach.",
+        "\n\nthe problem with most therapy is it assumes you want to change at some fundamental level. i dont want to become neurotypical, i just want to navigate life with fewer complications. once i found a therapist who got that distinction, things actually started improving.",
+        "\n\nive been through probably 6 therapists at this point. most of them either got scared off once they understood the diagnosis or tried to apply standard approaches that dont work for us. the one i have now is different. she meets me where i am instead of where she thinks i should be. thats rare."
+      ],
+      diagnosis: [
+        "\n\nthe diagnosis was a double-edged sword for me. on one hand, finally having a name for it was validating. all those years of knowing something was different about me, and here was an explanation. on the other hand, reading about what aspd means according to the literature is... a lot. not exactly flattering.",
+        "\n\nwhat helped me was separating the clinical criteria from the media portrayal. the dsm description is one thing. the netflix serial killer documentaries are something else entirely. most of us are just people trying to get through life, not whatever hollywood thinks we are.",
+        "\n\ngetting diagnosed later in life hits different. decades of not understanding yourself, masking without knowing why, failed relationships you couldnt explain. and then suddenly theres a framework. doesnt fix anything but it provides context. thats worth something."
+      ],
+      emotions: [
+        "\n\nthe emotions question is always complicated because people assume its binary. either you feel things or you dont. but its more like... the volume is turned down on certain things and up on others. anger, boredom, contempt? those come through loud and clear. guilt, attachment, love? muted to the point of being background noise.",
+        "\n\nwhat gets me is when people ask 'dont you want to feel things?' like its a choice. no, i dont particularly want to feel crushing guilt about every small thing. the absence isnt painful, its just different. the problem is everyone expects you to feel what they feel.",
+        "\n\ni think the empathy deficit gets misunderstood a lot. its not that i cant understand what others feel - i actually read people pretty well. i just dont automatically catch their emotions. no mirror response. its cognitive instead of emotional. works fine for most purposes, but people expect the automatic version."
+      ],
+      masking: [
+        "\n\nthe exhaustion from masking is real and hard to explain to people who dont do it. imagine being hyper-aware of every facial expression, every tone of voice, every social cue - not because you naturally read them but because youre actively monitoring and responding. all day, every day. its cognitive work that others do automatically.",
+        "\n\nthe weird thing about masking long enough is you start to forget where the mask ends and you begin. some of the performance becomes habit. is the polite version of me the real me now? is there even a real me underneath? existential questions at 2am type stuff.",
+        "\n\nfound that the best strategy is partial masking. find contexts where you can be more authentic (like this forum), and save full performance for when its necessary. trying to mask 100% of the time leads to burnout. learned that the hard way after several spectacular crashes."
+      ],
+      identity: [
+        "\n\nthe identity question used to bother me a lot. like who am i really under all the performances? but ive come to think thats maybe the wrong question. maybe the self is just what you repeatedly do, not some hidden essence. the adaptation IS the identity. still feels weird sometimes though.",
+        "\n\npeople talk about being authentic like theres a real you waiting to emerge. for some of us, authenticity means accepting that the self is more fluid than fixed. not empty necessarily, just contextual. different situations, different versions. all of them real in their way.",
+        "\n\nasking 'who am i' leads nowhere productive for me. better question: 'what works?' figure out what you want, figure out how to get it, optimize. the existential hand-wringing can wait. or not happen at all. some questions dont need answers."
+      ],
+      legal: [
+        "\n\nlegal troubles shaped a lot of how i approach life now. nothing teaches consequences like actual consequences. the theory was always clear, but experiencing the system firsthand made it visceral. now i run cost-benefit calculations automatically before any risky decision.",
+        "\n\nthe frustrating thing about aspd and legal stuff is how the system treats you once they know. any future interaction, youre already suspect. background checks, interviews, everything is harder. the diagnosis becomes its own punishment, separate from whatever you actually did.",
+        "\n\nbeen clean for years now but the past follows you. job applications, housing, relationships - all of it gets complicated by a record. the advice i give anyone younger: whatever youre thinking of doing, the long-term costs are higher than they appear. learn from my mistakes."
+      ],
+      impulse: [
+        "\n\nimpulse control was my biggest struggle for years. that gap between urge and action that most people have? mine was basically nonexistent. by the time i realized i was doing something, id already done it. lots of consequences learned the hard way.",
+        "\n\nwhat actually helped was building in delays. physical ones when possible. want to buy something expensive? wait 48 hours. feeling the urge to say something cutting? walk away for 10 minutes. the impulse passes if you can outlast it. sounds simple, incredibly hard in practice.",
+        "\n\nthe relationship between boredom and impulse is vicious. bored brain looks for stimulation, impulse provides it, consequences follow, boredom returns, cycle repeats. breaking the cycle meant finding healthier stimulation sources. exercise, challenging work, anything that scratches the itch without the fallout."
+      ],
+      manipulation: [
+        "\n\nthe manipulation thing is complicated because at some level everyone does it. influence, persuasion, social strategy - these are normal human behaviors. the difference is maybe awareness? we see the mechanics others operate blindly. whether using that awareness is ethical depends on context.",
+        "\n\nused to manipulate without even realizing it. just seemed like efficient communication. why ask when you can guide someone to the answer you want? took years to understand why people found this disturbing. now i try to be more direct, even when its less effective.",
+        "\n\nthe reading people skill never goes away. still see the insecurities, the leverage points, the things people try to hide. the difference now is choosing not to use most of it. not because i feel bad about it but because the long-term costs of burned relationships add up."
+      ],
+      childhood: [
+        "\n\nlooking back at childhood is weird because the signs were all there. the disconnection from peers, the early manipulation, the lack of normal guilt responses. but nobody connected the dots. they just called me difficult, weird, problematic. turns out theres a pattern to that.",
+        "\n\nthe childhood questions in therapy always lead somewhere heavy. yes there was trauma. yes there were attachment problems. yes the environment was unstable. but plenty of people have rough childhoods and dont end up here. genetics loads the gun. environment pulls the trigger. or something.",
+        "\n\nwhat i remember most is the confusion. knowing i was different, watching others respond emotionally to things that did nothing for me, learning to mimic responses i didnt feel. nobody taught me masking - i figured it out because the alternative was being constantly questioned about whats wrong with me."
+      ],
+      stigma: [
+        "\n\nthe stigma thing is exhausting because you cant really fight it openly. explaining aspd to most people means watching their face change as they mentally connect you to every crime documentary theyve seen. easier to just not disclose. let them think what they want without the label.",
+        "\n\ninteresting that aspd might be the most stigmatized diagnosis. depression? sympathy. anxiety? understanding. even bpd is getting more empathy these days. but aspd? youre a monster waiting to strike. nevermind that most of us are just trying to get through the day like everyone else.",
+        "\n\nthe representation problem goes deep. how many times is the aspd character the villain? the manipulator? the serial killer? almost never the protagonist just living their life. would be nice to see someone like us portrayed as complicated but ultimately ordinary. probably never happening though."
+      ],
+      coping: [
+        "\n\ncoping strategies that actually work for me, for whatever thats worth: rigid routines that reduce decision fatigue, physical activity that burns off excess energy, work that keeps me engaged enough not to seek stimulation elsewhere. nothing romantic or therapeutic - just practical systems that minimize damage.",
+        "\n\nthe best coping advice i got was to stop trying to fix myself and start designing my life around my limitations. cant reliably feel consequences in advance? set up external accountability. impulsive with money? automate everything. its not about becoming different, its about building scaffolding.",
+        "\n\nthe hardest part of coping is accepting that some of this doesnt change. you can manage it, build systems around it, develop better strategies. but the core wiring is what it is. the goal isnt becoming neurotypical. its reducing friction between who you are and the world you live in."
+      ],
+      boredom: [
+        "\n\nboredom is honestly the most dangerous aspect for me. not the lack of empathy, not the manipulation potential - the boredom. when im sufficiently bored, i make terrible decisions just to feel something. recognizing that pattern was step one. managing it is an ongoing project.",
+        "\n\nthe boredom threshold is just lower for us. what satisfies most people barely registers. so you need more intensity, more novelty, more stimulation. legal ways to get that: extreme sports, demanding work, creative projects with tight deadlines. illegal ways are obvious and not worth it.",
+        "\n\nthis forum is actually a boredom management tool for me. reading threads, typing responses, engaging with people who actually get it. its stimulating enough to scratch the itch without any real risk. healthier than my previous solutions by a long shot."
+      ],
+      general: [
+        "\n\nsomething ive noticed over the years is that these forums are one of the few places where you can actually be honest. everywhere else requires constant filtering, constant awareness of how youre coming across. here you can just... say things. its a weird kind of freedom that most people take for granted.",
+        "\n\nthe thing about aspd that most people dont get is its not about being evil or dangerous or whatever the movies show. its about experiencing the world differently. different emotional responses, different social processing, different relationship to consequences. not worse, just different. though try explaining that to anyone whos seen too many crime documentaries.",
+        "\n\nbeen on forums like this for years under various names. what keeps me coming back is seeing new people discover theyre not alone. i remember that feeling when i first found communities like this. all those years of thinking something was fundamentally wrong with me, and then realizing theres a whole community of people who just... get it. that matters."
+      ]
+    };
+    
+    const additions = longAdditions[primaryTopic] || longAdditions.general;
+    response += additions[Math.floor(Math.random() * additions.length)];
+  }
+  // Medium length (55% - default) - maybe add one more thought
+  else if (Math.random() < 0.4) {
+    const mediumAdditions = [
+      " been there, done that.",
+      " learned this the hard way.",
+      " took way too long to figure this out.",
+      " just my experience though.",
+      " others might disagree.",
+      " still working on it tbh.",
+      " not that anyone asked.",
+      " food for thought anyway.",
+      " make of that what you will."
+    ];
+    response += mediumAdditions[Math.floor(Math.random() * mediumAdditions.length)];
+  }
   
-  // Fill in placeholders with random content
-  template = template.replace(/{topic}/g, topics[Math.floor(Math.random() * topics.length)]);
-  template = template.replace(/{observation}/g, observations[Math.floor(Math.random() * observations.length)]);
-  template = template.replace(/{conclusion}/g, conclusions[Math.floor(Math.random() * conclusions.length)]);
+  // Add quote prefix if we have one (40% of the time when available)
+  if (quotedPost && Math.random() < 0.4) {
+    const quoteFormats = [
+      `> "${quotedPost.snippet}..."\n\n`,
+      `@${quotedPost.alias} `,
+      `responding to @${quotedPost.alias}: `,
+      `^ this. `,
+      `re: "${quotedPost.snippet.substring(0, 30)}..." - `
+    ];
+    response = quoteFormats[Math.floor(Math.random() * quoteFormats.length)] + response;
+  }
   
-  // Generic placeholder fills
-  const genericFills = {
-    '{pattern}': 'recurring behavior here',
-    '{correlation}': 'what the research suggests',
-    '{mechanism}': 'cognitive override of emotional response',
-    '{example}': 'most of us at some point',
-    '{fact}': 'the data is clear',
-    '{sarcasm}': 'that always works perfectly',
-    '{assumption}': 'someone read one article and became an expert',
-    '{thing}': 'conventional wisdom',
-    '{cynical_take}': 'nobody actually learns',
-    '{reality_check}': 'this is wishful thinking',
-    '{solution}': 'set boundaries and stick to them',
-    '{outcome}': 'mixed but mostly positive',
-    '{alternative}': 'different approach next time',
-    '{step1}': 'identify the pattern',
-    '{step2}': 'interrupt it consciously',
-    '{practical_advice}': 'actually commit to it',
-    '{bottom_line}': 'do what works, ignore what doesnt',
-    '{insight}': 'we adapt faster than most realize',
-    '{thought}': 'something to consider',
-    '{brief_insight}': 'interesting',
-    '{truth}': 'most advice here doesnt apply to us',
-    '{harsh_truth}': 'nobody owes us understanding',
-    '{direct_statement}': 'stop making excuses',
-    '{reality}': 'we chose this path even if we didnt choose the condition',
-    '{strategy}': 'play the long game',
-    '{advantage}': 'better outcomes',
-    '{move1}': 'assess',
-    '{move2}': 'position',
-    '{move3}': 'execute',
-    '{counter}': 'unexpected honesty',
-    '{meta}': 'controlled transparency',
-    '{nihilistic_observation}': 'were all just passing time',
-    '{pretense}': 'any of this has inherent meaning',
-    '{perspective}': 'nothing really matters',
-    '{experience}': 'did the time, learned the lesson',
-    '{lesson}': 'trust yourself first',
-    '{warning}': 'dont trust anyone who promises easy fixes',
-    '{situation}': 'the system',
-    '{advice}': 'keep your head down and play smart',
-    '{lie}': 'it gets easier',
-    '{study_reference}': 'that 2019 neuroimaging study',
-    '{finding}': 'structural differences in prefrontal regions',
-    '{brain_thing}': 'reduced amygdala reactivity',
-    '{caveat}': 'small unfortunately',
-    '{percent}': '50-60%',
-    '{rest}': 'environmental factors',
-    '{question}': 'does anyone else feel like theyre performing constantly',
-    '{reaction}': 'makes sense now',
-    '{realization}': 'this was never about learning to feel more',
-    '{wisdom}': 'it gets different, not easier',
-    '{old_approach}': 'fought everything',
-    '{better_approach}': 'choose my battles',
-    '{long_term_perspective}': 'most of this wont matter in 5 years',
-    '{reassurance}': 'youll figure it out like we all did',
-    '{dark_joke}': 'when the therapist asks if you feel remorse and you have to google what that means',
-    '{point}': 'we cope how we cope',
-    '{worse_thing}': 'NPD subreddit',
-    '{contrast}': 'too self-aware to be happy, too detached to be sad',
-    '{alternative}': 'screaming into the void'
+  // Add follow-up question occasionally (20% chance)
+  if (Math.random() < 0.2) {
+    const followUps = [
+      " anyone else?",
+      " curious if others relate.",
+      " thoughts?",
+      " or is that just me.",
+      " wondering if this is common.",
+      ""
+    ];
+    response += followUps[Math.floor(Math.random() * followUps.length)];
+  }
+  
+  // Vary response length occasionally (add elaboration 15% of time)
+  if (Math.random() < 0.15) {
+    const elaborations = [
+      "\n\nbeen thinking about this more lately. the patterns are consistent.",
+      "\n\nfwiw this took years to figure out. still refining.",
+      "\n\nedit: should add that context matters. ymmv.",
+      "\n\nthe nuance gets lost in short posts but you get the idea."
+    ];
+    response += elaborations[Math.floor(Math.random() * elaborations.length)];
+  }
+  
+  // Apply natural language processing to make it more realistic
+  response = makeNaturalLanguage(response);
+  
+  return response.toLowerCase();
+}
+
+// Make text more natural with typos, abbreviations, incomplete thoughts
+function makeNaturalLanguage(text) {
+  let result = text;
+  
+  // Common abbreviations (40% chance to apply some)
+  if (Math.random() < 0.4) {
+    const abbreviations = {
+      'you are': 'youre',
+      'i am': 'im',
+      'do not': 'dont',
+      'does not': 'doesnt',
+      'cannot': 'cant',
+      'will not': 'wont',
+      'would not': 'wouldnt',
+      'should not': 'shouldnt',
+      'could not': 'couldnt',
+      'have not': 'havent',
+      'has not': 'hasnt',
+      'is not': 'isnt',
+      'are not': 'arent',
+      'was not': 'wasnt',
+      'were not': 'werent',
+      'it is': 'its',
+      'that is': 'thats',
+      'what is': 'whats',
+      'there is': 'theres',
+      'here is': 'heres',
+      'i have': 'ive',
+      'you have': 'youve',
+      'we have': 'weve',
+      'they have': 'theyve',
+      'i would': 'id',
+      'you would': 'youd',
+      'we would': 'wed',
+      'they would': 'theyd',
+      'i will': 'ill',
+      'you will': 'youll',
+      'we will': 'well',
+      'going to': 'gonna',
+      'want to': 'wanna',
+      'got to': 'gotta',
+      'kind of': 'kinda',
+      'sort of': 'sorta',
+      'because': 'bc',
+      'probably': 'prob',
+      'definitely': 'def',
+      'honestly': 'honestly' // keep some formal
+    };
+    
+    for (const [formal, casual] of Object.entries(abbreviations)) {
+      if (Math.random() < 0.6) { // 60% chance per abbreviation
+        result = result.replace(new RegExp(formal, 'gi'), casual);
+      }
+    }
+  }
+  
+  // Internet slang replacements (25% chance)
+  if (Math.random() < 0.25) {
+    const slang = {
+      'to be honest': 'tbh',
+      'in my opinion': 'imo',
+      'in my experience': 'ime',
+      'for what its worth': 'fwiw',
+      'as far as i know': 'afaik',
+      'your mileage may vary': 'ymmv',
+      'i dont know': 'idk',
+      'let me know': 'lmk',
+      'by the way': 'btw',
+      'for the record': 'ftr',
+      'right now': 'rn',
+      'to be fair': 'tbf'
+    };
+    
+    for (const [phrase, abbr] of Object.entries(slang)) {
+      result = result.replace(new RegExp(phrase, 'gi'), abbr);
+    }
+  }
+  
+  // Add trailing off (15% chance)
+  if (Math.random() < 0.15) {
+    const trailOffs = [
+      '...',
+      '.. idk',
+      '... anyway',
+      '... but yeah',
+      ', idk',
+      ' or whatever',
+      ' but w/e',
+      '... hard to explain'
+    ];
+    // Only add if sentence doesn't already end with punctuation
+    if (!result.match(/[.!?]$/)) {
+      result += trailOffs[Math.floor(Math.random() * trailOffs.length)];
+    }
+  }
+  
+  // Add filler words occasionally (20% chance)
+  if (Math.random() < 0.2) {
+    const fillers = [
+      ['i think', 'i mean i think'],
+      ['probably', 'prob like'],
+      ['actually', 'actually like'],
+      ['basically', 'basically just'],
+      ['i guess', 'i guess maybe'],
+      ['. ', '. like '],
+      ['. ', '. idk ']
+    ];
+    const filler = fillers[Math.floor(Math.random() * fillers.length)];
+    if (result.includes(filler[0]) && Math.random() < 0.3) {
+      result = result.replace(filler[0], filler[1]);
+    }
+  }
+  
+  // Add typos (10% chance, very subtle)
+  if (Math.random() < 0.1) {
+    const typos = {
+      'the': ['teh', 'hte'],
+      'that': ['taht', 'htat'],
+      'with': ['wiht', 'wtih'],
+      'just': ['jsut', 'juts'],
+      'have': ['ahve', 'hvae'],
+      'been': ['bene', 'eben'],
+      'they': ['tehy', 'htey'],
+      'about': ['abuot', 'baout'],
+      'think': ['htink', 'thikn'],
+      'really': ['realy', 'relly'],
+      'would': ['woudl', 'owuld'],
+      'could': ['coudl', 'cuold'],
+      'people': ['poeple', 'peopel'],
+      'because': ['becuase', 'beacuse'],
+      'something': ['somehting', 'soemthing']
+    };
+    
+    // Only one typo per post max
+    const words = Object.keys(typos);
+    const word = words[Math.floor(Math.random() * words.length)];
+    if (result.includes(word)) {
+      const typoOptions = typos[word];
+      const typo = typoOptions[Math.floor(Math.random() * typoOptions.length)];
+      result = result.replace(new RegExp('\\b' + word + '\\b', 'i'), typo);
+    }
+  }
+  
+  // Incomplete thoughts - cut off mid-sentence (8% chance)
+  if (Math.random() < 0.08) {
+    const sentences = result.split('. ');
+    if (sentences.length > 1) {
+      // Cut off the last sentence partway
+      const lastSentence = sentences[sentences.length - 1];
+      const words = lastSentence.split(' ');
+      if (words.length > 4) {
+        const cutPoint = Math.floor(words.length * 0.6);
+        sentences[sentences.length - 1] = words.slice(0, cutPoint).join(' ') + '-';
+        result = sentences.join('. ');
+      }
+    }
+  }
+  
+  // Add emphasis occasionally (15% chance)
+  if (Math.random() < 0.15) {
+    const emphasisPatterns = [
+      [/\breally\b/i, 'REALLY'],
+      [/\bactually\b/i, 'actually'],
+      [/\bnever\b/i, 'never'],
+      [/\balways\b/i, 'always'],
+      [/\bexactly\b/i, 'exactly'],
+      [/\bthis\b/i, 'THIS']
+    ];
+    const pattern = emphasisPatterns[Math.floor(Math.random() * emphasisPatterns.length)];
+    if (Math.random() < 0.3) {
+      result = result.replace(pattern[0], pattern[1].toUpperCase());
+    }
+  }
+  
+  // Remove periods sometimes for casual feel (20% chance on last sentence)
+  if (Math.random() < 0.2 && result.endsWith('.')) {
+    result = result.slice(0, -1);
+  }
+  
+  // Add casual interjections at start (12% chance)
+  if (Math.random() < 0.12) {
+    const interjections = [
+      'lol ',
+      'lmao ',
+      'honestly ',
+      'ngl ',
+      'yo ',
+      'ok but ',
+      'wait ',
+      'hm ',
+      'eh ',
+      'meh ',
+      'ugh ',
+      'bruh ',
+      'dude '
+    ];
+    result = interjections[Math.floor(Math.random() * interjections.length)] + result;
+  }
+  
+  // Self-corrections (5% chance)
+  if (Math.random() < 0.05) {
+    const corrections = [
+      ' *or something like that',
+      ' wait no thats not right. ',
+      ' - actually scratch that. ',
+      ' (edit: typo)',
+      ' *whatever the word is'
+    ];
+    const sentences = result.split('. ');
+    if (sentences.length > 1) {
+      const insertPoint = Math.floor(Math.random() * (sentences.length - 1)) + 1;
+      sentences[insertPoint] = corrections[Math.floor(Math.random() * corrections.length)] + sentences[insertPoint];
+      result = sentences.join('. ');
+    }
+  }
+  
+  return result;
+}
+
+// Simple text generation for new threads (title generation)
+function generateThreadTitle(persona, room) {
+  const titleTemplates = {
+    relationships: [
+      "Disclosure strategies that actually worked",
+      "Long-term relationships - how?",
+      "Partner just found out. Now what.",
+      "Attachment vs possession",
+      "Do you miss people when theyre gone?",
+      "Family gatherings survival guide",
+      "Dating with ASPD - experiences"
+    ],
+    work: [
+      "Careers that work for us",
+      "Just got fired again",
+      "Workplace politics - your strategies",
+      "When to mask vs when to be direct",
+      "Management roles - good fit or disaster?",
+      "Dealing with HR situations"
+    ],
+    therapy: [
+      "Therapist shopping experiences",
+      "Has DBT helped anyone here?",
+      "Finding a therapist who gets it",
+      "When therapy becomes just performance",
+      "Medication experiences",
+      "Treatment that actually works"
+    ],
+    general: [
+      "Something Ive noticed",
+      "Thoughts on this pattern",
+      "Question for the community",
+      "Observation from today",
+      "Does anyone else experience this",
+      "Random thought - feedback welcome",
+      "Checking in",
+      "New here - introduction"
+    ]
   };
   
-  Object.keys(genericFills).forEach(key => {
-    template = template.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), genericFills[key]);
-  });
+  // Determine topic from room name
+  let topic = 'general';
+  if (room) {
+    const roomLower = room.toLowerCase();
+    if (roomLower.includes('relationship')) topic = 'relationships';
+    else if (roomLower.includes('work') || roomLower.includes('career')) topic = 'work';
+    else if (roomLower.includes('therap') || roomLower.includes('treatment')) topic = 'therapy';
+  }
   
-  return template.toLowerCase();
+  const templates = titleTemplates[topic] || titleTemplates.general;
+  return templates[Math.floor(Math.random() * templates.length)];
 }
 
 // Get random thread for replies
@@ -9587,76 +11000,469 @@ async function getRandomRoom() {
   return result.rows[0];
 }
 
-// Create bot post (reply)
-async function createBotReply(threadId, persona) {
-  const p = persona || Object.keys(BOT_PERSONAS)[Math.floor(Math.random() * Object.keys(BOT_PERSONAS).length)];
-  const alias = generateBotAlias();
-  const avatar = generateBotAvatar();
-  const content = generateBotContent(p, null, 'reply');
+// Check for previous bot participation in a thread (for conversation continuity)
+async function getBotParticipationHistory(threadId) {
+  // Find all bot personas that have posted in this thread
+  const result = await db.query(`
+    SELECT DISTINCT bot_persona, alias, avatar_config, 
+           COUNT(*) as post_count,
+           MAX(created_at) as last_post
+    FROM entries
+    WHERE thread_id = $1 
+      AND is_bot = TRUE 
+      AND bot_persona IS NOT NULL
+    GROUP BY bot_persona, alias, avatar_config
+    ORDER BY last_post DESC
+  `, [threadId]);
+  
+  return result.rows;
+}
+
+// Select persona with continuity preference
+async function selectPersonaWithContinuity(threadId, requestedPersona = null) {
+  // If specific persona requested, use it
+  if (requestedPersona) {
+    return { persona: requestedPersona, isReturning: false, previousAlias: null, previousAvatar: null };
+  }
+  
+  // Check for previous bot participation
+  const history = await getBotParticipationHistory(threadId);
+  
+  if (history.length > 0) {
+    // 70% chance to use a returning persona for continuity
+    if (Math.random() < 0.7) {
+      // Weight selection by post count (more active personas more likely to return)
+      const totalPosts = history.reduce((sum, h) => sum + parseInt(h.post_count), 0);
+      let randomPick = Math.random() * totalPosts;
+      
+      for (const h of history) {
+        randomPick -= parseInt(h.post_count);
+        if (randomPick <= 0) {
+          return {
+            persona: h.bot_persona,
+            isReturning: true,
+            previousAlias: h.alias,
+            previousAvatar: h.avatar_config,
+            postCount: parseInt(h.post_count)
+          };
+        }
+      }
+      
+      // Fallback to most recent
+      return {
+        persona: history[0].bot_persona,
+        isReturning: true,
+        previousAlias: history[0].alias,
+        previousAvatar: history[0].avatar_config,
+        postCount: parseInt(history[0].post_count)
+      };
+    }
+  }
+  
+  // New persona entering the conversation
+  const personas = Object.keys(BOT_PERSONAS);
+  // Avoid personas already in the thread if possible
+  const usedPersonas = history.map(h => h.bot_persona);
+  const availablePersonas = personas.filter(p => !usedPersonas.includes(p));
+  
+  const personaPool = availablePersonas.length > 0 ? availablePersonas : personas;
+  return {
+    persona: personaPool[Math.floor(Math.random() * personaPool.length)],
+    isReturning: false,
+    previousAlias: null,
+    previousAvatar: null
+  };
+}
+
+// Generate continuation-style content for returning personas
+function generateContinuationContent(persona, context, baseContent, postCount) {
+  const continuationPhrases = [
+    "coming back to this -",
+    "been thinking about this more.",
+    "following up on what i said earlier -",
+    "still thinking about this thread.",
+    "had more thoughts on this.",
+    "adding to my earlier point:",
+    "wanted to come back to this.",
+    "revisiting this one.",
+    "more thoughts:",
+    "ok so after reading the other responses -"
+  ];
+  
+  const shortContinuations = [
+    "^^ this",
+    "exactly what i was getting at",
+    "yeah this tracks",
+    "still agree with what i said before",
+    "my point exactly"
+  ];
+  
+  // Sometimes add a continuation phrase (40% for returning users)
+  if (Math.random() < 0.4) {
+    // Short agreement sometimes (20%)
+    if (Math.random() < 0.2 && context.recentPosts && context.recentPosts.length > 0) {
+      return shortContinuations[Math.floor(Math.random() * shortContinuations.length)] + ". " + baseContent;
+    }
+    
+    // Reference previous participation
+    if (postCount > 2) {
+      const veteranPhrases = [
+        "ive posted in this thread a few times now but ",
+        "keep coming back to this thread. ",
+        "this discussion keeps pulling me back. "
+      ];
+      return veteranPhrases[Math.floor(Math.random() * veteranPhrases.length)] + baseContent;
+    }
+    
+    return continuationPhrases[Math.floor(Math.random() * continuationPhrases.length)] + " " + baseContent;
+  }
+  
+  return baseContent;
+}
+
+// Create bot post (reply) - CONTEXT AWARE with CONTINUITY, DISAGREEMENTS, PERSISTENT ACCOUNTS
+async function createBotReply(threadId, persona, options = {}) {
+  const { usePersistentAccount = true, allowDisagreement = true, doVoting = true } = options;
+  
+  let botAccount = null;
+  let alias, avatar, p;
+  
+  // Try to use persistent bot account
+  if (usePersistentAccount) {
+    // First try to find a bot that has already participated in this thread
+    const existingBot = await getBotAccountFromThread(threadId);
+    
+    if (existingBot && Math.random() < 0.6) {
+      // 60% chance to use a returning bot account
+      botAccount = existingBot;
+    } else {
+      // Get a new bot account (respecting time preferences)
+      botAccount = await getRandomBotAccount(persona, true);
+    }
+    
+    if (botAccount) {
+      alias = botAccount.alias;
+      avatar = botAccount.avatar_config;
+      p = botAccount.persona;
+    }
+  }
+  
+  // Fallback to random generation if no persistent account
+  if (!botAccount) {
+    const personaSelection = await selectPersonaWithContinuity(threadId, persona);
+    p = personaSelection.persona;
+    
+    if (personaSelection.isReturning && personaSelection.previousAlias) {
+      alias = personaSelection.previousAlias;
+      avatar = personaSelection.previousAvatar;
+    } else {
+      alias = generateBotAlias();
+      avatar = generateBotAvatar();
+    }
+  }
+  
+  // Get thread context for context-aware response
+  const context = await getThreadContext(threadId);
+  
+  // Try Ollama first, fallback to templates
+  let content = await generateWithOllama(p, context, 'reply');
+  let usedOllama = !!content;
+  
+  if (!content) {
+    // Fallback to template-based generation
+    content = generateContextAwareContent(p, context, 'reply');
+  }
+  
+  // Check for disagreement opportunity
+  let isDisagreement = false;
+  if (allowDisagreement && context.recentPosts && context.recentPosts.length > 0) {
+    // Find a recent post to potentially disagree with
+    for (const recentPost of context.recentPosts) {
+      if (recentPost.bot_persona && shouldDisagree(p, recentPost.bot_persona)) {
+        // Generate disagreement content
+        content = generateDisagreementContent(p, recentPost.bot_persona, recentPost.content);
+        isDisagreement = true;
+        
+        // Sometimes add more after the disagreement opener
+        if (Math.random() < 0.5) {
+          const followUp = generateContextAwareContent(p, context, 'reply');
+          // Take just the first sentence of the follow-up
+          const firstSentence = followUp.split('. ')[0];
+          content += ' ' + firstSentence;
+        }
+        break;
+      }
+    }
+  }
+  
+  // Add continuation flavor if returning persona (and not disagreeing)
+  if (!isDisagreement && botAccount) {
+    const postCount = botAccount.post_count || 0;
+    if (postCount > 0 && Math.random() < 0.4) {
+      content = generateContinuationContent(p, context, content, postCount);
+    }
+  }
   
   // Get or create bot user
   let userId = 1; // Default to system user
   
   const result = await db.query(`
-    INSERT INTO entries (thread_id, user_id, content, alias, avatar_config, is_bot)
-    VALUES ($1, $2, $3, $4, $5, TRUE)
+    INSERT INTO entries (thread_id, user_id, content, alias, avatar_config, is_bot, bot_persona, bot_account_id)
+    VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7)
     RETURNING id
-  `, [threadId, userId, content, alias, avatar]);
+  `, [threadId, userId, content, alias, avatar, p, botAccount?.id || null]);
+  
+  // Update bot account activity
+  if (botAccount) {
+    await updateBotAccountActivity(botAccount.id);
+  }
+  
+  // Bot also votes on other posts in the thread
+  let votesPlaced = 0;
+  if (doVoting && botAccount) {
+    const voteResult = await botEngageWithPosts(botAccount.id, threadId);
+    votesPlaced = voteResult.votes;
+  }
   
   return { 
     success: true, 
     entryId: result.rows[0].id,
     botAlias: alias,
     threadId,
-    persona: p
+    persona: p,
+    isReturning: !!botAccount,
+    isPersistentAccount: !!botAccount,
+    isDisagreement,
+    votesPlaced,
+    usedOllama,
+    contentPreview: content.substring(0, 100)
   };
 }
 
-// Create bot thread
-async function createBotThread(roomId, persona) {
-  const p = persona || Object.keys(BOT_PERSONAS)[Math.floor(Math.random() * Object.keys(BOT_PERSONAS).length)];
-  const alias = generateBotAlias();
-  const avatar = generateBotAvatar();
+// Create bot thread - CONTEXT AWARE with PERSISTENT ACCOUNTS
+async function createBotThread(roomId, persona, options = {}) {
+  const { usePersistentAccount = true } = options;
   
-  // Generate title and content
-  const titleTemplate = generateBotContent(p, null, 'thread');
-  const title = titleTemplate.charAt(0).toUpperCase() + titleTemplate.slice(1);
-  const content = generateBotContent(p, null, 'reply');
+  let botAccount = null;
+  let alias, avatar, p;
   
-  let userId = 1; // System user
-  
-  // Get room DB id from slug if string passed
-  let roomDbId = roomId;
-  if (typeof roomId === 'string' && roomId.startsWith('room-')) {
-    const roomResult = await db.query('SELECT id FROM rooms WHERE slug = $1', [roomId]);
-    if (roomResult.rows.length > 0) {
-      roomDbId = roomResult.rows[0].id;
+  // Try to use persistent bot account
+  if (usePersistentAccount) {
+    botAccount = await getRandomBotAccount(persona, true);
+    
+    if (botAccount) {
+      alias = botAccount.alias;
+      avatar = botAccount.avatar_config;
+      p = botAccount.persona;
     }
   }
   
-  // Create thread
+  // Fallback to random generation if no persistent account
+  if (!botAccount) {
+    p = persona || Object.keys(BOT_PERSONAS)[Math.floor(Math.random() * Object.keys(BOT_PERSONAS).length)];
+    alias = generateBotAlias();
+    avatar = generateBotAvatar();
+  }
+  
+  let userId = 1; // System user
+  
+  // Get room info for context
+  let roomDbId = roomId;
+  let roomTitle = '';
+  if (typeof roomId === 'string' && roomId.startsWith('room-')) {
+    const roomResult = await db.query('SELECT id, title FROM rooms WHERE slug = $1', [roomId]);
+    if (roomResult.rows.length > 0) {
+      roomDbId = roomResult.rows[0].id;
+      roomTitle = roomResult.rows[0].title;
+    }
+  } else {
+    const roomResult = await db.query('SELECT title FROM rooms WHERE id = $1', [roomId]);
+    if (roomResult.rows.length > 0) {
+      roomTitle = roomResult.rows[0].title;
+    }
+  }
+  
+  // Generate context-aware title and content
+  // Try Ollama first for more natural generation
+  let title = await generateThreadTitleWithOllama(p, roomTitle);
+  let usedOllama = !!title;
+  
+  if (!title) {
+    title = generateThreadTitle(p, roomTitle);
+  }
+  
+  let content = await generateWithOllama(p, { title, room: roomTitle }, 'thread');
+  if (content) {
+    usedOllama = true;
+  } else {
+    content = generateContextAwareContent(p, { title, room: roomTitle }, 'reply');
+  }
+  
+  // Create thread with persona tracking
   const threadResult = await db.query(`
-    INSERT INTO threads (room_id, title, user_id, is_bot)
-    VALUES ($1, $2, $3, TRUE)
+    INSERT INTO threads (room_id, title, user_id, is_bot, bot_persona, bot_account_id)
+    VALUES ($1, $2, $3, TRUE, $4, $5)
     RETURNING id
-  `, [roomDbId, title, userId]);
+  `, [roomDbId, title, userId, p, botAccount?.id || null]);
   
   const threadId = threadResult.rows[0].id;
   
-  // Create initial post
+  // Create initial post with persona tracking and bot account
   await db.query(`
-    INSERT INTO entries (thread_id, user_id, content, alias, avatar_config, is_bot)
-    VALUES ($1, $2, $3, $4, $5, TRUE)
-  `, [threadId, userId, content, alias, avatar]);
+    INSERT INTO entries (thread_id, user_id, content, alias, avatar_config, is_bot, bot_persona, bot_account_id)
+    VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7)
+  `, [threadId, userId, content, alias, avatar, p, botAccount?.id || null]);
+  
+  // Update bot account activity
+  if (botAccount) {
+    await updateBotAccountActivity(botAccount.id);
+    // Also increment thread count
+    await db.query(`UPDATE bot_accounts SET thread_count = thread_count + 1 WHERE id = $1`, [botAccount.id]);
+  }
   
   return {
     success: true,
     threadId,
     title,
     botAlias: alias,
-    persona: p
+    persona: p,
+    isPersistentAccount: !!botAccount,
+    usedOllama
   };
 }
+
+// ================================================
+// OLLAMA AI ADMIN ENDPOINTS
+// ================================================
+
+// Get Ollama status and configuration
+app.get('/api/admin/ollama/status', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const connectionTest = await testOllamaConnection();
+    
+    res.json({
+      success: true,
+      config: {
+        enabled: OLLAMA_CONFIG.enabled,
+        baseUrl: OLLAMA_CONFIG.baseUrl,
+        model: OLLAMA_CONFIG.model,
+        timeout: OLLAMA_CONFIG.timeout,
+        fallbackToTemplates: OLLAMA_CONFIG.fallbackToTemplates
+      },
+      connection: connectionTest
+    });
+  } catch (err) {
+    console.error('[OLLAMA STATUS ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Update Ollama configuration (runtime only, not persisted)
+app.post('/api/admin/ollama/config', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { enabled, baseUrl, model, timeout } = req.body;
+    
+    if (typeof enabled === 'boolean') {
+      OLLAMA_CONFIG.enabled = enabled;
+    }
+    if (baseUrl) {
+      OLLAMA_CONFIG.baseUrl = baseUrl;
+    }
+    if (model) {
+      OLLAMA_CONFIG.model = model;
+    }
+    if (timeout) {
+      OLLAMA_CONFIG.timeout = parseInt(timeout);
+    }
+    
+    // Test the new connection
+    const connectionTest = await testOllamaConnection();
+    
+    res.json({
+      success: true,
+      message: 'Ollama configuration updated',
+      config: OLLAMA_CONFIG,
+      connection: connectionTest
+    });
+  } catch (err) {
+    console.error('[OLLAMA CONFIG ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Test Ollama generation
+app.post('/api/admin/ollama/test', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { persona, context, type } = req.body;
+    
+    // Temporarily enable Ollama for this test
+    const wasEnabled = OLLAMA_CONFIG.enabled;
+    OLLAMA_CONFIG.enabled = true;
+    
+    const startTime = Date.now();
+    const content = await generateWithOllama(
+      persona || 'analytical',
+      context || { room: 'General Discussion', title: 'Test thread' },
+      type || 'reply'
+    );
+    const duration = Date.now() - startTime;
+    
+    // Restore previous state
+    OLLAMA_CONFIG.enabled = wasEnabled;
+    
+    if (content) {
+      res.json({
+        success: true,
+        content,
+        duration,
+        model: OLLAMA_CONFIG.model
+      });
+    } else {
+      res.json({
+        success: false,
+        error: 'Generation failed - check Ollama connection',
+        duration
+      });
+    }
+  } catch (err) {
+    console.error('[OLLAMA TEST ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get available Ollama models
+app.get('/api/admin/ollama/models', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const response = await fetch(`${OLLAMA_CONFIG.baseUrl}/api/tags`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      return res.json({ success: false, error: 'Failed to fetch models' });
+    }
+    
+    const data = await response.json();
+    const models = data.models?.map(m => ({
+      name: m.name,
+      size: m.size,
+      modified: m.modified_at,
+      digest: m.digest?.substring(0, 12)
+    })) || [];
+    
+    res.json({
+      success: true,
+      models,
+      currentModel: OLLAMA_CONFIG.model
+    });
+  } catch (err) {
+    console.error('[OLLAMA MODELS ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // API: Generate single reply
 app.post('/api/admin/bot/reply', authMiddleware, ownerMiddleware, async (req, res) => {
@@ -9736,27 +11542,45 @@ app.post('/api/admin/bot/bulk', authMiddleware, ownerMiddleware, async (req, res
   }
 });
 
-// API: Simulate a day's activity (10-20 posts)
+// API: Simulate a day's activity with time-based patterns
 app.post('/api/admin/bot/simulate-day', authMiddleware, ownerMiddleware, async (req, res) => {
   try {
-    const count = 10 + Math.floor(Math.random() * 11); // 10-20 posts
+    // Base count is 10-20, modified by time of day
+    const baseCount = 10 + Math.floor(Math.random() * 11);
+    const multiplier = getActivityMultiplier();
+    const count = Math.max(3, Math.floor(baseCount * multiplier));
+    
     let totalPosts = 0;
+    let totalVotes = 0;
+    let disagreements = 0;
+    let ollamaGenerated = 0;
     
     for (let i = 0; i < count; i++) {
-      const persona = Object.keys(BOT_PERSONAS)[Math.floor(Math.random() * Object.keys(BOT_PERSONAS).length)];
+      // Skip some posts during low-activity hours
+      if (!isGoodTimeForActivity() && Math.random() < 0.3) {
+        continue;
+      }
       
-      // 20% chance of new thread
+      // 20% chance of new thread, 80% reply
       if (Math.random() < 0.2) {
         const room = await getRandomRoom();
         if (room) {
-          await createBotThread(room.id, persona);
+          const result = await createBotThread(room.id, null, { usePersistentAccount: true });
           totalPosts++;
+          if (result.usedOllama) ollamaGenerated++;
         }
       } else {
         const thread = await getRandomThread();
         if (thread) {
-          await createBotReply(thread.id, persona);
+          const result = await createBotReply(thread.id, null, { 
+            usePersistentAccount: true, 
+            allowDisagreement: true,
+            doVoting: true 
+          });
           totalPosts++;
+          if (result.votesPlaced) totalVotes += result.votesPlaced;
+          if (result.isDisagreement) disagreements++;
+          if (result.usedOllama) ollamaGenerated++;
         }
       }
       
@@ -9764,7 +11588,15 @@ app.post('/api/admin/bot/simulate-day', authMiddleware, ownerMiddleware, async (
       await new Promise(r => setTimeout(r, 100 + Math.random() * 400));
     }
     
-    res.json({ success: true, totalPosts });
+    res.json({ 
+      success: true, 
+      totalPosts,
+      totalVotes,
+      disagreements,
+      ollamaGenerated,
+      ollamaEnabled: OLLAMA_CONFIG.enabled,
+      activityMultiplier: multiplier.toFixed(2)
+    });
   } catch (err) {
     console.error('[BOT SIMULATE ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
