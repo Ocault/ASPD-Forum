@@ -268,6 +268,10 @@ const UIComponents = (function() {
     // Check if current user owns this entry (for edit/delete buttons)
     const isOwner = currentUserId && userId && currentUserId === userId;
     
+    // Check if current user is admin/mod (can delete others' posts)
+    const currentUserIsAdmin = window.AuthState?.isAdmin?.() || false;
+    const canDelete = isOwner || currentUserIsAdmin;
+    
     // Check if within 15-minute edit window
     const canEdit = isOwner && createdAt && ((new Date() - createdAt) / (1000 * 60) < 15);
     
@@ -334,10 +338,13 @@ const UIComponents = (function() {
     const timeStr = createdAt ? createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
     const editedStr = editedAt ? ` <a href="#" class="entry-history-link" data-entry-id="${id}" title="View edit history">(edited)</a>` : '';
     
-    // Edit/Delete buttons (only show if owner), Quote/Report for all
-    const ownerActionsHtml = isOwner ? `
-          ${canEdit ? `<button class="entry-action-btn entry-edit-btn" data-entry-id="${id}" title="Edit">EDIT</button>` : ''}
-          <button class="entry-action-btn entry-delete-btn" data-entry-id="${id}" title="Delete">DEL</button>` : '';
+    // Edit button (only show if owner and within time window)
+    const editBtnHtml = (isOwner && canEdit) ? `<button class="entry-action-btn entry-edit-btn" data-entry-id="${id}" title="Edit">EDIT</button>` : '';
+    
+    // Delete button (show if owner OR admin/mod)
+    const deleteBtnHtml = canDelete ? `<button class="entry-action-btn entry-delete-btn" data-entry-id="${id}" title="Delete">DEL</button>` : '';
+    
+    const ownerActionsHtml = (editBtnHtml || deleteBtnHtml) ? `${editBtnHtml}${deleteBtnHtml}` : '';
     
     const commonActionsHtml = isAnonymous ? `
           <button class="entry-action-btn entry-quote-btn" data-entry-id="${id}" data-alias="${alias}" title="Quote">QUOTE</button>

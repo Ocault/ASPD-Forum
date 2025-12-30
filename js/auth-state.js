@@ -433,6 +433,9 @@ var AuthState = (function() {
     getRefreshToken: getRefreshToken,
     setRefreshToken: setRefreshToken,
     refreshAccessToken: refreshAccessToken,
+    isAdmin: isAdmin,
+    isMod: isMod,
+    getRole: getRole,
     API_BASE: API_BASE
   };
 

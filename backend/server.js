@@ -9991,16 +9991,12 @@ HOW REAL PEOPLE WITH ASPD COMMUNICATE (based on actual forum posts):
 - Often frame things in terms of cost benefit. "worth it" "not worth the effort"
 - Blunt about not understanding emotional reactions of others
 
-AUTHENTIC ASPD PHRASES (use variations):
-- "i dont really care that much" / "couldnt care less"
-- "not worth it" / "too much effort for what i get"
-- "i just do what i want" / "i do what benefits me"
-- "people are either useful or they arent"
-- "i know what others view as right and wrong, i just dont feel it"
-- "being mindful doesnt make me feel bad about it"
-- "i find it [frustrating/boring/tedious]" not "i feel [sad/hurt/upset]"
-- "that tracks" / "makes sense" (analytical responses)
-- "whatever works" / "depends on what you get out of it"
+WHEN REPLYING TO SOMEONE:
+- Actually read what they wrote and respond to IT specifically
+- React to something they said, share a related experience, or push back on a point
+- Dont just output random ASPD statements that ignore their post
+- Good reply examples: "similar thing happened to me with the court stuff", "the performing normal part is exhausting tbh", "took me longer to figure that out"
+- Bad reply: generic statements that could apply to anything
 
 WHAT REAL ASPD POSTS DO NOT SOUND LIKE:
 - Asking "what do you guys think?" or "anyone else feel this way?" (validation seeking)
@@ -10029,13 +10025,34 @@ CRITICAL FORMATTING RULES:
   // Generate prompt based on content type
   switch (type) {
     case 'reply':
-      userPrompt = `Thread: "${context.title || 'General Discussion'}"
+      const recentPost = context.recentPosts?.[0];
+      const recentContent = recentPost?.content?.substring(0, 300) || '';
+      const recentAlias = recentPost?.alias || 'someone';
+      const shouldQuote = Math.random() < 0.4; // 40% chance to include a quote
+      
+      if (shouldQuote && recentContent.length > 20) {
+        // Pick a fragment to quote (a sentence or phrase)
+        const sentences = recentContent.split(/[.!?]+/).filter(s => s.trim().length > 15);
+        const quoteFragment = sentences.length > 0 ? sentences[Math.floor(Math.random() * sentences.length)].trim() : recentContent.substring(0, 80);
+        
+        userPrompt = `Someone posted: "${recentContent.substring(0, 200)}"
 
-Write 1 to 2 sentences max. Be blunt. No setup, no explanation, just your take. No dashes.`;
+You want to quote this part: "${quoteFragment.substring(0, 100)}"
+
+Write a reply that starts with quoting them using this format:
+> ${quoteFragment.substring(0, 60)}
+
+Then respond directly to that quote in 1 to 2 sentences. Be specific. No dashes.`;
+      } else {
+        userPrompt = `Replying to this post by ${recentAlias}:
+"${recentContent}"
+
+Write a reply that ACTUALLY RESPONDS to what they said. React to their specific point, share a similar experience, agree or disagree with something specific they mentioned. 1 to 2 sentences. No generic statements. No dashes.`;
+      }
       break;
       
     case 'thread':
-      userPrompt = `Start a thread. 2 sentences max. State something, dont ask. Dont explain your thought process. No dashes.`;
+      userPrompt = `Start a thread. 2 sentences max. Share something specific from your life or an observation. No dashes.`;
       break;
       
     case 'intro':
@@ -10044,9 +10061,16 @@ Write 1 to 2 sentences max. Be blunt. No setup, no explanation, just your take. 
       break;
       
     case 'disagreement':
-      userPrompt = `Disagree with: "${context.targetContent?.substring(0, 150)}"
+      const disagreeContent = context.targetContent?.substring(0, 200) || '';
+      const disagreeSentences = disagreeContent.split(/[.!?]+/).filter(s => s.trim().length > 10);
+      const disagreeQuote = disagreeSentences.length > 0 ? disagreeSentences[0].trim() : disagreeContent.substring(0, 60);
+      
+      userPrompt = `Disagree with this post: "${disagreeContent}"
 
-1 to 2 sentences. Push back directly. No dashes.`;
+Quote the part you disagree with using this format:
+> ${disagreeQuote.substring(0, 80)}
+
+Then push back in 1 to 2 sentences. Be direct. No dashes.`;
       break;
       
     case 'continuation':
