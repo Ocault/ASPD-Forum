@@ -3528,12 +3528,12 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 20, 50);
   const offset = (page - 1) * limit;
   const search = req.query.search || '';
-  const sort = req.query.sort || 'newest'; // newest, oldest, popular
+  const sort = req.query.sort || 'newest';
   const tagFilter = req.query.tag ? parseInt(req.query.tag) : null;
   
   try {
     const roomResult = await db.query(
-      'SELECT id, slug, title, description, is_locked, slow_mode_seconds FROM rooms WHERE slug = $1',
+      'SELECT id, slug, title, description FROM rooms WHERE slug = $1',
       [roomSlug]
     );
     
@@ -3553,12 +3553,6 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
       queryParams.push('%' + search + '%');
       paramIdx++;
     }
-    
-    if (tagFilter) {
-      whereClause += ` AND EXISTS (SELECT 1 FROM thread_tags tt WHERE tt.thread_id = t.id AND tt.tag_id = $${paramIdx})`;
-      queryParams.push(tagFilter);
-      paramIdx++;
-    }
 
     // Count total threads
     const countResult = await db.query(
@@ -3567,29 +3561,17 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
     );
     const total = parseInt(countResult.rows[0].count);
     
-    // Build ORDER BY clause based on sort
-    let orderClause = 't.is_pinned DESC, t.id DESC';
-    if (sort === 'oldest') {
-      orderClause = 't.is_pinned DESC, t.id ASC';
-    } else if (sort === 'popular') {
-      orderClause = 't.is_pinned DESC, vote_score DESC, t.id DESC';
-    }
-    
-    // Get paginated threads with vote counts and tags
+    // Get paginated threads (simplified query)
     const threadsQuery = `
-      SELECT t.id, t.title, t.is_pinned, t.is_locked, 
-             COUNT(e.id) FILTER (WHERE e.shadow_banned = FALSE OR e.shadow_banned IS NULL)::int AS "entriesCount",
-             COALESCE((SELECT SUM(CASE WHEN r.reaction_type = 'like' THEN 1 WHEN r.reaction_type = 'dislike' THEN -1 ELSE 0 END) 
-                       FROM reactions r 
-                       JOIN entries en ON en.id = r.entry_id 
-                       WHERE en.thread_id = t.id), 0)::int AS vote_score,
-             (SELECT json_agg(json_build_object('id', tg.id, 'name', tg.name, 'color', tg.color))
-              FROM tags tg JOIN thread_tags ttg ON ttg.tag_id = tg.id WHERE ttg.thread_id = t.id) AS tags
+      SELECT t.id, t.title, t.slug,
+             COALESCE(t.is_pinned, false) AS is_pinned, 
+             COALESCE(t.is_locked, false) AS is_locked,
+             COUNT(e.id)::int AS "entriesCount"
        FROM threads t
        LEFT JOIN entries e ON e.thread_id = t.id
        WHERE ${whereClause}
-       GROUP BY t.id, t.is_pinned, t.is_locked 
-       ORDER BY ${orderClause} 
+       GROUP BY t.id
+       ORDER BY COALESCE(t.is_pinned, false) DESC, t.id DESC
        LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
     queryParams.push(limit, offset);
     
@@ -3600,9 +3582,7 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
       room: { 
         id: room.slug, 
         title: room.title,
-        description: room.description || null,
-        isLocked: room.is_locked || false,
-        slowModeSeconds: room.slow_mode_seconds || null
+        description: room.description || null
       },
       threads: threadsResult.rows,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
