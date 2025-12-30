@@ -631,7 +631,7 @@
                 </button>
                 <button class="admin-btn" id="simulate-new-user" style="padding: 12px 8px; font-size: 0.4375rem; background: #2a4a2a; border-color: #4a7a4a;">
                   👤 NEW USER
-                  <div style="font-size: 0.25rem; opacity: 0.7; margin-top: 2px;">+ intro post</div>
+                  <div style="font-size: 0.25rem; opacity: 0.7; margin-top: 2px;">Create bot profile</div>
                 </button>
                 <button class="admin-btn" id="quick-bulk" style="padding: 12px 8px; font-size: 0.4375rem; background: #3a4a3a; border-color: #5a8a5a;">
                   ⚡ BULK x5
@@ -1358,7 +1358,15 @@
         if (!botLog) return;
         var time = new Date().toLocaleTimeString();
         var color = type === 'success' ? '#6a9a7a' : type === 'error' ? '#9a6a6a' : '#707070';
-        botLog.innerHTML = '<div style="color:' + color + ';">[' + time + '] ' + msg + '</div>' + botLog.innerHTML;
+        botLog.innerHTML = '<div style="color:' + color + ';">[' + time + '] ' + escapeHtml(msg) + '</div>' + botLog.innerHTML;
+      }
+      
+      // Log with HTML support (for links)
+      function logBotHTML(html, type) {
+        if (!botLog) return;
+        var time = new Date().toLocaleTimeString();
+        var color = type === 'success' ? '#6a9a7a' : type === 'error' ? '#9a6a6a' : '#707070';
+        botLog.innerHTML = '<div style="color:' + color + ';">[' + time + '] ' + html + '</div>' + botLog.innerHTML;
       }
       
       function updateBotStatus(status) {
@@ -1752,16 +1760,18 @@
         });
       });
       
-      // Simulate new user button
+      // Create new user button (no intro post)
       document.getElementById('simulate-new-user')?.addEventListener('click', function() {
-        logBot('👤 Simulating new user join...', 'info');
+        logBot('👤 Creating new bot user...', 'info');
         
-        AuthState.apiRequest('/api/admin/bot/new-user', {
-          method: 'POST'
+        AuthState.apiRequest('/api/admin/bot/create-account', {
+          method: 'POST',
+          body: JSON.stringify({})
         }).then(function(data) {
           if (data.success) {
-            var aiNote = data.usedAI ? ' 🤖AI' : '';
-            logBot('👤 NEW USER: ' + data.alias + ' (' + data.persona + ')' + aiNote + ' → "' + data.threadTitle + '" in ' + data.roomTitle, 'success');
+            var bot = data.bot;
+            var profileLink = '<a href="profile.html?alias=' + encodeURIComponent(bot.alias) + '" target="_blank" style="color: #8aba8a; text-decoration: underline;">' + bot.alias + '</a>';
+            logBotHTML('👤 NEW USER: ' + profileLink + ' (' + bot.persona + ') created', 'success');
             
             // Update new users count
             var newUsersEl = document.getElementById('new-users-today');
@@ -1770,14 +1780,7 @@
               newUsersEl.textContent = current + 1;
             }
             
-            // Update posts count
-            var postsToday = document.getElementById('scheduler-posts-today');
-            if (postsToday) {
-              var currentPosts = parseInt(postsToday.textContent) || 0;
-              postsToday.textContent = currentPosts + 1;
-            }
-            
-            loadBotTargets(); // Refresh thread list
+            loadBotProfiles(); // Refresh bot list
           } else {
             logBot('👤 New user failed: ' + (data.error || 'Unknown'), 'error');
           }
@@ -2269,7 +2272,9 @@
         }).then(function(data) {
           if (data.success) {
             var aiNote = data.usedAI ? ' 🤖' : '';
-            logBot('✓ ' + data.botAlias + aiNote + ' replied in thread #' + data.threadId, 'success');
+            var threadLink = '<a href="thread.html?id=' + data.threadId + '" target="_blank" style="color: #8aba8a; text-decoration: underline;">thread #' + data.threadId + '</a>';
+            var profileLink = '<a href="profile.html?alias=' + encodeURIComponent(data.botAlias) + '" target="_blank" style="color: #7a9a7a;">' + data.botAlias + '</a>';
+            logBotHTML('✓ ' + profileLink + aiNote + ' replied in ' + threadLink, 'success');
           } else {
             logBot('✗ ' + (data.error || 'Failed'), 'error');
           }
@@ -2289,7 +2294,9 @@
         }).then(function(data) {
           if (data.success) {
             var aiNote = data.usedAI ? ' 🤖' : '';
-            logBot('✓ ' + data.botAlias + aiNote + ' created: "' + data.title + '"', 'success');
+            var threadLink = '<a href="thread.html?id=' + data.threadId + '" target="_blank" style="color: #8aba8a; text-decoration: underline;">"' + escapeHtml(data.title) + '"</a>';
+            var profileLink = '<a href="profile.html?alias=' + encodeURIComponent(data.botAlias) + '" target="_blank" style="color: #7a9a7a;">' + data.botAlias + '</a>';
+            logBotHTML('✓ ' + profileLink + aiNote + ' created: ' + threadLink, 'success');
             loadBotTargets();
           } else {
             logBot('✗ ' + (data.error || 'Failed'), 'error');
@@ -2313,7 +2320,8 @@
             data.results.forEach(function(r) {
               if (r.success) {
                 var aiNote = r.usedAI ? ' 🤖' : '';
-                logBot('  → ' + r.alias + aiNote + ': ' + r.action, 'success');
+                var link = r.threadId ? '<a href="thread.html?id=' + r.threadId + '" target="_blank" style="color: #8aba8a;">thread #' + r.threadId + '</a>' : '';
+                logBotHTML('  → ' + r.alias + aiNote + ': ' + r.action + ' ' + link, 'success');
               }
             });
           } else {
@@ -2342,11 +2350,10 @@
         }).then(function(data) {
           if (data.success) {
             var accountType = data.isPersistentAccount ? '★' : '';
-            var returningNote = data.isReturning ? ' (RETURNING)' : '';
-            var disagreeNote = data.isDisagreement ? ' 💥DISAGREE' : '';
-            var voteNote = data.votesPlaced ? ' [+' + data.votesPlaced + ' votes]' : '';
-            var aiNote = data.usedAI ? ' 🤖AI' : '';
-            logBot('✓ ' + accountType + data.botAlias + returningNote + disagreeNote + aiNote + ' [' + data.persona + '] → thread #' + data.threadId + voteNote, 'success');
+            var aiNote = data.usedAI ? ' 🤖' : '';
+            var threadLink = '<a href="thread.html?id=' + data.threadId + '" target="_blank" style="color: #8aba8a; text-decoration: underline;">thread #' + data.threadId + '</a>';
+            var profileLink = '<a href="profile.html?alias=' + encodeURIComponent(data.botAlias) + '" target="_blank" style="color: #7a9a7a;">' + accountType + data.botAlias + '</a>';
+            logBotHTML('✓ ' + profileLink + aiNote + ' [' + data.persona + '] → ' + threadLink, 'success');
             incrementBotPosts();
           } else {
             logBot('✗ Failed: ' + (data.error || 'Unknown error'), 'error');
@@ -2376,8 +2383,10 @@
         }).then(function(data) {
           if (data.success) {
             var accountType = data.isPersistentAccount ? '★' : '';
-            var aiNote = data.usedAI ? ' 🤖AI' : '';
-            logBot('✓ ' + accountType + data.botAlias + aiNote + ' [' + data.persona + '] created: "' + data.title + '"', 'success');
+            var aiNote = data.usedAI ? ' 🤖' : '';
+            var threadLink = '<a href="thread.html?id=' + data.threadId + '" target="_blank" style="color: #8aba8a; text-decoration: underline;">"' + escapeHtml(data.title) + '"</a>';
+            var profileLink = '<a href="profile.html?alias=' + encodeURIComponent(data.botAlias) + '" target="_blank" style="color: #7a9a7a;">' + accountType + data.botAlias + '</a>';
+            logBotHTML('✓ ' + profileLink + aiNote + ' [' + data.persona + '] created: ' + threadLink, 'success');
             incrementBotPosts();
             loadBotTargets(); // refresh thread list
           } else {
