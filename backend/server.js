@@ -12740,14 +12740,14 @@ async function getRandomThread() {
   
   if (roll < 0.80) {
     // 80% chance: prefer active threads (activity in last 7 days)
-    ageFilter = `AND EXISTS (
+    ageFilter = `WHERE EXISTS (
       SELECT 1 FROM entries e 
       WHERE e.thread_id = t.id 
       AND e.created_at > NOW() - INTERVAL '7 days'
     )`;
   } else if (roll < 0.95) {
     // 15% chance: somewhat recent threads (7-30 days)
-    ageFilter = `AND EXISTS (
+    ageFilter = `WHERE EXISTS (
       SELECT 1 FROM entries e 
       WHERE e.thread_id = t.id 
       AND e.created_at > NOW() - INTERVAL '30 days'
@@ -12755,7 +12755,7 @@ async function getRandomThread() {
     )`;
   } else {
     // 5% chance: older threads (can necro occasionally for realism)
-    ageFilter = `AND EXISTS (
+    ageFilter = `WHERE EXISTS (
       SELECT 1 FROM entries e 
       WHERE e.thread_id = t.id 
       AND e.created_at <= NOW() - INTERVAL '30 days'
@@ -12767,7 +12767,6 @@ async function getRandomThread() {
     SELECT t.id, t.title, t.room_id,
            (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id) as last_activity
     FROM threads t
-    WHERE t.is_locked = FALSE AND t.is_deleted = FALSE
     ${ageFilter}
     ORDER BY RANDOM()
     LIMIT 1
@@ -12779,7 +12778,6 @@ async function getRandomThread() {
       SELECT t.id, t.title, t.room_id,
              (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id) as last_activity
       FROM threads t
-      WHERE t.is_locked = FALSE AND t.is_deleted = FALSE
       ORDER BY (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id) DESC NULLS LAST
       LIMIT 10
     `);
