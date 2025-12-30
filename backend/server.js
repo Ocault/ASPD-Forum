@@ -1167,14 +1167,19 @@ console.log('[STARTUP] Clearing rooms cache');
 async function getCachedRooms() {
   const now = Date.now();
   if (roomsCache && now - roomsCacheTime < ROOMS_CACHE_TTL) {
+    console.log('[ROOMS CACHE] Returning cached data, age:', (now - roomsCacheTime) / 1000, 'seconds');
     return roomsCache;
   }
   try {
+    console.log('[ROOMS CACHE] Fetching fresh data from database...');
     const result = await db.query(
       `SELECT slug AS id, title, description,
               (SELECT COUNT(*) FROM threads WHERE room_id = rooms.id) as thread_count
        FROM rooms ORDER BY COALESCE(display_order, 999), id`
     );
+    console.log('[ROOMS CACHE] Got', result.rows.length, 'rooms. Sample counts:', 
+      result.rows.filter(r => ['stories', 'coping', 'diagnosis', 'relationships', 'general'].includes(r.id))
+        .map(r => r.id + ':' + r.thread_count).join(', '));
     roomsCache = result.rows;
     roomsCacheTime = now;
     return roomsCache;
