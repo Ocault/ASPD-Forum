@@ -223,8 +223,11 @@ const globalRateLimiter = rateLimit({
     return crypto.createHash('sha256').update(ip + (process.env.IP_SALT || 'salt')).digest('hex').substring(0, 16);
   },
   skip: (req) => {
-    // Skip rate limit for health checks
-    return req.path === '/health';
+    // Skip rate limit for health checks, sitemap, robots.txt, and public API
+    return req.path === '/health' || 
+           req.path === '/sitemap.xml' || 
+           req.path === '/robots.txt' ||
+           req.path.startsWith('/api/public/');
   }
 });
 
@@ -944,6 +947,20 @@ app.use((req, res, next) => {
   }
   
   next();
+});
+
+// Serve sitemap.xml with correct content-type (before static middleware)
+app.get('/sitemap.xml', (req, res) => {
+  res.setHeader('Content-Type', 'application/xml');
+  res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+  res.sendFile(path.join(__dirname, '..', 'sitemap.xml'));
+});
+
+// Serve robots.txt with correct content-type
+app.get('/robots.txt', (req, res) => {
+  res.setHeader('Content-Type', 'text/plain');
+  res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+  res.sendFile(path.join(__dirname, '..', 'robots.txt'));
 });
 
 // Serve static frontend files from parent directory
