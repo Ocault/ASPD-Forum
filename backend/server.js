@@ -10135,7 +10135,6 @@ Write ONLY the personality description, nothing else.`;
     default:
       userPrompt = 'Write a general forum post about living with ASPD.';
   }
-  }
   
   try {
     const controller = new AbortController();
