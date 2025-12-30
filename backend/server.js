@@ -1161,6 +1161,9 @@ let roomsCache = null;
 let roomsCacheTime = 0;
 const ROOMS_CACHE_TTL = 30 * 1000; // 30 seconds
 
+// Force cache clear on startup
+console.log('[STARTUP] Clearing rooms cache');
+
 async function getCachedRooms() {
   const now = Date.now();
   if (roomsCache && now - roomsCacheTime < ROOMS_CACHE_TTL) {
