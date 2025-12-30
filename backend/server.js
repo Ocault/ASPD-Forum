@@ -8979,11 +8979,12 @@ app.get('/api/public/rooms', async (req, res) => {
              COUNT(DISTINCT t.id) AS thread_count,
              COUNT(DISTINCT e.id) AS post_count
       FROM rooms r
-      LEFT JOIN threads t ON t.room_id = r.id AND t.is_deleted = FALSE
-      LEFT JOIN entries e ON e.thread_id = t.id AND e.is_deleted = FALSE
-      WHERE r.is_deleted = FALSE AND r.is_hidden = FALSE
+      LEFT JOIN threads t ON t.room_id = r.id AND (t.is_deleted = FALSE OR t.is_deleted IS NULL)
+      LEFT JOIN entries e ON e.thread_id = t.id AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)
+      WHERE (r.is_deleted = FALSE OR r.is_deleted IS NULL) 
+        AND (r.is_hidden = FALSE OR r.is_hidden IS NULL)
       GROUP BY r.id
-      ORDER BY r.display_order ASC, r.title ASC
+      ORDER BY COALESCE(r.display_order, 999) ASC, r.title ASC
     `);
     
     res.json({ success: true, rooms: result.rows });
