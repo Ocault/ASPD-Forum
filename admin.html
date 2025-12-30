@@ -2313,9 +2313,15 @@
         }).then(function(data) {
           if (data.success) {
             if (data.updated > 0) {
-              logBot('✓ Generated personalities for ' + data.updated + '/' + data.total + ' bots', 'success');
+              var msg = '✓ Generated ' + data.updated + ' personalities';
+              if (data.failed > 0) msg += ' (' + data.failed + ' failed)';
+              msg += ' — ' + data.withPersonality + '/' + data.totalBots + ' bots now have personalities';
+              if (data.remaining > 0) msg += ' (' + data.remaining + ' remaining)';
+              logBot(msg, 'success');
+            } else if (data.remaining > 0) {
+              logBot('No personalities generated this round. ' + data.remaining + ' bots still need personalities. Try again.', 'warning');
             } else {
-              logBot('All bots already have personalities (Shift+click to force regenerate)', 'info');
+              logBot('✓ All ' + data.totalBots + ' bots have personalities (Shift+click to force regenerate)', 'info');
             }
             loadBotProfiles();
           } else {

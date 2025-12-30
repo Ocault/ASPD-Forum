@@ -13887,56 +13887,98 @@ app.post('/api/admin/bot/regenerate-personality', authMiddleware, ownerMiddlewar
   try {
     const { botId, all, forceAll } = req.body;
     
+    // Get total bot count for display
+    const totalBots = await db.query(`SELECT COUNT(*) as count FROM bot_accounts`);
+    const totalBotCount = parseInt(totalBots.rows[0].count);
+    
+    // Get count of bots WITH personalities
+    const withPersonality = await db.query(`
+      SELECT COUNT(*) as count FROM bot_accounts 
+      WHERE personality_description IS NOT NULL AND TRIM(personality_description) != ''
+    `);
+    const withPersonalityCount = parseInt(withPersonality.rows[0].count);
+    
     let botsToUpdate = [];
     
     if (forceAll) {
       // Regenerate ALL bots, even ones with existing personalities
       const result = await db.query(`
-        SELECT id, persona FROM bot_accounts 
+        SELECT id, persona, alias FROM bot_accounts 
         ORDER BY last_active DESC NULLS LAST
-        LIMIT 50
       `);
       botsToUpdate = result.rows;
     } else if (all) {
-      // Get all bots without personality descriptions
+      // Get all bots without personality descriptions (check for NULL, empty, or whitespace-only)
       const result = await db.query(`
-        SELECT id, persona FROM bot_accounts 
-        WHERE personality_description IS NULL OR personality_description = ''
-        LIMIT 20
+        SELECT id, persona, alias FROM bot_accounts 
+        WHERE personality_description IS NULL OR TRIM(personality_description) = ''
+        ORDER BY last_active DESC NULLS LAST
       `);
       botsToUpdate = result.rows;
     } else if (botId) {
-      const result = await db.query(`SELECT id, persona FROM bot_accounts WHERE id = $1`, [botId]);
+      const result = await db.query(`SELECT id, persona, alias FROM bot_accounts WHERE id = $1`, [botId]);
       if (result.rows.length > 0) {
         botsToUpdate = result.rows;
       }
     }
     
     if (botsToUpdate.length === 0) {
-      return res.json({ success: true, updated: 0, message: 'No bots need personality updates' });
+      return res.json({ 
+        success: true, 
+        updated: 0, 
+        totalBots: totalBotCount,
+        withPersonality: withPersonalityCount,
+        message: 'All bots already have personalities' 
+      });
     }
     
     let updated = 0;
+    let failed = 0;
     for (const bot of botsToUpdate) {
       try {
+        // Add small delay between API calls to avoid rate limiting
+        if (updated > 0 || failed > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+        
         const personality = await generateAIContent({
           persona: bot.persona,
           type: 'personality',
           temperature: 1.0
         });
         
-        if (personality) {
+        if (personality && personality.trim()) {
           await db.query(`
             UPDATE bot_accounts SET personality_description = $1 WHERE id = $2
-          `, [personality.substring(0, 500), bot.id]);
+          `, [personality.trim().substring(0, 500), bot.id]);
           updated++;
+          console.log(`[BOT] Generated personality for ${bot.alias} (${updated}/${botsToUpdate.length})`);
+        } else {
+          failed++;
+          console.log(`[BOT] Empty personality returned for ${bot.alias}`);
         }
       } catch (err) {
-        console.error(`[BOT] Failed to generate personality for bot ${bot.id}:`, err.message);
+        failed++;
+        console.error(`[BOT] Failed to generate personality for ${bot.alias}:`, err.message);
       }
     }
     
-    res.json({ success: true, updated, total: botsToUpdate.length });
+    // Get updated count
+    const updatedWithPersonality = await db.query(`
+      SELECT COUNT(*) as count FROM bot_accounts 
+      WHERE personality_description IS NOT NULL AND TRIM(personality_description) != ''
+    `);
+    const nowWithPersonality = parseInt(updatedWithPersonality.rows[0].count);
+    
+    res.json({ 
+      success: true, 
+      updated, 
+      failed,
+      attempted: botsToUpdate.length,
+      totalBots: totalBotCount,
+      withPersonality: nowWithPersonality,
+      remaining: totalBotCount - nowWithPersonality
+    });
   } catch (err) {
     console.error('[BOT PERSONALITY REGEN ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
