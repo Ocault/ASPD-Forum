@@ -1,6 +1,9 @@
 -- Sync existing bot_accounts to users table
 -- This makes all bot profiles viewable as real user profiles
 
+-- First, add the is_bot column if it doesn't exist
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE;
+
 -- Insert users records for any bot_accounts that don't have one yet
 INSERT INTO users (alias, avatar_config, bio, is_bot, role, email, password_hash, created_at)
 SELECT 
