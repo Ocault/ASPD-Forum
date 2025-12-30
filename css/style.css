@@ -458,13 +458,12 @@ ul {
 .forum-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
   width: 100%;
-  overflow: hidden;
 }
 
 .forum-container[data-page="forum"] {
-  overflow: visible;
+  height: auto;
 }
 
 .forum-header {
@@ -514,12 +513,14 @@ ul {
 ======================================== */
 
 .rooms-grid {
-  flex: 1;
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--spacing-sm);
   padding: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
   align-content: start;
+  align-items: start;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
