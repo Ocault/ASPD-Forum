@@ -8975,16 +8975,14 @@ async function migrate() {
 app.get('/api/public/rooms', async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT r.id, r.slug, r.title, r.description, r.display_order,
+      SELECT r.id, r.slug, r.title, r.description,
              COUNT(DISTINCT t.id) AS thread_count,
              COUNT(DISTINCT e.id) AS post_count
       FROM rooms r
-      LEFT JOIN threads t ON t.room_id = r.id AND (t.is_deleted = FALSE OR t.is_deleted IS NULL)
-      LEFT JOIN entries e ON e.thread_id = t.id AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)
-      WHERE (r.is_deleted = FALSE OR r.is_deleted IS NULL) 
-        AND (r.is_hidden = FALSE OR r.is_hidden IS NULL)
+      LEFT JOIN threads t ON t.room_id = r.id
+      LEFT JOIN entries e ON e.thread_id = t.id
       GROUP BY r.id
-      ORDER BY COALESCE(r.display_order, 999) ASC, r.title ASC
+      ORDER BY r.id ASC
     `);
     
     res.json({ success: true, rooms: result.rows });
