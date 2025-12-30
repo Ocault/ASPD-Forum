@@ -10416,6 +10416,22 @@ async function createPersistentBotAccount(persona = null) {
       RETURNING *
     `, [selectedPersona, alias, avatar, bio, activityLevel, JSON.stringify(peakHours)]);
     
+    const botAccountId = result.rows[0].id;
+    
+    // Also create a real user profile so the bot is viewable
+    // Random join date in the past (1-365 days ago) for realism
+    const daysAgo = Math.floor(Math.random() * 365) + 1;
+    const joinDate = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+    
+    await db.query(`
+      INSERT INTO users (alias, avatar_config, bio, is_bot, role, email, password_hash, created_at)
+      VALUES ($1, $2, $3, TRUE, 'user', $4, 'bot-no-login', $5)
+      ON CONFLICT (alias) DO UPDATE SET 
+        avatar_config = EXCLUDED.avatar_config,
+        bio = EXCLUDED.bio,
+        is_bot = TRUE
+    `, [alias, avatar, bio, `bot-${botAccountId}@system.local`, joinDate]);
+    
     console.log(`[BOT] Created persistent bot: ${alias} (${selectedPersona}) - ${activityLevel}`);
     
     return result.rows[0];
