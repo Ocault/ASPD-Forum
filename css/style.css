@@ -6481,6 +6481,53 @@ select:focus-visible {
   top: var(--spacing-md);
 }
 
+/* SEO fallback content for noscript (search crawlers) */
+.seo-content {
+  padding: var(--spacing-xl);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  margin: var(--spacing-md);
+}
+
+.seo-content h2 {
+  font-size: 1rem;
+  margin-bottom: var(--spacing-md);
+  color: var(--text-primary);
+}
+
+.seo-content p {
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-sm);
+  color: var(--text-secondary);
+}
+
+.seo-content ul {
+  list-style: none;
+  margin: var(--spacing-md) 0;
+  padding-left: var(--spacing-md);
+}
+
+.seo-content li {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-xs);
+  padding-left: var(--spacing-sm);
+  border-left: 2px solid var(--border-color);
+}
+
+.seo-content li strong {
+  color: var(--text-primary);
+}
+
+.seo-content a {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.seo-content a:hover {
+  color: var(--text-secondary);
+}
+
 /* Screen reader only text */
 .sr-only {
   position: absolute;

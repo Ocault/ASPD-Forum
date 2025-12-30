@@ -8948,6 +8948,272 @@ async function migrate() {
   }
 }
 
+// ========================================
+// PUBLIC API ENDPOINTS (NO AUTH REQUIRED)
+// These endpoints allow Googlebot and other crawlers
+// to access public forum content for indexing
+// ========================================
+
+// Public: Get all rooms (for forum.html SEO)
+app.get('/api/public/rooms', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT r.id, r.slug, r.title, r.description, r.display_order,
+             COUNT(DISTINCT t.id) AS thread_count,
+             COUNT(DISTINCT e.id) AS post_count
+      FROM rooms r
+      LEFT JOIN threads t ON t.room_id = r.id AND t.is_deleted = FALSE
+      LEFT JOIN entries e ON e.thread_id = t.id AND e.is_deleted = FALSE
+      WHERE r.is_deleted = FALSE AND r.is_hidden = FALSE
+      GROUP BY r.id
+      ORDER BY r.display_order ASC, r.title ASC
+    `);
+    
+    res.json({ success: true, rooms: result.rows });
+  } catch (err) {
+    console.error('[PUBLIC API ERROR] /api/public/rooms:', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Public: Get threads in a room (for room.html SEO)
+app.get('/api/public/rooms/:slug/threads', async (req, res) => {
+  const { slug } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+  const offset = (page - 1) * limit;
+  
+  try {
+    // Get room info
+    const roomResult = await db.query(
+      'SELECT id, slug, title, description FROM rooms WHERE slug = $1 AND is_deleted = FALSE AND is_hidden = FALSE',
+      [slug]
+    );
+    
+    if (roomResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'room_not_found' });
+    }
+    
+    const room = roomResult.rows[0];
+    
+    // Get threads (public view - no vault/private threads)
+    const threadsResult = await db.query(`
+      SELECT t.id, t.slug, t.title, t.created_at, t.is_pinned, t.is_locked,
+             u.alias AS author,
+             (SELECT COUNT(*) FROM entries WHERE thread_id = t.id AND is_deleted = FALSE) AS reply_count,
+             (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id AND is_deleted = FALSE) AS last_activity
+      FROM threads t
+      JOIN users u ON u.id = t.user_id
+      WHERE t.room_id = $1 AND t.is_deleted = FALSE AND t.vault_level IS NULL
+      ORDER BY t.is_pinned DESC, COALESCE(
+        (SELECT MAX(created_at) FROM entries WHERE thread_id = t.id AND is_deleted = FALSE),
+        t.created_at
+      ) DESC
+      LIMIT $2 OFFSET $3
+    `, [room.id, limit, offset]);
+    
+    // Get total count
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM threads WHERE room_id = $1 AND is_deleted = FALSE AND vault_level IS NULL',
+      [room.id]
+    );
+    
+    res.json({
+      success: true,
+      room: room,
+      threads: threadsResult.rows,
+      total: parseInt(countResult.rows[0].count),
+      page,
+      limit
+    });
+  } catch (err) {
+    console.error('[PUBLIC API ERROR] /api/public/rooms/:slug/threads:', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Public: Get thread content (for thread.html SEO)
+app.get('/api/public/threads/:roomSlug/:threadSlug', async (req, res) => {
+  const { roomSlug, threadSlug } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+  const offset = (page - 1) * limit;
+  
+  try {
+    // Get thread with room validation
+    const threadResult = await db.query(`
+      SELECT t.id, t.slug, t.title, t.created_at, t.is_pinned, t.is_locked,
+             t.view_count, r.slug AS room_slug, r.title AS room_title,
+             u.alias AS author
+      FROM threads t
+      JOIN rooms r ON r.id = t.room_id
+      JOIN users u ON u.id = t.user_id
+      WHERE r.slug = $1 AND t.slug = $2 
+        AND t.is_deleted = FALSE AND t.vault_level IS NULL
+        AND r.is_deleted = FALSE AND r.is_hidden = FALSE
+    `, [roomSlug, threadSlug]);
+    
+    if (threadResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'thread_not_found' });
+    }
+    
+    const thread = threadResult.rows[0];
+    
+    // Get entries/posts (public view)
+    const entriesResult = await db.query(`
+      SELECT e.id, e.content, e.created_at, e.alias,
+             u.alias AS user_alias
+      FROM entries e
+      LEFT JOIN users u ON u.id = e.user_id
+      WHERE e.thread_id = $1 AND e.is_deleted = FALSE
+      ORDER BY e.created_at ASC
+      LIMIT $2 OFFSET $3
+    `, [thread.id, limit, offset]);
+    
+    // Get total count
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM entries WHERE thread_id = $1 AND is_deleted = FALSE',
+      [thread.id]
+    );
+    
+    res.json({
+      success: true,
+      thread: thread,
+      entries: entriesResult.rows,
+      total: parseInt(countResult.rows[0].count),
+      page,
+      limit
+    });
+  } catch (err) {
+    console.error('[PUBLIC API ERROR] /api/public/threads:', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Public: Get recent activity (for activity.html SEO)
+app.get('/api/public/activity', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+  
+  try {
+    const result = await db.query(`
+      SELECT e.id, e.content, e.created_at, e.alias,
+             t.id AS thread_id, t.slug AS thread_slug, t.title AS thread_title,
+             r.slug AS room_slug, r.title AS room_title
+      FROM entries e
+      JOIN threads t ON t.id = e.thread_id
+      JOIN rooms r ON r.id = t.room_id
+      WHERE e.is_deleted = FALSE AND t.is_deleted = FALSE AND t.vault_level IS NULL
+        AND r.is_deleted = FALSE AND r.is_hidden = FALSE
+      ORDER BY e.created_at DESC
+      LIMIT $1
+    `, [limit]);
+    
+    res.json({ success: true, activity: result.rows });
+  } catch (err) {
+    console.error('[PUBLIC API ERROR] /api/public/activity:', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Public: Search (for search.html SEO - limited results)
+app.get('/api/public/search', async (req, res) => {
+  const query = req.query.q || '';
+  const type = req.query.type || 'all';
+  const limit = Math.min(parseInt(req.query.limit) || 10, 20);
+  
+  if (!query || query.length < 2) {
+    return res.json({ success: true, results: [], total: 0 });
+  }
+  
+  const searchPattern = '%' + query + '%';
+  
+  try {
+    let results = [];
+    
+    if (type === 'all' || type === 'threads') {
+      const threadResult = await db.query(`
+        SELECT t.id, t.title, t.slug, t.created_at, 
+               r.slug AS room_slug, r.title AS room_title,
+               'thread' AS result_type
+        FROM threads t
+        JOIN rooms r ON r.id = t.room_id
+        WHERE (t.title ILIKE $1 OR t.slug ILIKE $1)
+          AND t.is_deleted = FALSE AND t.vault_level IS NULL
+          AND r.is_deleted = FALSE AND r.is_hidden = FALSE
+        ORDER BY t.created_at DESC
+        LIMIT $2
+      `, [searchPattern, limit]);
+      results = results.concat(threadResult.rows);
+    }
+    
+    res.json({ success: true, results, query });
+  } catch (err) {
+    console.error('[PUBLIC API ERROR] /api/public/search:', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// Public: Generate dynamic sitemap entries
+app.get('/api/public/sitemap', async (req, res) => {
+  try {
+    const baseUrl = 'https://www.aspdforum.com';
+    
+    // Get all public rooms
+    const roomsResult = await db.query(`
+      SELECT slug, updated_at FROM rooms 
+      WHERE is_deleted = FALSE AND is_hidden = FALSE
+      ORDER BY display_order ASC
+    `);
+    
+    // Get all public threads (limit to recent 1000 for performance)
+    const threadsResult = await db.query(`
+      SELECT t.slug AS thread_slug, r.slug AS room_slug, t.updated_at
+      FROM threads t
+      JOIN rooms r ON r.id = t.room_id
+      WHERE t.is_deleted = FALSE AND t.vault_level IS NULL
+        AND r.is_deleted = FALSE AND r.is_hidden = FALSE
+      ORDER BY t.updated_at DESC
+      LIMIT 1000
+    `);
+    
+    const urls = [
+      { loc: `${baseUrl}/`, priority: 1.0, changefreq: 'daily' },
+      { loc: `${baseUrl}/forum.html`, priority: 0.9, changefreq: 'daily' },
+      { loc: `${baseUrl}/activity.html`, priority: 0.7, changefreq: 'hourly' },
+      { loc: `${baseUrl}/search.html`, priority: 0.6, changefreq: 'weekly' },
+      { loc: `${baseUrl}/register.html`, priority: 0.8, changefreq: 'monthly' },
+      { loc: `${baseUrl}/login.html`, priority: 0.5, changefreq: 'monthly' },
+      { loc: `${baseUrl}/privacy.html`, priority: 0.3, changefreq: 'yearly' },
+      { loc: `${baseUrl}/terms.html`, priority: 0.3, changefreq: 'yearly' }
+    ];
+    
+    // Add room URLs
+    for (const room of roomsResult.rows) {
+      urls.push({
+        loc: `${baseUrl}/room.html?room=${room.slug}`,
+        priority: 0.8,
+        changefreq: 'daily',
+        lastmod: room.updated_at
+      });
+    }
+    
+    // Add thread URLs
+    for (const thread of threadsResult.rows) {
+      urls.push({
+        loc: `${baseUrl}/thread.html?room=${thread.room_slug}&thread=${thread.thread_slug}`,
+        priority: 0.6,
+        changefreq: 'weekly',
+        lastmod: thread.updated_at
+      });
+    }
+    
+    res.json({ success: true, urls });
+  } catch (err) {
+    console.error('[PUBLIC API ERROR] /api/public/sitemap:', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // 404 catch-all route (must be last)
 app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, '..', '404.html'));

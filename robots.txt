@@ -1,23 +1,80 @@
-# ASPD Forum - Robots.txt
+# ============================================
+# ASPD Forum - robots.txt
+# Last updated: 2025-12-30
+# ============================================
+
+# Default rules for all crawlers
 User-agent: *
+
+# ============================================
+# ALLOWED: Public content (MUST be indexed)
+# ============================================
 Allow: /
 Allow: /index.html
+Allow: /forum.html
+Allow: /room.html
+Allow: /thread.html
+Allow: /search.html
+Allow: /activity.html
+Allow: /privacy.html
+Allow: /terms.html
 Allow: /login.html
 Allow: /register.html
+Allow: /404.html
 
-# Disallow authenticated areas
-Disallow: /forum.html
-Disallow: /room.html
-Disallow: /thread.html
+# Allow static assets for rendering
+Allow: /css/
+Allow: /js/
+Allow: /uploads/
+Allow: /*.css
+Allow: /*.js
+Allow: /*.png
+Allow: /*.jpg
+Allow: /*.svg
+Allow: /*.webp
+Allow: /manifest.json
+Allow: /favicon.svg
+Allow: /sigil.png
+
+# Allow public API endpoints for SSR/prerender
+Allow: /api/public/
+
+# ============================================
+# BLOCKED: Private/authenticated-only content
+# ============================================
+
+# User-specific private pages
 Disallow: /profile.html
 Disallow: /messages.html
-Disallow: /admin.html
-Disallow: /feed.html
-Disallow: /activity.html
 Disallow: /drafts.html
 Disallow: /history.html
-Disallow: /search.html
-Disallow: /backend/
+Disallow: /feed.html
+Disallow: /settings.html
+Disallow: /avatar.html
 
+# Authentication flow pages (not useful for indexing)
+Disallow: /forgot-password.html
+Disallow: /reset-password.html
+Disallow: /verify-email.html
+
+# Admin area (sensitive)
+Disallow: /admin.html
+Disallow: /admin/
+
+# Backend/API (except public endpoints)
+Disallow: /backend/
+Disallow: /api/
+Allow: /api/public/
+
+# Service worker and internals
+Disallow: /sw.js
+
+# ============================================
+# Crawl settings
+# ============================================
+Crawl-delay: 1
+
+# ============================================
 # Sitemap location
+# ============================================
 Sitemap: https://www.aspdforum.com/sitemap.xml

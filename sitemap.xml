@@ -1,33 +1,77 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Homepage - Highest priority -->
   <url>
     <loc>https://www.aspdforum.com/</loc>
-    <lastmod>2025-12-29</lastmod>
-    <changefreq>weekly</changefreq>
+    <lastmod>2025-12-30</lastmod>
+    <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
+  
+  <!-- Main Forum Page - High priority (public content hub) -->
   <url>
-    <loc>https://www.aspdforum.com/login.html</loc>
-    <lastmod>2025-12-29</lastmod>
+    <loc>https://www.aspdforum.com/forum.html</loc>
+    <lastmod>2025-12-30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <!-- Activity Feed - Public recent posts -->
+  <url>
+    <loc>https://www.aspdforum.com/activity.html</loc>
+    <lastmod>2025-12-30</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- Search - Public search interface -->
+  <url>
+    <loc>https://www.aspdforum.com/search.html</loc>
+    <lastmod>2025-12-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <!-- Registration - Important for growth -->
+  <url>
+    <loc>https://www.aspdforum.com/register.html</loc>
+    <lastmod>2025-12-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+  
+  <!-- Login -->
   <url>
-    <loc>https://www.aspdforum.com/register.html</loc>
-    <lastmod>2025-12-29</lastmod>
+    <loc>https://www.aspdforum.com/login.html</loc>
+    <lastmod>2025-12-30</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
+    <priority>0.5</priority>
   </url>
+  
+  <!-- Legal Pages -->
   <url>
     <loc>https://www.aspdforum.com/privacy.html</loc>
-    <lastmod>2025-12-29</lastmod>
+    <lastmod>2025-12-30</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://www.aspdforum.com/terms.html</loc>
-    <lastmod>2025-12-29</lastmod>
+    <lastmod>2025-12-30</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
+  
+  <!-- 
+    NOTE: Dynamic room and thread URLs should be generated programmatically.
+    Use the /api/public/sitemap endpoint to get dynamic URLs, or implement
+    a sitemap index with dynamic sitemaps for rooms and threads.
+    
+    Example room URLs (add manually or generate):
+    - https://www.aspdforum.com/room.html?room=general
+    - https://www.aspdforum.com/room.html?room=questions
+    
+    Example thread URLs:
+    - https://www.aspdforum.com/thread.html?room=general&thread=welcome
+  -->
 </urlset>

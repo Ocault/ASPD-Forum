@@ -4,8 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0a0a0a">
-  <meta name="description" content="ASPD Forum - Dark, clinical forum interface">
-  <title>ASPD Forum — Rooms</title>
+  
+  <!-- SEO -->
+  <title>Forum Rooms — ASPD Forum</title>
+  <meta name="description" content="Browse discussion rooms on ASPD Forum. Join conversations about antisocial personality disorder, coping strategies, and connect with others who understand.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://www.aspdforum.com/forum.html">
+  
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://www.aspdforum.com/forum.html">
+  <meta property="og:title" content="Forum Rooms — ASPD Forum">
+  <meta property="og:description" content="Browse discussion rooms on ASPD Forum. Join conversations about ASPD.">
+  <meta property="og:image" content="https://www.aspdforum.com/sigil.png">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" href="favicon.svg">
   <link rel="manifest" href="manifest.json">
@@ -50,6 +61,23 @@
 
     <!-- Room Grid - Container for dynamic room nodes -->
     <main class="rooms-grid" id="rooms-container" data-container="rooms" role="main" aria-label="Forum rooms">
+      <!-- SEO: Noscript fallback for search engine crawlers -->
+      <noscript>
+        <div class="seo-content">
+          <h2>ASPD Forum Discussion Rooms</h2>
+          <p>Welcome to ASPD Forum, the first anonymous community built specifically for people with Antisocial Personality Disorder.</p>
+          <p>Browse our discussion rooms covering topics like:</p>
+          <ul>
+            <li><strong>General Discussion</strong> - Open discussion for the community</li>
+            <li><strong>Questions</strong> - Ask the community anything</li>
+            <li><strong>Stories</strong> - Share your experiences and personal accounts</li>
+            <li><strong>Relationships</strong> - Navigating relationships, family, and social dynamics</li>
+            <li><strong>Coping Strategies</strong> - Methods for managing impulses and navigating society</li>
+            <li><strong>Diagnosis & Treatment</strong> - Therapy experiences, psychiatric encounters</li>
+          </ul>
+          <p><a href="register.html">Join the community</a> to participate in discussions.</p>
+        </div>
+      </noscript>
       <!-- PLACEHOLDER: Room nodes will be injected here by JS -->
     </main>
 
@@ -223,26 +251,52 @@
       });
 
       /**
-       * Fetch rooms from API
+       * Fetch rooms from API (tries public endpoint if not authenticated)
        */
       function fetchRooms() {
-        return AuthState.apiRequest('/api/rooms')
-          .then(function(data) {
-            if (data.success && data.rooms) {
-              data.rooms = data.rooms.map(function(room) {
-                return {
-                  id: room.id,
-                  title: room.title,
-                  description: room.description || '',
-                  thread_count: room.thread_count || 0,
-                  is_locked: room.is_locked || false,
-                  slow_mode_seconds: room.slow_mode_seconds || 0,
-                  href: 'room.html?id=' + room.id
-                };
-              });
-            }
-            return data;
-          });
+        // Check if user is authenticated
+        var token = localStorage.getItem('token');
+        
+        if (token) {
+          // Authenticated user - use full API
+          return AuthState.apiRequest('/api/rooms')
+            .then(function(data) {
+              if (data.success && data.rooms) {
+                data.rooms = data.rooms.map(function(room) {
+                  return {
+                    id: room.id,
+                    title: room.title,
+                    description: room.description || '',
+                    thread_count: room.thread_count || 0,
+                    is_locked: room.is_locked || false,
+                    slow_mode_seconds: room.slow_mode_seconds || 0,
+                    href: 'room.html?id=' + room.id
+                  };
+                });
+              }
+              return data;
+            });
+        } else {
+          // Unauthenticated (including crawlers) - use public API
+          return fetch('/api/public/rooms')
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+              if (data.success && data.rooms) {
+                data.rooms = data.rooms.map(function(room) {
+                  return {
+                    id: room.id,
+                    title: room.title,
+                    description: room.description || '',
+                    thread_count: parseInt(room.thread_count) || 0,
+                    is_locked: false,
+                    slow_mode_seconds: 0,
+                    href: 'room.html?room=' + room.slug
+                  };
+                });
+              }
+              return data;
+            });
+        }
       }
 
       /**

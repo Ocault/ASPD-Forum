@@ -3,8 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0a">
+  
+  <!-- SEO - Dynamic title/description updated by JS for each thread -->
   <title>ASPD Forum — Thread</title>
+  <meta name="description" content="Discussion thread on ASPD Forum.">
+  <meta name="robots" content="index, follow">
+  
+  <!-- Open Graph - Dynamic values updated by JS -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="ASPD Forum">
+  
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="sigil.png">
   <link rel="stylesheet" href="css/style.css?v=20251229">
 </head>
 <body>
@@ -85,6 +96,15 @@
 
     <!-- Entry List - Container for dynamic entries -->
     <main class="entry-list" id="entries-container" data-container="entries" role="main" aria-label="Thread entries">
+      <!-- SEO: Noscript fallback for search engine crawlers -->
+      <noscript>
+        <div class="seo-content">
+          <h2>Thread Discussion</h2>
+          <p>This thread contains discussions from the ASPD Forum community.</p>
+          <p>JavaScript is required to view full thread content. <a href="register.html">Join the community</a> or <a href="login.html">sign in</a> to participate.</p>
+          <p><a href="forum.html">← Back to forum</a></p>
+        </div>
+      </noscript>
       <!-- PLACEHOLDER: Entry elements will be injected here by JS -->
     </main>
 

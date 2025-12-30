@@ -3,8 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0a">
+  
+  <!-- SEO - Dynamic title/description updated by JS -->
   <title>ASPD Forum — Room</title>
+  <meta name="description" content="Discussion threads in this room on ASPD Forum.">
+  <meta name="robots" content="index, follow">
+  
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="ASPD Forum">
+  
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="sigil.png">
   <link rel="stylesheet" href="css/style.css?v=20251229b">
 </head>
 <body>
@@ -58,6 +69,15 @@
 
     <!-- Signal List - Container for dynamic signals -->
     <main class="signal-list" id="signals-container" data-container="signals" role="main" aria-label="Threads in this room">
+      <!-- SEO: Noscript fallback for search engine crawlers -->
+      <noscript>
+        <div class="seo-content">
+          <h2>Discussion Threads</h2>
+          <p>This room contains discussions from the ASPD Forum community.</p>
+          <p>JavaScript is required to view thread content. <a href="register.html">Join the community</a> or <a href="login.html">sign in</a> to participate.</p>
+          <p><a href="forum.html">← Back to all rooms</a></p>
+        </div>
+      </noscript>
       <!-- PLACEHOLDER: Signal rows will be injected here by JS -->
     </main>
 
