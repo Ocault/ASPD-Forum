@@ -9206,48 +9206,50 @@ app.get('/api/public/sitemap', async (req, res) => {
 // AI BOT SYSTEM - Owner Only
 // ================================================
 
-// Ollama Configuration
-const OLLAMA_CONFIG = {
-  enabled: process.env.OLLAMA_ENABLED === 'true' || false,
-  baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
-  model: process.env.OLLAMA_MODEL || 'llama3.2',
-  timeout: parseInt(process.env.OLLAMA_TIMEOUT) || 30000,
-  fallbackToTemplates: true // Use templates if Ollama fails
+// Groq Configuration (Cloud AI - Free Tier: 14,400 req/day)
+const GROQ_CONFIG = {
+  enabled: process.env.GROQ_ENABLED === 'true' || !!process.env.GROQ_API_KEY,
+  apiKey: process.env.GROQ_API_KEY || '',
+  model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+  timeout: parseInt(process.env.GROQ_TIMEOUT) || 15000,
+  fallbackToTemplates: true
 };
 
-// Test Ollama connection
-async function testOllamaConnection() {
-  if (!OLLAMA_CONFIG.enabled) return { available: false, reason: 'disabled' };
+// Test Groq connection
+async function testGroqConnection() {
+  if (!GROQ_CONFIG.apiKey) return { available: false, reason: 'no_api_key' };
   
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
-    const response = await fetch(`${OLLAMA_CONFIG.baseUrl}/api/tags`, {
+    const response = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { 'Authorization': `Bearer ${GROQ_CONFIG.apiKey}` },
       signal: controller.signal
     });
     clearTimeout(timeoutId);
     
     if (response.ok) {
       const data = await response.json();
-      const models = data.models?.map(m => m.name) || [];
-      const hasModel = models.some(m => m.includes(OLLAMA_CONFIG.model.split(':')[0]));
+      const models = data.data?.map(m => m.id) || [];
       return { 
         available: true, 
         models,
-        hasConfiguredModel: hasModel,
-        configuredModel: OLLAMA_CONFIG.model
+        configuredModel: GROQ_CONFIG.model
       };
     }
-    return { available: false, reason: 'bad_response' };
+    if (response.status === 401) {
+      return { available: false, reason: 'invalid_api_key' };
+    }
+    return { available: false, reason: `http_${response.status}` };
   } catch (err) {
     return { available: false, reason: err.message };
   }
 }
 
-// Generate content using Ollama
-async function generateWithOllama(persona, context, type = 'reply') {
-  if (!OLLAMA_CONFIG.enabled) {
+// Generate content using Groq
+async function generateWithGroq(persona, context, type = 'reply') {
+  if (!GROQ_CONFIG.enabled || !GROQ_CONFIG.apiKey) {
     return null;
   }
   
@@ -9262,7 +9264,7 @@ Personality traits: ${p.traits.join(', ')}
 
 CRITICAL RULES:
 - Write ONLY the forum post content, nothing else
-- No greetings like "Hey" or "Hi everyone"
+- No greetings like "Hey" or "Hi everyone"  
 - No signatures or sign-offs
 - Use lowercase, casual internet writing style
 - Keep responses between 1-4 sentences typically
@@ -9292,34 +9294,36 @@ Create a new thread post for this room. Write something that would spark discuss
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), OLLAMA_CONFIG.timeout);
+    const timeoutId = setTimeout(() => controller.abort(), GROQ_CONFIG.timeout);
     
-    const response = await fetch(`${OLLAMA_CONFIG.baseUrl}/api/generate`, {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_CONFIG.apiKey}`
+      },
       signal: controller.signal,
       body: JSON.stringify({
-        model: OLLAMA_CONFIG.model,
-        prompt: userPrompt,
-        system: systemPrompt,
-        stream: false,
-        options: {
-          temperature: 0.8,
-          top_p: 0.9,
-          num_predict: 256
-        }
+        model: GROQ_CONFIG.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.8,
+        max_tokens: 300,
+        top_p: 0.9
       })
     });
     
     clearTimeout(timeoutId);
     
     if (!response.ok) {
-      console.error('[OLLAMA] Bad response:', response.status);
+      console.error('[GROQ] Bad response:', response.status);
       return null;
     }
     
     const data = await response.json();
-    let content = data.response?.trim();
+    let content = data.choices?.[0]?.message?.content?.trim();
     
     if (!content) {
       return null;
@@ -9334,22 +9338,22 @@ Create a new thread post for this room. Write something that would spark discuss
     
     // Validate content
     if (content.length < 10 || content.length > 2000) {
-      console.error('[OLLAMA] Content length invalid:', content.length);
+      console.error('[GROQ] Content length invalid:', content.length);
       return null;
     }
     
-    console.log('[OLLAMA] Generated:', content.substring(0, 80) + '...');
+    console.log('[GROQ] Generated:', content.substring(0, 80) + '...');
     return content;
     
   } catch (err) {
-    console.error('[OLLAMA] Error:', err.message);
+    console.error('[GROQ] Error:', err.message);
     return null;
   }
 }
 
-// Generate thread title using Ollama
-async function generateThreadTitleWithOllama(persona, roomTitle) {
-  if (!OLLAMA_CONFIG.enabled) return null;
+// Generate thread title using Groq
+async function generateThreadTitleWithGroq(persona, roomTitle) {
+  if (!GROQ_CONFIG.enabled || !GROQ_CONFIG.apiKey) return null;
   
   const p = BOT_PERSONAS[persona] || BOT_PERSONAS.analytical;
   
@@ -9357,19 +9361,30 @@ async function generateThreadTitleWithOllama(persona, roomTitle) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
     
-    const response = await fetch(`${OLLAMA_CONFIG.baseUrl}/api/generate`, {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_CONFIG.apiKey}`
+      },
       signal: controller.signal,
       body: JSON.stringify({
-        model: OLLAMA_CONFIG.model,
-        prompt: `Generate a forum thread title for an ASPD forum in the "${roomTitle}" room. 
+        model: GROQ_CONFIG.model,
+        messages: [
+          { 
+            role: 'system', 
+            content: `You are creating thread titles for an ASPD forum. Persona: ${p.name}. Be authentic and casual.`
+          },
+          { 
+            role: 'user', 
+            content: `Generate a forum thread title for an ASPD forum in the "${roomTitle}" room. 
 The title should be lowercase, casual, and sound like a real person wrote it.
 Examples of good titles: "anyone else struggle with this at work", "therapy update (not great)", "is this just me or", "need advice about disclosure"
-Write ONLY the title, nothing else.`,
-        system: `You are creating thread titles for an ASPD forum. Persona: ${p.name}. Be authentic and casual.`,
-        stream: false,
-        options: { temperature: 0.9, num_predict: 30 }
+Write ONLY the title, nothing else.`
+          }
+        ],
+        temperature: 0.9,
+        max_tokens: 30
       })
     });
     
@@ -9378,7 +9393,7 @@ Write ONLY the title, nothing else.`,
     if (!response.ok) return null;
     
     const data = await response.json();
-    let title = data.response?.trim()
+    let title = data.choices?.[0]?.message?.content?.trim()
       .replace(/^["']|["']$/g, '')
       .replace(/[.!?]$/, '')
       .toLowerCase()
@@ -9386,7 +9401,7 @@ Write ONLY the title, nothing else.`,
     
     return title || null;
   } catch (err) {
-    console.error('[OLLAMA] Title generation error:', err.message);
+    console.error('[GROQ] Title generation error:', err.message);
     return null;
   }
 }
@@ -11164,9 +11179,9 @@ async function createBotReply(threadId, persona, options = {}) {
   // Get thread context for context-aware response
   const context = await getThreadContext(threadId);
   
-  // Try Ollama first, fallback to templates
-  let content = await generateWithOllama(p, context, 'reply');
-  let usedOllama = !!content;
+  // Try Groq AI first, fallback to templates
+  let content = await generateWithGroq(p, context, 'reply');
+  let usedAI = !!content;
   
   if (!content) {
     // Fallback to template-based generation
@@ -11234,7 +11249,7 @@ async function createBotReply(threadId, persona, options = {}) {
     isPersistentAccount: !!botAccount,
     isDisagreement,
     votesPlaced,
-    usedOllama,
+    usedAI,
     contentPreview: content.substring(0, 100)
   };
 }
@@ -11283,17 +11298,17 @@ async function createBotThread(roomId, persona, options = {}) {
   }
   
   // Generate context-aware title and content
-  // Try Ollama first for more natural generation
-  let title = await generateThreadTitleWithOllama(p, roomTitle);
-  let usedOllama = !!title;
+  // Try Groq AI first for more natural generation
+  let title = await generateThreadTitleWithGroq(p, roomTitle);
+  let usedAI = !!title;
   
   if (!title) {
     title = generateThreadTitle(p, roomTitle);
   }
   
-  let content = await generateWithOllama(p, { title, room: roomTitle }, 'thread');
+  let content = await generateWithGroq(p, { title, room: roomTitle }, 'thread');
   if (content) {
-    usedOllama = true;
+    usedAI = true;
   } else {
     content = generateContextAwareContent(p, { title, room: roomTitle }, 'reply');
   }
@@ -11327,139 +11342,103 @@ async function createBotThread(roomId, persona, options = {}) {
     botAlias: alias,
     persona: p,
     isPersistentAccount: !!botAccount,
-    usedOllama
+    usedAI
   };
 }
 
 // ================================================
-// OLLAMA AI ADMIN ENDPOINTS
+// GROQ AI ADMIN ENDPOINTS
 // ================================================
 
-// Get Ollama status and configuration
-app.get('/api/admin/ollama/status', authMiddleware, ownerMiddleware, async (req, res) => {
+// Get Groq status and configuration
+app.get('/api/admin/groq/status', authMiddleware, ownerMiddleware, async (req, res) => {
   try {
-    const connectionTest = await testOllamaConnection();
+    const connectionTest = await testGroqConnection();
     
     res.json({
       success: true,
       config: {
-        enabled: OLLAMA_CONFIG.enabled,
-        baseUrl: OLLAMA_CONFIG.baseUrl,
-        model: OLLAMA_CONFIG.model,
-        timeout: OLLAMA_CONFIG.timeout,
-        fallbackToTemplates: OLLAMA_CONFIG.fallbackToTemplates
+        enabled: GROQ_CONFIG.enabled,
+        hasApiKey: !!GROQ_CONFIG.apiKey,
+        model: GROQ_CONFIG.model,
+        timeout: GROQ_CONFIG.timeout,
+        fallbackToTemplates: GROQ_CONFIG.fallbackToTemplates
       },
       connection: connectionTest
     });
   } catch (err) {
-    console.error('[OLLAMA STATUS ERROR]', err);
+    console.error('[GROQ STATUS ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Update Ollama configuration (runtime only, not persisted)
-app.post('/api/admin/ollama/config', authMiddleware, ownerMiddleware, async (req, res) => {
+// Update Groq configuration (runtime only, not persisted)
+app.post('/api/admin/groq/config', authMiddleware, ownerMiddleware, async (req, res) => {
   try {
-    const { enabled, baseUrl, model, timeout } = req.body;
+    const { enabled, apiKey, model } = req.body;
     
     if (typeof enabled === 'boolean') {
-      OLLAMA_CONFIG.enabled = enabled;
+      GROQ_CONFIG.enabled = enabled;
     }
-    if (baseUrl) {
-      OLLAMA_CONFIG.baseUrl = baseUrl;
+    if (apiKey) {
+      GROQ_CONFIG.apiKey = apiKey;
     }
     if (model) {
-      OLLAMA_CONFIG.model = model;
-    }
-    if (timeout) {
-      OLLAMA_CONFIG.timeout = parseInt(timeout);
+      GROQ_CONFIG.model = model;
     }
     
     // Test the new connection
-    const connectionTest = await testOllamaConnection();
+    const connectionTest = await testGroqConnection();
     
     res.json({
       success: true,
-      message: 'Ollama configuration updated',
-      config: OLLAMA_CONFIG,
+      message: 'Groq configuration updated',
+      config: {
+        enabled: GROQ_CONFIG.enabled,
+        hasApiKey: !!GROQ_CONFIG.apiKey,
+        model: GROQ_CONFIG.model
+      },
       connection: connectionTest
     });
   } catch (err) {
-    console.error('[OLLAMA CONFIG ERROR]', err);
+    console.error('[GROQ CONFIG ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Test Ollama generation
-app.post('/api/admin/ollama/test', authMiddleware, ownerMiddleware, async (req, res) => {
+// Test Groq generation
+app.post('/api/admin/groq/test', authMiddleware, ownerMiddleware, async (req, res) => {
   try {
     const { persona, context, type } = req.body;
     
-    // Temporarily enable Ollama for this test
-    const wasEnabled = OLLAMA_CONFIG.enabled;
-    OLLAMA_CONFIG.enabled = true;
+    if (!GROQ_CONFIG.apiKey) {
+      return res.json({ success: false, error: 'No API key configured' });
+    }
     
     const startTime = Date.now();
-    const content = await generateWithOllama(
+    const content = await generateWithGroq(
       persona || 'analytical',
       context || { room: 'General Discussion', title: 'Test thread' },
       type || 'reply'
     );
     const duration = Date.now() - startTime;
     
-    // Restore previous state
-    OLLAMA_CONFIG.enabled = wasEnabled;
-    
     if (content) {
       res.json({
         success: true,
         content,
         duration,
-        model: OLLAMA_CONFIG.model
+        model: GROQ_CONFIG.model
       });
     } else {
       res.json({
         success: false,
-        error: 'Generation failed - check Ollama connection',
+        error: 'Generation failed - check API key and connection',
         duration
       });
     }
   } catch (err) {
-    console.error('[OLLAMA TEST ERROR]', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// Get available Ollama models
-app.get('/api/admin/ollama/models', authMiddleware, ownerMiddleware, async (req, res) => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
-    const response = await fetch(`${OLLAMA_CONFIG.baseUrl}/api/tags`, {
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      return res.json({ success: false, error: 'Failed to fetch models' });
-    }
-    
-    const data = await response.json();
-    const models = data.models?.map(m => ({
-      name: m.name,
-      size: m.size,
-      modified: m.modified_at,
-      digest: m.digest?.substring(0, 12)
-    })) || [];
-    
-    res.json({
-      success: true,
-      models,
-      currentModel: OLLAMA_CONFIG.model
-    });
-  } catch (err) {
-    console.error('[OLLAMA MODELS ERROR]', err);
+    console.error('[GROQ TEST ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -11553,7 +11532,7 @@ app.post('/api/admin/bot/simulate-day', authMiddleware, ownerMiddleware, async (
     let totalPosts = 0;
     let totalVotes = 0;
     let disagreements = 0;
-    let ollamaGenerated = 0;
+    let aiGenerated = 0;
     
     for (let i = 0; i < count; i++) {
       // Skip some posts during low-activity hours
@@ -11567,7 +11546,7 @@ app.post('/api/admin/bot/simulate-day', authMiddleware, ownerMiddleware, async (
         if (room) {
           const result = await createBotThread(room.id, null, { usePersistentAccount: true });
           totalPosts++;
-          if (result.usedOllama) ollamaGenerated++;
+          if (result.usedAI) aiGenerated++;
         }
       } else {
         const thread = await getRandomThread();
@@ -11580,7 +11559,7 @@ app.post('/api/admin/bot/simulate-day', authMiddleware, ownerMiddleware, async (
           totalPosts++;
           if (result.votesPlaced) totalVotes += result.votesPlaced;
           if (result.isDisagreement) disagreements++;
-          if (result.usedOllama) ollamaGenerated++;
+          if (result.usedAI) aiGenerated++;
         }
       }
       
@@ -11593,8 +11572,8 @@ app.post('/api/admin/bot/simulate-day', authMiddleware, ownerMiddleware, async (
       totalPosts,
       totalVotes,
       disagreements,
-      ollamaGenerated,
-      ollamaEnabled: OLLAMA_CONFIG.enabled,
+      aiGenerated,
+      groqEnabled: GROQ_CONFIG.enabled,
       activityMultiplier: multiplier.toFixed(2)
     });
   } catch (err) {
