@@ -11328,6 +11328,13 @@ async function botVoteOnEntry(botAccountId, entryId, voteType) {
       VALUES ($1, $2, $3)
     `, [entryId, botAccountId, voteType]);
     
+    // Update the entry vote counts
+    if (voteType === 'up') {
+      await db.query(`UPDATE entries SET upvotes = upvotes + 1 WHERE id = $1`, [entryId]);
+    } else {
+      await db.query(`UPDATE entries SET downvotes = downvotes + 1 WHERE id = $1`, [entryId]);
+    }
+    
     return { success: true, action: 'voted' };
   } catch (err) {
     console.error('[BOT VOTE ERROR]', err.message);
@@ -13045,8 +13052,33 @@ async function createBotReply(threadId, persona, options = {}) {
     return null;
   }
   
-  // Get or create bot user
+  // Get or create bot user - use the bot's user_id if available
   let userId = 1; // Default to system user
+  
+  // Try to get the bot's actual user_id from the users table
+  if (botAccount && alias) {
+    const userResult = await db.query(`
+      SELECT id FROM users WHERE alias = $1 AND is_bot = TRUE
+    `, [alias]);
+    if (userResult.rows.length > 0) {
+      userId = userResult.rows[0].id;
+    } else {
+      // Bot exists in bot_accounts but not users table - create it
+      try {
+        const daysAgo = Math.floor(Math.random() * 365) + 1;
+        const joinDate = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+        const insertResult = await db.query(`
+          INSERT INTO users (alias, avatar_config, bio, is_bot, role, email, password_hash, created_at)
+          VALUES ($1, $2, $3, TRUE, 'user', $4, 'bot-no-login', $5)
+          RETURNING id
+        `, [alias, avatar, botAccount.bio || '', `bot-${botAccount.id}@system.local`, joinDate]);
+        userId = insertResult.rows[0].id;
+        console.log(`[BOT] Auto-created user for existing bot: ${alias}`);
+      } catch (err) {
+        console.error('[BOT] Failed to auto-create user:', err.message);
+      }
+    }
+  }
   
   const result = await db.query(`
     INSERT INTO entries (thread_id, user_id, content, alias, avatar_config, is_bot, bot_persona, bot_account_id)
@@ -13112,7 +13144,32 @@ async function createBotThread(roomId, persona, options = {}) {
     avatar = generateBotAvatar();
   }
   
-  let userId = 1; // System user
+  let userId = 1; // System user default
+  
+  // Try to get the bot's actual user_id from the users table
+  if (alias) {
+    const userResult = await db.query(`
+      SELECT id FROM users WHERE alias = $1 AND is_bot = TRUE
+    `, [alias]);
+    if (userResult.rows.length > 0) {
+      userId = userResult.rows[0].id;
+    } else if (botAccount) {
+      // Bot exists in bot_accounts but not users table - create it
+      try {
+        const daysAgo = Math.floor(Math.random() * 365) + 1;
+        const joinDate = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+        const insertResult = await db.query(`
+          INSERT INTO users (alias, avatar_config, bio, is_bot, role, email, password_hash, created_at)
+          VALUES ($1, $2, $3, TRUE, 'user', $4, 'bot-no-login', $5)
+          RETURNING id
+        `, [alias, avatar, botAccount.bio || '', `bot-${botAccount.id}@system.local`, joinDate]);
+        userId = insertResult.rows[0].id;
+        console.log(`[BOT] Auto-created user for existing bot: ${alias}`);
+      } catch (err) {
+        console.error('[BOT] Failed to auto-create user:', err.message);
+      }
+    }
+  }
   
   // Get room info for context
   let roomDbId = roomId;
@@ -13281,11 +13338,11 @@ app.post('/api/admin/groq/test', authMiddleware, ownerMiddleware, async (req, re
     }
     
     const startTime = Date.now();
-    const content = await generateWithGroq(
-      persona || 'analytical',
-      context || { room: 'General Discussion', title: 'Test thread' },
-      type || 'reply'
-    );
+    const content = await generateAIContent({
+      persona: persona || 'analytical',
+      type: type || 'reply',
+      context: context || { room: 'General Discussion', title: 'Test thread' }
+    });
     const duration = Date.now() - startTime;
     
     if (content) {
@@ -13694,6 +13751,9 @@ app.post('/api/admin/bot/reply', authMiddleware, ownerMiddleware, async (req, re
     }
     
     const result = await createBotReply(targetThread, persona);
+    if (!result) {
+      return res.json({ success: false, error: 'ai_generation_failed' });
+    }
     res.json(result);
   } catch (err) {
     console.error('[BOT REPLY ERROR]', err);
@@ -13716,6 +13776,9 @@ app.post('/api/admin/bot/thread', authMiddleware, ownerMiddleware, async (req, r
     }
     
     const result = await createBotThread(targetRoom, persona);
+    if (!result) {
+      return res.json({ success: false, error: 'ai_generation_failed' });
+    }
     res.json(result);
   } catch (err) {
     console.error('[BOT THREAD ERROR]', err);
@@ -13727,22 +13790,37 @@ app.post('/api/admin/bot/thread', authMiddleware, ownerMiddleware, async (req, r
 app.post('/api/admin/bot/bulk', authMiddleware, ownerMiddleware, async (req, res) => {
   try {
     const count = Math.min(req.body.count || 5, 20); // Max 20 at a time
-    let postsCreated = 0;
-    let threadsCreated = 0;
+    const results = [];
     
     for (let i = 0; i < count; i++) {
       // 30% chance of new thread, 70% chance of reply
       if (Math.random() < 0.3) {
         const room = await getRandomRoom();
         if (room) {
-          await createBotThread(room.id, null);
-          threadsCreated++;
+          const result = await createBotThread(room.id, null);
+          if (result) {
+            results.push({
+              success: true,
+              action: 'thread',
+              alias: result.botAlias,
+              threadId: result.threadId,
+              usedAI: result.usedAI
+            });
+          }
         }
       } else {
         const thread = await getRandomThread();
         if (thread) {
-          await createBotReply(thread.id, null);
-          postsCreated++;
+          const result = await createBotReply(thread.id, null);
+          if (result) {
+            results.push({
+              success: true,
+              action: 'reply',
+              alias: result.botAlias,
+              threadId: result.threadId,
+              usedAI: result.usedAI
+            });
+          }
         }
       }
       
@@ -13750,7 +13828,7 @@ app.post('/api/admin/bot/bulk', authMiddleware, ownerMiddleware, async (req, res
       await new Promise(r => setTimeout(r, 100));
     }
     
-    res.json({ success: true, postsCreated, threadsCreated });
+    res.json({ success: true, results });
   } catch (err) {
     console.error('[BOT BULK ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
@@ -13781,8 +13859,10 @@ app.post('/api/admin/bot/simulate-day', authMiddleware, ownerMiddleware, async (
         const room = await getRandomRoom();
         if (room) {
           const result = await createBotThread(room.id, null, { usePersistentAccount: true });
-          totalPosts++;
-          if (result.usedAI) aiGenerated++;
+          if (result) {
+            totalPosts++;
+            if (result.usedAI) aiGenerated++;
+          }
         }
       } else {
         const thread = await getRandomThread();
@@ -13792,10 +13872,12 @@ app.post('/api/admin/bot/simulate-day', authMiddleware, ownerMiddleware, async (
             allowDisagreement: true,
             doVoting: true 
           });
-          totalPosts++;
-          if (result.votesPlaced) totalVotes += result.votesPlaced;
-          if (result.isDisagreement) disagreements++;
-          if (result.usedAI) aiGenerated++;
+          if (result) {
+            totalPosts++;
+            if (result.votesPlaced) totalVotes += result.votesPlaced;
+            if (result.isDisagreement) disagreements++;
+            if (result.usedAI) aiGenerated++;
+          }
         }
       }
       
