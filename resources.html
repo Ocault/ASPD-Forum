@@ -23,6 +23,265 @@
   <link rel="apple-touch-icon" href="sigil.png">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
+  
+  <style>
+    /* Override forum-container for resources page */
+    .resources-page {
+      min-height: 100vh;
+      height: auto !important;
+      overflow: visible !important;
+      overflow-y: auto !important;
+    }
+    
+    .resources-main {
+      padding: var(--spacing-xl) var(--spacing-lg);
+      max-width: 900px;
+      margin: 0 auto;
+      overflow: visible;
+    }
+    
+    .resource-intro {
+      margin-bottom: var(--spacing-xl);
+      padding: var(--spacing-lg);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .resource-intro p {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      line-height: 1.9;
+      margin-bottom: var(--spacing-md);
+      letter-spacing: 0.02em;
+    }
+    
+    .resource-intro p:last-child {
+      margin-bottom: 0;
+    }
+    
+    .resource-warning {
+      display: flex;
+      gap: var(--spacing-md);
+      padding: var(--spacing-md);
+      background: #0c0808;
+      border: 1px solid #1a1212;
+      margin-bottom: var(--spacing-xl);
+    }
+    
+    .warning-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: #5a4040;
+      flex-shrink: 0;
+    }
+    
+    .resource-warning p {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: #5a4545;
+      line-height: 1.8;
+      margin: 0;
+    }
+    
+    .resource-section {
+      margin-bottom: var(--spacing-xl);
+      padding-bottom: var(--spacing-xl);
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .resource-section:last-of-type {
+      border-bottom: none;
+    }
+    
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: var(--text-secondary);
+      letter-spacing: 0.15em;
+      margin-bottom: var(--spacing-lg);
+      padding-bottom: var(--spacing-sm);
+    }
+    
+    .section-icon {
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+    
+    .resource-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: var(--spacing-lg);
+    }
+    
+    .resource-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      padding: var(--spacing-lg);
+      transition: border-color 0.15s ease;
+    }
+    
+    .resource-card:hover {
+      border-color: var(--border-hover);
+    }
+    
+    .resource-title {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: var(--text-primary);
+      margin: 0 0 var(--spacing-xs) 0;
+      letter-spacing: 0.03em;
+    }
+    
+    .resource-author {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      display: block;
+      margin-bottom: var(--spacing-sm);
+    }
+    
+    .resource-desc {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      line-height: 1.8;
+      margin: 0 0 var(--spacing-md) 0;
+    }
+    
+    .resource-tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      background: var(--bg-panel);
+      padding: 0.3rem 0.6rem;
+      letter-spacing: 0.1em;
+    }
+    
+    .skip-tag {
+      background: #1a1010;
+      color: #6a5050;
+    }
+    
+    .strategy-note {
+      background: #080c08;
+      border: 1px solid #121a12;
+      padding: var(--spacing-md);
+      margin-bottom: var(--spacing-lg);
+    }
+    
+    .strategy-note p {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: #608060;
+      line-height: 1.8;
+      margin: 0;
+    }
+    
+    .strategy-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+    
+    .strategy-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      padding: var(--spacing-lg);
+    }
+    
+    .strategy-name {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: var(--text-primary);
+      letter-spacing: 0.1em;
+      margin: 0 0 var(--spacing-sm) 0;
+    }
+    
+    .strategy-desc {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      line-height: 1.85;
+      margin: 0 0 var(--spacing-sm) 0;
+    }
+    
+    .strategy-example {
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin: var(--spacing-sm) 0 0 0;
+      padding-left: var(--spacing-md);
+      border-left: 2px solid var(--border-color);
+    }
+    
+    .resource-cta {
+      text-align: center;
+      padding: var(--spacing-xl);
+      margin-top: var(--spacing-xl);
+    }
+    
+    .resource-cta p {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      margin: 0 0 var(--spacing-md) 0;
+      letter-spacing: 0.1em;
+    }
+    
+    .cta-button {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      color: var(--text-secondary);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      padding: var(--spacing-sm) var(--spacing-lg);
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    
+    .cta-button:hover {
+      background: var(--bg-panel);
+      border-color: var(--border-hover);
+      color: var(--text-primary);
+    }
+    
+    .resources-footer {
+      padding: var(--spacing-lg);
+      text-align: center;
+      border-top: 1px solid var(--border-color);
+      margin-top: var(--spacing-xl);
+    }
+    
+    .resources-footer span,
+    .resources-footer a {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      margin: 0 var(--spacing-md);
+    }
+    
+    @media (max-width: 600px) {
+      .resources-main {
+        padding: var(--spacing-md);
+      }
+      
+      .resource-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
 
@@ -30,7 +289,7 @@
   <div class="noise" aria-hidden="true"></div>
 
   <!-- Resources Layout -->
-  <div class="forum-container" data-page="resources">
+  <div class="forum-container resources-page" data-page="resources">
 
     <!-- Header -->
     <header class="forum-header" role="banner">
@@ -69,22 +328,29 @@
           <article class="resource-card">
             <h3 class="resource-title">The Sociopath Next Door</h3>
             <span class="resource-author">Martha Stout</span>
-            <p class="resource-desc">yeah the title is dramatic but ignore that. its one of the few books that describes how ASPD actually feels from the inside without making you sound like a serial killer. useful for understanding yourself and explaining it to others.</p>
+            <p class="resource-desc">yeah the title is dramatic but ignore that. its one of the few books that describes how ASPD actually feels from the inside without making you sound like a serial killer. useful for understanding yourself and explaining it to others. she focuses on the 4% statistic and what conscience actually means - or doesnt mean - for us.</p>
             <span class="resource-tag">BOOK</span>
           </article>
           
           <article class="resource-card">
             <h3 class="resource-title">Without Conscience</h3>
             <span class="resource-author">Robert Hare</span>
-            <p class="resource-desc">written by the guy who made the PCL-R checklist. clinical as fuck but if you want to understand how professionals see ASPD and what the actual diagnostic criteria mean, this is it. helped me understand my own evaluation.</p>
+            <p class="resource-desc">written by the guy who made the PCL-R checklist. clinical as fuck but if you want to understand how professionals see ASPD and what the actual diagnostic criteria mean, this is it. helped me understand my own evaluation. also explains the difference between primary and secondary presentations which most people dont know about.</p>
             <span class="resource-tag">BOOK</span>
           </article>
           
           <article class="resource-card">
             <h3 class="resource-title">DSM-5 Criteria</h3>
-            <span class="resource-author">Just google it</span>
-            <p class="resource-desc">skip the pop psychology articles. read the actual diagnostic criteria. its like 2 paragraphs. knowing exactly what qualifies helps you understand what youre dealing with vs whats just your personality.</p>
-            <span class="resource-tag">FREE</span>
+            <span class="resource-author">American Psychiatric Association</span>
+            <p class="resource-desc">skip the pop psychology articles. read the actual diagnostic criteria - its like 2 paragraphs. knowing exactly what qualifies helps you understand what youre dealing with vs whats just your personality. the key things: pattern since age 15, at least 18 to diagnose, evidence of conduct disorder before 15. knowing this helped me understand what evaluators were looking for.</p>
+            <span class="resource-tag">FREE ONLINE</span>
+          </article>
+          
+          <article class="resource-card">
+            <h3 class="resource-title">The Mask of Sanity</h3>
+            <span class="resource-author">Hervey Cleckley</span>
+            <p class="resource-desc">old but foundational. written in 1941 but still referenced in every clinical paper. cleckley was one of the first to describe ASPD without just calling it "moral insanity." his case studies are dated but the core descriptions of how we process (or dont process) certain things are still accurate.</p>
+            <span class="resource-tag">BOOK / FREE PDF</span>
           </article>
         </div>
       </section>
@@ -97,38 +363,50 @@
         </h2>
         
         <div class="strategy-note">
-          <p>these arent about becoming a different person. theyre about getting what you want out of life without the constant blowback. think of it as playing the game smarter.</p>
+          <p>these arent about becoming a different person. theyre about getting what you want out of life without the constant blowback. think of it as playing the game smarter, not changing who you are.</p>
         </div>
         
         <div class="strategy-list">
           <div class="strategy-item">
             <h4 class="strategy-name">THE 24-HOUR RULE</h4>
-            <p class="strategy-desc">someone pisses you off? dont respond for 24 hours. not because you need to calm down emotionally, but because your first reaction is usually the one that causes problems. wait, reassess, then decide if its worth it.</p>
+            <p class="strategy-desc">someone pisses you off? dont respond for 24 hours. not because you need to "calm down emotionally" - thats neurotypical advice. the real reason: your first reaction is usually the one that causes problems. wait, reassess, then decide if its actually worth it.</p>
+            <p class="strategy-example">example: coworker takes credit for your work in a meeting. first instinct might be to call them out publicly or do something worse. wait 24 hours. by then you can plan a response that actually benefits you - like documenting it and bringing it up privately with your manager, or waiting until you can use it as leverage later.</p>
           </div>
           
           <div class="strategy-item">
             <h4 class="strategy-name">COST-BENEFIT EVERYTHING</h4>
-            <p class="strategy-desc">forget morality. just pure consequences. "if i do this, what happens to ME?" will i lose my job? will i get arrested? will this person become a problem later? make decisions based on outcomes, not impulses.</p>
+            <p class="strategy-desc">forget morality. just pure consequences. "if i do this, what happens to ME?" will i lose my job? get arrested? will this person become a problem later? make decisions based on outcomes, not impulses. this isnt being fake - its being smart.</p>
+            <p class="strategy-example">example: you could easily manipulate a situation to get what you want short-term. but run the cost-benefit: if caught, what do you lose? reputation, job, relationship, freedom? is the short-term gain worth the long-term risk? usually its not. the smart play is often the boring play.</p>
           </div>
           
           <div class="strategy-item">
             <h4 class="strategy-name">LEARN THE SCRIPTS</h4>
-            <p class="strategy-desc">social interactions have patterns. learn them. "how are you" doesnt require honesty. "sorry for your loss" doesnt require feeling sad. its just protocol. master the scripts and life gets easier.</p>
+            <p class="strategy-desc">social interactions have patterns. learn them like you learn any other skill. "how are you" doesnt require honesty - the expected response is "good, you?" "sorry for your loss" doesnt require feeling sad. its protocol. master the scripts and life gets exponentially easier.</p>
+            <p class="strategy-example">scripts to memorize: greeting coworkers, small talk starters, condolence phrases, congratulations responses, deflecting personal questions, ending conversations politely. you dont have to feel any of it. you just have to say the right words at the right time.</p>
           </div>
           
           <div class="strategy-item">
             <h4 class="strategy-name">FIND LEGITIMATE OUTLETS</h4>
-            <p class="strategy-desc">that energy has to go somewhere. gym, competitive sports, high-stakes jobs, whatever. channel it into things that dont create problems. boredom is dangerous for us.</p>
+            <p class="strategy-desc">that energy has to go somewhere. gym, competitive sports, high-stakes careers, video games, whatever. channel it into things that dont create problems. boredom is genuinely dangerous for us - its when we make stupid decisions.</p>
+            <p class="strategy-example">what works: martial arts, competitive gaming, sales/trading jobs, entrepreneurship, extreme sports, weight lifting. what to avoid: gambling (too easy to escalate), drugs/alcohol (impulse control gets worse), anything that puts you in proximity to situations you know trigger bad decisions.</p>
           </div>
           
           <div class="strategy-item">
             <h4 class="strategy-name">BUILD STRATEGIC RELATIONSHIPS</h4>
-            <p class="strategy-desc">not every relationship needs to be deep. some people are useful, some are enjoyable, some are both. thats fine. just dont burn bridges you might need later.</p>
+            <p class="strategy-desc">not every relationship needs to be deep. some people are useful, some are enjoyable, some are both. thats fine. just dont burn bridges you might need later. maintain relationships even when theres no immediate benefit - think of it as investment.</p>
+            <p class="strategy-example">keep in touch with former coworkers, bosses, classmates. occasional message, linkedin connection, whatever. costs you nothing. but when you need a reference, a job lead, or information - you have a network. people you burned cant help you later.</p>
           </div>
           
           <div class="strategy-item">
             <h4 class="strategy-name">DOCUMENT EVERYTHING AT WORK</h4>
-            <p class="strategy-desc">emails, messages, everything in writing. when (not if) workplace drama happens, having receipts protects you. learned this one the hard way.</p>
+            <p class="strategy-desc">emails, messages, everything in writing. when (not if) workplace drama happens, having receipts protects you. learned this one the hard way multiple times before it stuck.</p>
+            <p class="strategy-example">after verbal conversations about important things, send a follow-up email: "just to confirm what we discussed..." save everything. if someone makes a verbal agreement, get it in writing. if someone accuses you of something, your documentation is your defense. this has saved my ass at least three times.</p>
+          </div>
+          
+          <div class="strategy-item">
+            <h4 class="strategy-name">CHOOSE YOUR BATTLES</h4>
+            <p class="strategy-desc">you cant win every fight and not every fight is worth winning. some conflicts arent worth the energy or the exposure. learn to let small shit go - not because youre being the "bigger person" but because engaging costs you more than ignoring it.</p>
+            <p class="strategy-example">someone cuts you off in traffic - not worth it. someone disrespects you in front of people who matter to your career - might be worth addressing carefully. random internet argument - never worth it. use your energy on conflicts that actually affect your life.</p>
           </div>
         </div>
       </section>
@@ -143,20 +421,26 @@
         <div class="resource-grid">
           <article class="resource-card">
             <h3 class="resource-title">Know Your Rights</h3>
-            <p class="resource-desc">seriously. learn what you legally have to say vs what you dont. "im not answering questions without a lawyer" is a complete sentence. most of my early legal problems got worse because i talked too much.</p>
+            <p class="resource-desc">seriously. learn what you legally have to say vs what you dont. "im not answering questions without a lawyer" is a complete sentence. most of my early legal problems got worse because i talked too much thinking i could talk my way out of it. you cant. shut up and lawyer up.</p>
             <span class="resource-tag">ESSENTIAL</span>
           </article>
           
           <article class="resource-card">
             <h3 class="resource-title">HR is Not Your Friend</h3>
-            <p class="resource-desc">HR exists to protect the company, not you. never volunteer information about mental health diagnoses at work unless legally required. it will be used against you eventually.</p>
+            <p class="resource-desc">HR exists to protect the company, not you. never volunteer information about mental health diagnoses at work unless legally required (like for specific accommodations). it will be used against you eventually. keep your personal life personal.</p>
             <span class="resource-tag">CAREER</span>
           </article>
           
           <article class="resource-card">
-            <h3 class="resource-title">Jobs That Work</h3>
-            <p class="resource-desc">high-autonomy, results-based work tends to suit us. sales, entrepreneurship, certain tech roles, trades. avoid heavy team collaboration and micromanagement if you can. plays to our strengths.</p>
+            <h3 class="resource-title">Jobs That Work For Us</h3>
+            <p class="resource-desc">high-autonomy, results-based work tends to suit us. sales, entrepreneurship, certain tech roles, trades, consulting. avoid heavy team collaboration and micromanagement if you can - plays to our weaknesses. look for jobs where you succeed by delivering results, not by being likeable.</p>
             <span class="resource-tag">CAREER</span>
+          </article>
+          
+          <article class="resource-card">
+            <h3 class="resource-title">Never Confess Voluntarily</h3>
+            <p class="resource-desc">whether its work, legal, or personal situations - dont confess to things you havent been directly caught doing. people will try to get you to admit things by implying they already know. they usually dont. make them prove it. this isnt about being dishonest - its about not self-incriminating.</p>
+            <span class="resource-tag">ESSENTIAL</span>
           </article>
         </div>
       </section>
@@ -170,20 +454,26 @@
         
         <div class="resource-grid">
           <article class="resource-card">
-            <h3 class="resource-title">Decide on Disclosure Early</h3>
-            <p class="resource-desc">theres no right answer. some people tell partners everything upfront. some never mention it. ive tried both. what doesnt work is letting them figure it out on their own — that always ends badly.</p>
+            <h3 class="resource-title">Disclosure: The Decision</h3>
+            <p class="resource-desc">theres no right answer on whether to tell partners. some people tell everything upfront. some never mention it. ive tried both. what definitely doesnt work: letting them figure it out on their own - that always ends badly. if youre going to tell, control the narrative. if youre not going to tell, be consistent.</p>
             <span class="resource-tag">ADVICE</span>
           </article>
           
           <article class="resource-card">
-            <h3 class="resource-title">Find the Right Type</h3>
-            <p class="resource-desc">some people need constant emotional validation. thats exhausting for us and unfair to them. look for people who prefer direct communication and dont need you to perform emotions you dont have.</p>
+            <h3 class="resource-title">Finding Compatible People</h3>
+            <p class="resource-desc">some people need constant emotional validation. thats exhausting for us and unfair to them. look for people who are independent, prefer direct communication, and dont need you to perform emotions you dont have. they exist. often theyre people who had to develop emotional self-sufficiency themselves.</p>
             <span class="resource-tag">ADVICE</span>
           </article>
           
           <article class="resource-card">
             <h3 class="resource-title">Actions Over Feelings</h3>
-            <p class="resource-desc">you might not feel love the way others describe it. thats fine. show up anyway. be reliable. do the things a good partner does even if the emotional motivation isnt there. most people care more about actions anyway.</p>
+            <p class="resource-desc">you might not feel love the way others describe it. thats fine. show up anyway. be reliable. do the things a good partner does even if the emotional motivation isnt there. most people care more about actions than feelings anyway - they just dont admit it. consistency matters more than passion.</p>
+            <span class="resource-tag">ADVICE</span>
+          </article>
+          
+          <article class="resource-card">
+            <h3 class="resource-title">Set Clear Boundaries Early</h3>
+            <p class="resource-desc">be upfront about what you need and what you wont tolerate. people who need lots of emotional processing, constant reassurance, or who create drama - filter them out early. its not mean, its practical. incompatible is incompatible. better to find out in month 1 than year 3.</p>
             <span class="resource-tag">ADVICE</span>
           </article>
         </div>
@@ -196,264 +486,85 @@
           WHAT DOESNT WORK
         </h2>
         
-        <div class="resource-grid skip-section">
+        <div class="resource-grid">
           <article class="resource-card">
             <h3 class="resource-title">"Learn Empathy" Exercises</h3>
-            <p class="resource-desc">you can learn to predict what others feel and respond appropriately. you probably cant actually feel it. stop trying to force something that isnt there and just get good at the practical skills.</p>
-            <span class="resource-tag skip-tag">SKIP</span>
+            <p class="resource-desc">you can learn to predict what others feel and respond appropriately - thats cognitive empathy and its a skill. you probably cant actually feel what they feel - thats affective empathy and its neurological. stop trying to force something that isnt there. get good at the practical skill instead.</p>
+            <span class="resource-tag skip-tag">SKIP THIS</span>
           </article>
           
           <article class="resource-card">
-            <h3 class="resource-title">Generic Therapy</h3>
-            <p class="resource-desc">most therapists have no idea how to work with ASPD and will just try standard approaches that assume you feel guilt and want to change. if you do therapy, find someone who specifically works with personality disorders.</p>
-            <span class="resource-tag skip-tag">SKIP</span>
+            <h3 class="resource-title">Generic Talk Therapy</h3>
+            <p class="resource-desc">most therapists have no idea how to work with ASPD and will just try standard approaches that assume you feel guilt and want to change. if you do therapy, find someone who specifically works with personality disorders and understands that the goal isnt to make you neurotypical - its to help you function better.</p>
+            <span class="resource-tag skip-tag">SKIP THIS</span>
           </article>
           
           <article class="resource-card">
-            <h3 class="resource-title">Medication (for ASPD)</h3>
-            <p class="resource-desc">theres no pill for ASPD. meds might help with co-occurring stuff like depression or impulsivity but nothing "treats" the core thing. dont let anyone tell you otherwise.</p>
-            <span class="resource-tag skip-tag">SKIP</span>
+            <h3 class="resource-title">Medication For ASPD</h3>
+            <p class="resource-desc">theres no pill for ASPD. meds might help with co-occurring stuff like depression, anxiety, or ADHD-related impulsivity, but nothing "treats" the core personality structure. dont let anyone tell you otherwise. if a psychiatrist suggests medication, ask what specifically its treating - not ASPD itself.</p>
+            <span class="resource-tag skip-tag">SKIP THIS</span>
+          </article>
+          
+          <article class="resource-card">
+            <h3 class="resource-title">Trying to "Feel" More</h3>
+            <p class="resource-desc">some people spend years trying to access emotions that just arent there, or arent there in the way others experience them. this is wasted energy. work with what you have. shallow emotions arent a bug to fix - theyre just how your brain works. optimize around it instead of fighting it.</p>
+            <span class="resource-tag skip-tag">SKIP THIS</span>
+          </article>
+        </div>
+      </section>
+
+      <!-- Section: Crisis Resources -->
+      <section class="resource-section">
+        <h2 class="section-header">
+          <span class="section-icon">[06]</span>
+          WHEN THINGS GO SIDEWAYS
+        </h2>
+        
+        <div class="resource-grid">
+          <article class="resource-card">
+            <h3 class="resource-title">Legal Trouble</h3>
+            <p class="resource-desc">if youre facing legal issues: shut up, get a lawyer, follow their advice exactly. public defenders are better than no lawyer. dont try to outsmart the system yourself - thats how you end up worse off. the legal system is a game with rules, and lawyers know the rules better than you do.</p>
+            <span class="resource-tag">PRACTICAL</span>
+          </article>
+          
+          <article class="resource-card">
+            <h3 class="resource-title">Job Loss</h3>
+            <p class="resource-desc">if you got fired, especially "for cause" - dont panic and dont retaliate. focus on the next thing. update your resume, hit your network (the one you built by not burning bridges), and spin the story appropriately in interviews. everyone has been fired. its recoverable.</p>
+            <span class="resource-tag">PRACTICAL</span>
+          </article>
+          
+          <article class="resource-card">
+            <h3 class="resource-title">Relationship Blowup</h3>
+            <p class="resource-desc">if a relationship ended badly - especially if your behavior contributed - do the cost-benefit: is this person worth trying to salvage? if not, move on completely. if yes, actual changed behavior (not promises) is the only thing that works. and sometimes its just done. accept it and redirect.</p>
+            <span class="resource-tag">PRACTICAL</span>
+          </article>
+          
+          <article class="resource-card">
+            <h3 class="resource-title">Feeling Reckless</h3>
+            <p class="resource-desc">if youre in a state where youre about to do something you know is stupid - recognize thats often boredom or frustration talking. the 24-hour rule applies here too. remove yourself from the situation, do something physical, wait it out. the urge will pass. the consequences wont.</p>
+            <span class="resource-tag">PRACTICAL</span>
           </article>
         </div>
       </section>
 
       <!-- CTA -->
       <section class="resource-cta">
-        <p>got a resource that helped you?</p>
-        <a href="forum.html" class="cta-button">POST IT IN THE FORUM</a>
+        <p>got a resource that helped you? share it with the community.</p>
+        <a href="forum.html" class="cta-button">POST IN THE FORUM</a>
       </section>
 
     </main>
 
     <!-- Footer -->
-    <footer class="forum-footer" role="contentinfo">
+    <footer class="resources-footer" role="contentinfo">
       <span>ASPD.FORUM</span>
+      <span>•</span>
       <span>RESOURCES</span>
-      <a href="privacy.html" style="color: inherit; text-decoration: none;">PRIVACY</a>
+      <span>•</span>
+      <a href="privacy.html">PRIVACY</a>
     </footer>
 
   </div>
-
-  <style>
-    /* Resources Page Specific Styles */
-    .resources-main {
-      padding: var(--spacing-lg);
-      max-width: 900px;
-      margin: 0 auto;
-    }
-    
-    .resource-intro {
-      margin-bottom: var(--spacing-xl);
-      padding: var(--spacing-lg);
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-    }
-    
-    .resource-intro p {
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      color: var(--text-secondary);
-      line-height: 1.8;
-      margin-bottom: var(--spacing-md);
-      letter-spacing: 0.02em;
-    }
-    
-    .resource-intro p:last-child {
-      margin-bottom: 0;
-    }
-    
-    .resource-warning {
-      display: flex;
-      gap: var(--spacing-md);
-      padding: var(--spacing-md);
-      background: #0c0808;
-      border: 1px solid #1a1212;
-      margin-bottom: var(--spacing-xl);
-    }
-    
-    .warning-label {
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      color: #5a4040;
-      flex-shrink: 0;
-    }
-    
-    .resource-warning p {
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      color: #5a4545;
-      line-height: 1.7;
-      margin: 0;
-    }
-    
-    .resource-section {
-      margin-bottom: var(--spacing-xl);
-    }
-    
-    .section-header {
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-sm);
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      font-weight: 400;
-      color: var(--text-muted);
-      letter-spacing: 0.15em;
-      margin-bottom: var(--spacing-lg);
-      padding-bottom: var(--spacing-sm);
-      border-bottom: 1px solid var(--border-color);
-    }
-    
-    .section-icon {
-      color: var(--text-muted);
-      opacity: 0.5;
-    }
-    
-    .resource-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: var(--spacing-md);
-    }
-    
-    .resource-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      padding: var(--spacing-md);
-      transition: border-color 0.15s ease;
-    }
-    
-    .resource-card:hover {
-      border-color: var(--border-hover);
-    }
-    
-    .resource-title {
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      font-weight: 400;
-      color: var(--text-primary);
-      margin: 0 0 var(--spacing-xs) 0;
-      letter-spacing: 0.03em;
-    }
-    
-    .resource-author {
-      font-family: var(--font-mono);
-      font-size: 0.55rem;
-      color: var(--text-muted);
-      display: block;
-      margin-bottom: var(--spacing-sm);
-    }
-    
-    .resource-desc {
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      color: var(--text-secondary);
-      line-height: 1.7;
-      margin: 0 0 var(--spacing-sm) 0;
-    }
-    
-    .resource-tag {
-      display: inline-block;
-      font-family: var(--font-mono);
-      font-size: 0.5rem;
-      color: var(--text-muted);
-      background: var(--bg-panel);
-      padding: 0.2rem 0.5rem;
-      letter-spacing: 0.1em;
-    }
-    
-    .skip-tag {
-      background: #1a1010;
-      color: #6a5050;
-    }
-    
-    .strategy-note {
-      background: #080c08;
-      border: 1px solid #121a12;
-      padding: var(--spacing-md);
-      margin-bottom: var(--spacing-lg);
-    }
-    
-    .strategy-note p {
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      color: #507050;
-      line-height: 1.7;
-      margin: 0;
-    }
-    
-    .strategy-list {
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-sm);
-    }
-    
-    .strategy-item {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      padding: var(--spacing-md);
-    }
-    
-    .strategy-name {
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      font-weight: 400;
-      color: var(--text-primary);
-      letter-spacing: 0.1em;
-      margin: 0 0 var(--spacing-sm) 0;
-    }
-    
-    .strategy-desc {
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      color: var(--text-secondary);
-      line-height: 1.7;
-      margin: 0;
-    }
-    
-    .resource-cta {
-      text-align: center;
-      padding: var(--spacing-xl);
-      border-top: 1px solid var(--border-color);
-      margin-top: var(--spacing-xl);
-    }
-    
-    .resource-cta p {
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      color: var(--text-muted);
-      margin: 0 0 var(--spacing-md) 0;
-      letter-spacing: 0.1em;
-    }
-    
-    .cta-button {
-      display: inline-block;
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      letter-spacing: 0.15em;
-      color: var(--text-secondary);
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      padding: var(--spacing-sm) var(--spacing-lg);
-      text-decoration: none;
-      transition: all 0.15s ease;
-    }
-    
-    .cta-button:hover {
-      background: var(--bg-panel);
-      border-color: var(--border-hover);
-      color: var(--text-primary);
-    }
-    
-    @media (max-width: 600px) {
-      .resources-main {
-        padding: var(--spacing-md);
-      }
-      
-      .resource-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
 
   <script src="js/utils.js"></script>
   <script>
