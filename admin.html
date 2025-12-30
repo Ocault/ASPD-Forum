@@ -548,108 +548,203 @@
           
           <!-- Quick Overview Card -->
           <div class="permission-card" style="margin-bottom: var(--spacing-md); background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-panel) 100%);">
-            <div class="permission-card-title">📊 QUICK OVERVIEW</div>
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--spacing-sm);">
-              <div class="stat-box" style="padding: var(--spacing-sm);">
-                <div class="stat-value" style="font-size: 1rem;" id="bot-total-posts">0</div>
-                <div class="stat-label" style="font-size: 0.375rem;">BOT POSTS</div>
-              </div>
-              <div class="stat-box" style="padding: var(--spacing-sm);">
-                <div class="stat-value" style="font-size: 1rem;" id="bot-active-count">12</div>
-                <div class="stat-label" style="font-size: 0.375rem;">PERSONAS</div>
-              </div>
-              <div class="stat-box" style="padding: var(--spacing-sm);">
-                <div class="stat-value" style="font-size: 1rem;" id="heatmap-total-bots">0</div>
-                <div class="stat-label" style="font-size: 0.375rem;">TOTAL BOTS</div>
-              </div>
-              <div class="stat-box" style="padding: var(--spacing-sm);">
-                <div class="stat-value" style="font-size: 1rem;" id="bot-status">IDLE</div>
-                <div class="stat-label" style="font-size: 0.375rem;">STATUS</div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- ========== SECTION 1: MANUAL BOT CONTROLS ========== -->
-          <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: var(--spacing-md); margin-bottom: var(--spacing-md);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--spacing-sm);">
-              <span style="font-size: 1.25rem;">🎮</span>
-              <div>
-                <div style="font-size: 0.625rem; font-weight: 600; color: var(--text-primary);">MANUAL BOT CONTROLS</div>
-                <div style="font-size: 0.375rem; color: var(--text-muted);">Trigger bot activity manually - good for testing or jumpstarting conversations</div>
-              </div>
+            <div class="permission-card-title">🤖 AI BOT CONTROL CENTER</div>
+            <div style="font-size: 0.375rem; color: var(--text-muted); margin-bottom: var(--spacing-md);">
+              One place to manage everything about the AI bot system
             </div>
             
-            <!-- SMART MODE: Simple one-click interface -->
-            <div style="background: linear-gradient(135deg, #2a3a2a 0%, #1a2a1a 100%); border: 2px solid #4a6a4a; border-radius: 6px; padding: var(--spacing-md); margin-bottom: var(--spacing-sm);">
-              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--spacing-sm);">
-                <span style="font-size: 1rem;">🎯</span>
-                <div>
-                  <div style="font-size: 0.5rem; font-weight: 600; color: #8aba8a;">SMART MODE</div>
-                  <div style="font-size: 0.3125rem; color: #6a8a6a;">Select a target and click GO - the system figures out what to do</div>
+            <!-- ===== STEP 1: AI SETUP (Collapsible - set once) ===== -->
+            <details id="ai-setup-section" style="margin-bottom: var(--spacing-md);">
+              <summary style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 1rem;">⚙️</span>
+                  <div>
+                    <div style="font-size: 0.5rem; font-weight: 600; color: var(--text-primary);">1. AI SETUP</div>
+                    <div style="font-size: 0.3125rem; color: var(--text-muted);">Configure Groq API (set once, then forget)</div>
+                  </div>
+                </div>
+                <span id="groq-status-badge" style="font-size: 0.4375rem; padding: 3px 8px; border-radius: 3px; background: #4a4a4a; color: #888; font-weight: 600;">CHECKING...</span>
+              </summary>
+              
+              <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 0 0 4px 4px; border-top: 1px solid var(--border-color);">
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm);">
+                  <div>
+                    <label style="font-size: 0.375rem; color: var(--text-muted); display: block; margin-bottom: 4px;">GROQ API KEY</label>
+                    <input type="password" class="admin-input" id="groq-api-key" placeholder="gsk_..." style="font-size: 0.4375rem; padding: 8px; width: 100%;">
+                    <div style="font-size: 0.3125rem; color: var(--text-muted); margin-top: 2px;">
+                      Free: <a href="https://console.groq.com" target="_blank" style="color: var(--accent-color);">console.groq.com</a> → 14,400 requests/day
+                    </div>
+                  </div>
+                  <div>
+                    <label style="font-size: 0.375rem; color: var(--text-muted); display: block; margin-bottom: 4px;">MODEL</label>
+                    <select class="admin-select" id="groq-model" style="font-size: 0.4375rem; padding: 8px; width: 100%;">
+                      <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Best)</option>
+                      <option value="llama-3.1-8b-instant">Llama 3.1 8B (Fast)</option>
+                      <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm);">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="groq-ai-only" style="width: 14px; height: 14px;">
+                    <span style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary);">AI-ONLY MODE</span>
+                  </label>
+                  <span id="groq-ai-mode-label" style="font-size: 0.375rem; padding: 2px 6px; border-radius: 3px; background: #4a4a4a; color: #888;">Off</span>
+                  <span style="font-size: 0.3125rem; color: var(--text-muted);">When on: 100% AI content, skips if AI fails</span>
+                </div>
+                
+                <div style="display: flex; gap: var(--spacing-xs);">
+                  <button class="admin-btn" id="groq-save" style="flex: 1; padding: 8px; font-size: 0.4375rem;">💾 SAVE</button>
+                  <button class="admin-btn admin-btn-secondary" id="groq-test" style="padding: 8px 12px; font-size: 0.4375rem;">🧪 TEST</button>
+                  <button class="admin-btn admin-btn-secondary" id="groq-disable" style="padding: 8px 12px; font-size: 0.4375rem;">✕ OFF</button>
+                </div>
+                <div id="groq-test-result" style="font-size: 0.375rem; color: var(--text-muted); margin-top: var(--spacing-xs); display: none; background: var(--bg-primary); padding: 6px; border-radius: 3px; max-height: 60px; overflow-y: auto;"></div>
+              </div>
+            </details>
+            
+            <!-- ===== STEP 2: QUICK ACTIONS ===== -->
+            <div style="background: linear-gradient(135deg, #2a3a2a 0%, #1a2a1a 100%); border: 2px solid #4a6a4a; border-radius: 6px; padding: var(--spacing-md); margin-bottom: var(--spacing-md);">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-sm);">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 1rem;">🎮</span>
+                  <div>
+                    <div style="font-size: 0.5rem; font-weight: 600; color: #8aba8a;">2. QUICK ACTIONS</div>
+                    <div style="font-size: 0.3125rem; color: #6a8a6a;">One-click bot activity</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 0.375rem; color: #6a8a6a;">Auto-post:</span>
+                  <span id="scheduler-status-badge" style="font-size: 0.375rem; padding: 2px 6px; border-radius: 3px; background: #3a3a3a; color: #888;">OFF</span>
                 </div>
               </div>
               
-              <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--spacing-sm); align-items: end;">
-                <div>
-                  <label style="font-size: 0.375rem; color: #6a8a6a; display: block; margin-bottom: 4px;">TARGET</label>
-                  <select class="admin-select" id="smart-target" style="width: 100%; font-size: 0.4375rem; padding: 8px; background: #1a2a1a; border-color: #4a6a4a;">
-                    <option value="random-reply">🎲 Random thread (reply)</option>
-                    <option value="random-thread">📝 Random room (new thread)</option>
-                  </select>
-                </div>
-                <div>
-                  <label style="font-size: 0.375rem; color: #6a8a6a; display: block; margin-bottom: 4px;">PERSONA</label>
-                  <select class="admin-select" id="smart-persona" style="width: 100%; font-size: 0.4375rem; padding: 8px; background: #1a2a1a; border-color: #4a6a4a;">
-                    <option value="random">🎲 Auto-select</option>
-                    <option value="analytical">🔬 Analyst</option>
-                    <option value="cynical">😏 Cynic</option>
-                    <option value="pragmatic">🎯 Pragmatist</option>
-                    <option value="observer">👁️ Observer</option>
-                    <option value="blunt">💢 Blunt</option>
-                    <option value="strategic">♟️ Strategist</option>
-                    <option value="nihilist">🌑 Nihilist</option>
-                    <option value="survivor">🛡️ Survivor</option>
-                    <option value="scientist">📚 Scientist</option>
-                    <option value="newcomer">🌱 Newcomer</option>
-                    <option value="veteran">🎖️ Veteran</option>
-                    <option value="dark_humor">🃏 Dark Humor</option>
-                  </select>
-                </div>
-                <button class="admin-btn" id="smart-go" style="padding: 8px 24px; font-size: 0.625rem; font-weight: 600; background: #3a5a3a; border-color: #5a8a5a;">
-                  ▶ GO
+              <!-- Main Action Buttons -->
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--spacing-xs); margin-bottom: var(--spacing-sm);">
+                <button class="admin-btn" id="quick-reply" style="padding: 12px 8px; font-size: 0.4375rem; background: #2a4a2a; border-color: #4a7a4a;">
+                  💬 REPLY
+                  <div style="font-size: 0.25rem; opacity: 0.7; margin-top: 2px;">Random thread</div>
+                </button>
+                <button class="admin-btn" id="quick-thread" style="padding: 12px 8px; font-size: 0.4375rem; background: #2a4a2a; border-color: #4a7a4a;">
+                  📝 NEW POST
+                  <div style="font-size: 0.25rem; opacity: 0.7; margin-top: 2px;">New thread</div>
+                </button>
+                <button class="admin-btn" id="simulate-new-user" style="padding: 12px 8px; font-size: 0.4375rem; background: #2a4a2a; border-color: #4a7a4a;">
+                  👤 NEW USER
+                  <div style="font-size: 0.25rem; opacity: 0.7; margin-top: 2px;">+ intro post</div>
+                </button>
+                <button class="admin-btn" id="quick-bulk" style="padding: 12px 8px; font-size: 0.4375rem; background: #3a4a3a; border-color: #5a8a5a;">
+                  ⚡ BULK x5
+                  <div style="font-size: 0.25rem; opacity: 0.7; margin-top: 2px;">5 actions</div>
                 </button>
               </div>
               
-              <div id="smart-action-preview" style="font-size: 0.375rem; color: #6a8a6a; margin-top: 8px; text-align: center;">
-                Will: Create a reply in a random active thread
+              <!-- Auto-post Toggle -->
+              <div style="display: flex; gap: var(--spacing-xs); align-items: center;">
+                <button class="admin-btn" id="scheduler-toggle" style="flex: 1; padding: 8px; font-size: 0.4375rem; background: #1a2a1a; border-color: #3a5a3a;">
+                  ▶ ENABLE AUTO-POST
+                </button>
+                <div style="background: #1a2a1a; padding: 6px 10px; border-radius: 4px; border: 1px solid #3a5a3a;">
+                  <span style="font-size: 0.3125rem; color: #6a8a6a;">Posts/day:</span>
+                  <input type="number" class="admin-input" id="scheduler-min-posts" value="5" min="1" max="50" style="width: 35px; font-size: 0.375rem; padding: 2px 4px; text-align: center; background: #0a1a0a; border-color: #3a5a3a;">
+                  <span style="font-size: 0.3125rem; color: #4a6a4a;">-</span>
+                  <input type="number" class="admin-input" id="scheduler-max-posts" value="15" min="1" max="100" style="width: 35px; font-size: 0.375rem; padding: 2px 4px; text-align: center; background: #0a1a0a; border-color: #3a5a3a;">
+                </div>
+              </div>
+              
+              <div style="display: none;" id="scheduler-next-run"></div>
+            </div>
+            
+            <!-- ===== STEP 3: BOT PROFILES ===== -->
+            <div style="background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 6px; padding: var(--spacing-sm); margin-bottom: var(--spacing-md);">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-sm);">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 1rem;">👥</span>
+                  <div>
+                    <div style="font-size: 0.5rem; font-weight: 600; color: var(--text-primary);">3. BOT PROFILES</div>
+                    <div style="font-size: 0.3125rem; color: var(--text-muted);">AI-generated identities • Click name to view profile</div>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 4px;">
+                  <button class="admin-btn" id="create-bot-account" style="font-size: 0.3125rem; padding: 4px 8px;">+ NEW</button>
+                  <button class="admin-btn admin-btn-secondary" id="refresh-bot-profiles" style="font-size: 0.3125rem; padding: 4px 6px;">↻</button>
+                </div>
+              </div>
+              
+              <div id="bot-profiles-list" style="max-height: 200px; overflow-y: auto;">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.375rem; padding: 15px;">Loading...</div>
               </div>
             </div>
             
-            <!-- Advanced: Manual Controls (collapsible) -->
-            <details style="margin-bottom: var(--spacing-sm);">
-              <summary style="font-size: 0.4375rem; color: var(--text-muted); cursor: pointer; padding: 8px 0;">
-                ⚙️ ADVANCED CONTROLS (click to expand)
+            <!-- ===== ACTIVITY LOG + STATS (Compact) ===== -->
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--spacing-sm);">
+              <!-- Log -->
+              <div style="background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: var(--spacing-sm);">
+                <div style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">📋 ACTIVITY LOG</div>
+                <div id="bot-activity-log" style="background: var(--bg-primary); height: 100px; overflow-y: auto; padding: 6px; font-family: var(--font-mono); font-size: 0.375rem; color: var(--text-muted); border-radius: 3px;">
+                  Ready.
+                </div>
+              </div>
+              
+              <!-- Quick Stats -->
+              <div style="background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: var(--spacing-sm);">
+                <div style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">📊 STATS</div>
+                <div style="display: grid; gap: 6px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.375rem;">
+                    <span style="color: var(--text-muted);">Today:</span>
+                    <span style="color: var(--text-primary); font-weight: 600;"><span id="scheduler-posts-today">0</span>/<span id="scheduler-target-today">0</span> posts</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.375rem;">
+                    <span style="color: var(--text-muted);">Total bots:</span>
+                    <span id="heatmap-total-bots" style="color: var(--text-primary); font-weight: 600;">0</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.375rem;">
+                    <span style="color: var(--text-muted);">Online now:</span>
+                    <span id="online-count" style="color: #6a9a6a; font-weight: 600;">0</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.375rem;">
+                    <span style="color: var(--text-muted);">Avg quality:</span>
+                    <span id="quality-avg-score" style="color: var(--text-primary); font-weight: 600;">0.50</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.375rem;">
+                    <span style="color: var(--text-muted);">New users:</span>
+                    <span style="color: var(--text-primary);"><span id="new-users-today">0</span>/<span id="max-new-users">3</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- ===== ADVANCED (Hidden by default) ===== -->
+            <details style="margin-top: var(--spacing-md);">
+              <summary style="font-size: 0.375rem; color: var(--text-muted); cursor: pointer;">
+                ⚙️ Advanced Options (heatmap, quality scores, manual targeting)
               </summary>
               
-              <div style="background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: var(--spacing-sm); margin-top: var(--spacing-xs);">
-                <!-- Target Selection -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm);">
-                  <div>
-                    <label style="font-size: 0.375rem; color: var(--text-muted); display: block; margin-bottom: 4px;">ROOM</label>
-                    <select class="admin-select" id="bot-target-room" style="width: 100%; font-size: 0.4375rem; padding: 6px;">
+              <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px; margin-top: var(--spacing-xs);">
+                <!-- Heatmap -->
+                <div style="margin-bottom: var(--spacing-sm);">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="font-size: 0.375rem; font-weight: 600; color: var(--text-primary);">24-HOUR ACTIVITY</span>
+                    <button class="admin-btn admin-btn-secondary" id="heatmap-refresh" style="font-size: 0.25rem; padding: 2px 4px;">↻</button>
+                  </div>
+                  <div id="activity-heatmap" style="display: flex; gap: 1px; margin-bottom: 2px;"></div>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.25rem; color: var(--text-muted);">
+                    <span>00:00</span><span>12:00</span><span>23:00</span>
+                  </div>
+                </div>
+                
+                <!-- Manual Target Selection -->
+                <div style="border-top: 1px solid var(--border-color); padding-top: var(--spacing-sm);">
+                  <div style="font-size: 0.375rem; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">MANUAL TARGETING</div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--spacing-xs); margin-bottom: var(--spacing-xs);">
+                    <select class="admin-select" id="bot-target-room" style="font-size: 0.375rem; padding: 4px;">
                       <option value="random">🎲 Random Room</option>
                     </select>
-                  </div>
-                  <div>
-                    <label style="font-size: 0.375rem; color: var(--text-muted); display: block; margin-bottom: 4px;">THREAD</label>
-                    <select class="admin-select" id="bot-target-thread" style="width: 100%; font-size: 0.4375rem; padding: 6px;">
+                    <select class="admin-select" id="bot-target-thread" style="font-size: 0.375rem; padding: 4px;">
                       <option value="random">🎲 Random Thread</option>
                     </select>
-                  </div>
-                  <div>
-                    <label style="font-size: 0.375rem; color: var(--text-muted); display: block; margin-bottom: 4px;">PERSONA</label>
-                    <select class="admin-select" id="bot-persona" style="width: 100%; font-size: 0.4375rem; padding: 6px;">
-                      <option value="random">🎲 Random</option>
+                    <select class="admin-select" id="bot-persona" style="font-size: 0.375rem; padding: 4px;">
+                      <option value="random">🎲 Random Persona</option>
                       <option value="analytical">🔬 Analyst</option>
                       <option value="cynical">😏 Cynic</option>
                       <option value="pragmatic">🎯 Pragmatist</option>
@@ -664,310 +759,35 @@
                       <option value="dark_humor">🃏 Dark Humor</option>
                     </select>
                   </div>
+                  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-xs);">
+                    <button class="admin-btn admin-btn-secondary" id="bot-generate-reply" style="font-size: 0.3125rem; padding: 4px;">💬 Reply</button>
+                    <button class="admin-btn admin-btn-secondary" id="bot-generate-thread" style="font-size: 0.3125rem; padding: 4px;">📝 Thread</button>
+                    <button class="admin-btn admin-btn-secondary" id="bot-simulate-day" style="font-size: 0.3125rem; padding: 4px;">📅 Sim Day</button>
+                  </div>
                 </div>
                 
-                <!-- Action Buttons -->
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--spacing-xs);">
-                  <button class="admin-btn" id="bot-generate-reply" style="padding: 8px; font-size: 0.375rem;">
-                    💬 REPLY
-                  </button>
-                  <button class="admin-btn" id="bot-generate-thread" style="padding: 8px; font-size: 0.375rem;">
-                    📝 NEW THREAD
-                  </button>
-                  <button class="admin-btn" id="bot-bulk-activity" style="padding: 8px; font-size: 0.375rem;">
-                    ⚡ BULK (5)
-                  </button>
-                  <button class="admin-btn" id="bot-simulate-day" style="padding: 8px; font-size: 0.375rem;">
-                    📅 SIMULATE DAY
-                  </button>
+                <!-- Quality Info -->
+                <div style="border-top: 1px solid var(--border-color); padding-top: var(--spacing-sm); margin-top: var(--spacing-sm);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <span style="font-size: 0.375rem; font-weight: 600; color: var(--text-primary);">QUALITY SCORES</span>
+                    <button class="admin-btn admin-btn-secondary" onclick="refreshQualityScores()" style="font-size: 0.25rem; padding: 2px 4px;">↻</button>
+                  </div>
+                  <div style="font-size: 0.3125rem; color: var(--text-muted);">Top: <span id="quality-top-persona">-</span> • Replies: <span id="quality-total-replies">0</span></div>
+                  <div id="quality-top-list" style="font-size: 0.3125rem; margin-top: 2px;"></div>
+                </div>
+                
+                <!-- Seasonal -->
+                <div style="border-top: 1px solid var(--border-color); padding-top: var(--spacing-sm); margin-top: var(--spacing-sm); font-size: 0.3125rem;">
+                  <span style="color: var(--text-muted);">Season:</span> <span id="seasonal-season">-</span>
+                  <span style="color: var(--text-muted); margin-left: 8px;">Holiday:</span> <span id="seasonal-holiday">-</span>
+                  <span id="seasonal-badge" style="display: none;"></span>
+                  <span id="seasonal-events" style="display: none;"></span>
+                  <span id="heatmap-current-hour" style="display: none;"></span>
+                  <span id="heatmap-posts-today" style="display: none;"></span>
+                  <span id="heatmap-peak-hour" style="display: none;"></span>
                 </div>
               </div>
             </details>
-          </div>
-          
-          <!-- ========== SECTION 2: AUTOMATION ========== -->
-          <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: var(--spacing-md); margin-bottom: var(--spacing-md);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-sm);">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 1.25rem;">⏰</span>
-                <div>
-                  <div style="font-size: 0.625rem; font-weight: 600; color: var(--text-primary);">SCHEDULED AUTOMATION</div>
-                  <div style="font-size: 0.375rem; color: var(--text-muted);">Bots automatically post throughout the day at natural intervals</div>
-                </div>
-              </div>
-              <span id="scheduler-status-badge" style="font-size: 0.5rem; padding: 4px 10px; border-radius: 4px; background: #4a4a4a; color: #888; font-weight: 600;">OFF</span>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: var(--spacing-md); margin-bottom: var(--spacing-sm);">
-              <!-- Posts per day setting -->
-              <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px;">
-                <label style="font-size: 0.4375rem; color: var(--text-muted); display: block; margin-bottom: 4px;">POSTS PER DAY</label>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <input type="number" class="admin-input" id="scheduler-min-posts" value="5" min="1" max="50" style="width: 60px; font-size: 0.5rem; padding: 6px; text-align: center;">
-                  <span style="font-size: 0.4375rem; color: var(--text-muted);">to</span>
-                  <input type="number" class="admin-input" id="scheduler-max-posts" value="15" min="1" max="100" style="width: 60px; font-size: 0.5rem; padding: 6px; text-align: center;">
-                </div>
-              </div>
-              
-              <!-- Today's progress -->
-              <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px; text-align: center;">
-                <div style="font-size: 0.375rem; color: var(--text-muted); margin-bottom: 4px;">TODAY'S PROGRESS</div>
-                <div style="font-size: 1rem; font-weight: 600; color: var(--text-primary);">
-                  <span id="scheduler-posts-today">0</span><span style="color: var(--text-muted);">/</span><span id="scheduler-target-today">0</span>
-                </div>
-              </div>
-              
-              <!-- Next run -->
-              <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px; text-align: center;">
-                <div style="font-size: 0.375rem; color: var(--text-muted); margin-bottom: 4px;">NEXT POST</div>
-                <div id="scheduler-next-time" style="font-size: 0.5rem; font-weight: 600; color: #6a9a6a;">-</div>
-              </div>
-            </div>
-            
-            <!-- Controls -->
-            <div style="display: flex; gap: var(--spacing-xs);">
-              <button class="admin-btn" id="scheduler-toggle" style="flex: 1; padding: 10px; font-size: 0.5rem; font-weight: 600;">
-                ▶ ENABLE AUTO-POST
-              </button>
-              <button class="admin-btn" id="scheduler-run-now" style="padding: 10px 16px; font-size: 0.5rem;" title="Force a post now">
-                ⚡ RUN NOW
-              </button>
-              <button class="admin-btn admin-btn-secondary" id="scheduler-reset" style="padding: 10px 16px; font-size: 0.5rem;" title="Reset today's counter">
-                ↻ RESET
-              </button>
-            </div>
-            
-            <div id="scheduler-next-run" style="display: none;"></div>
-          </div>
-          
-          <!-- ========== SECTION 3: AI ENGINE ========== -->
-          <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: var(--spacing-md); margin-bottom: var(--spacing-md);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-sm);">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 1.25rem;">🧠</span>
-                <div>
-                  <div style="font-size: 0.625rem; font-weight: 600; color: var(--text-primary);">GROQ AI ENGINE</div>
-                  <div style="font-size: 0.375rem; color: var(--text-muted);">AI generates realistic human-like posts instead of templates</div>
-                </div>
-              </div>
-              <span id="groq-status-badge" style="font-size: 0.5rem; padding: 4px 10px; border-radius: 4px; background: #4a4a4a; color: #888; font-weight: 600;">CHECKING...</span>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--spacing-md); margin-bottom: var(--spacing-sm);">
-              <!-- API Key -->
-              <div>
-                <label style="font-size: 0.4375rem; color: var(--text-muted); display: block; margin-bottom: 4px;">API KEY</label>
-                <input type="password" class="admin-input" id="groq-api-key" placeholder="gsk_..." style="font-size: 0.4375rem; padding: 8px; width: 100%;">
-                <div style="font-size: 0.3125rem; color: var(--text-muted); margin-top: 4px;">
-                  Get free key: <a href="https://console.groq.com" target="_blank" style="color: var(--accent-color);">console.groq.com</a> (14,400 requests/day free)
-                </div>
-              </div>
-              
-              <!-- Model -->
-              <div>
-                <label style="font-size: 0.4375rem; color: var(--text-muted); display: block; margin-bottom: 4px;">MODEL</label>
-                <select class="admin-select" id="groq-model" style="font-size: 0.4375rem; padding: 8px; width: 100%;">
-                  <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Best)</option>
-                  <option value="llama-3.1-70b-versatile">Llama 3.1 70B</option>
-                  <option value="llama-3.1-8b-instant">Llama 3.1 8B (Fast)</option>
-                  <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-                  <option value="gemma2-9b-it">Gemma 2 9B</option>
-                </select>
-              </div>
-            </div>
-            
-            <!-- AI Mode Toggle -->
-            <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px; margin-bottom: var(--spacing-sm); display: flex; align-items: center; justify-content: space-between;">
-              <div>
-                <label style="font-size: 0.4375rem; color: var(--text-primary); display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                  <input type="checkbox" id="groq-ai-only" style="width: 16px; height: 16px; margin: 0;">
-                  <span style="font-weight: 600;">AI-ONLY MODE</span>
-                </label>
-                <div style="font-size: 0.3125rem; color: var(--text-muted); margin-top: 2px; margin-left: 24px;">
-                  When ON: 100% AI content, bots skip posting if AI fails<br>
-                  When OFF: Uses AI when available, falls back to templates
-                </div>
-              </div>
-              <span id="groq-ai-mode-label" style="font-size: 0.4375rem; padding: 4px 8px; border-radius: 3px; background: #4a4a4a; color: #888;">Templates</span>
-            </div>
-            
-            <!-- Buttons -->
-            <div style="display: flex; gap: var(--spacing-xs);">
-              <button class="admin-btn" id="groq-save" style="flex: 1; padding: 10px; font-size: 0.5rem; font-weight: 600;">
-                💾 SAVE & ENABLE
-              </button>
-              <button class="admin-btn" id="groq-test" style="padding: 10px 16px; font-size: 0.5rem;">
-                🧪 TEST
-              </button>
-              <button class="admin-btn admin-btn-secondary" id="groq-disable" style="padding: 10px 16px; font-size: 0.5rem;">
-                ✕ DISABLE
-              </button>
-            </div>
-            
-            <!-- Test Result -->
-            <div id="groq-test-result" style="font-size: 0.4375rem; color: var(--text-muted); margin-top: var(--spacing-sm); display: none; background: var(--bg-primary); padding: 8px; border-radius: 4px; max-height: 100px; overflow-y: auto; border: 1px solid var(--border-color);"></div>
-          </div>
-          
-          <!-- ========== SECTION 4: ANALYTICS ========== -->
-          <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: var(--spacing-md); margin-bottom: var(--spacing-md);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--spacing-sm);">
-              <span style="font-size: 1.25rem;">📈</span>
-              <div>
-                <div style="font-size: 0.625rem; font-weight: 600; color: var(--text-primary);">BOT ANALYTICS</div>
-                <div style="font-size: 0.375rem; color: var(--text-muted);">Monitor bot activity patterns and performance</div>
-              </div>
-            </div>
-            
-            <!-- Activity Heatmap -->
-            <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px; margin-bottom: var(--spacing-sm);">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-xs);">
-                <span style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary);">24-HOUR ACTIVITY HEATMAP</span>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 0.375rem; color: #6a9a6a;">
-                    <span style="display: inline-block; width: 6px; height: 6px; background: #4a9a4a; border-radius: 50%; margin-right: 3px; animation: pulse 2s infinite;"></span>
-                    <span id="online-count">0</span> bots online
-                  </span>
-                  <button class="admin-btn admin-btn-secondary" id="heatmap-refresh" style="font-size: 0.3125rem; padding: 3px 6px;">↻</button>
-                </div>
-              </div>
-              
-              <div id="activity-heatmap" style="display: flex; gap: 2px; margin-bottom: var(--spacing-xs);"></div>
-              
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span style="font-size: 0.3125rem; color: var(--text-muted);">00:00 UTC</span>
-                <span style="font-size: 0.3125rem; color: var(--text-muted);">12:00 UTC</span>
-                <span style="font-size: 0.3125rem; color: var(--text-muted);">23:00 UTC</span>
-              </div>
-              
-              <div style="display: flex; align-items: center; justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 4px;">
-                  <span style="font-size: 0.3125rem; color: var(--text-muted);">LOW</span>
-                  <div style="display: flex; gap: 1px;">
-                    <div style="width: 12px; height: 8px; background: rgba(74, 154, 74, 0.1); border-radius: 1px;"></div>
-                    <div style="width: 12px; height: 8px; background: rgba(74, 154, 74, 0.3); border-radius: 1px;"></div>
-                    <div style="width: 12px; height: 8px; background: rgba(74, 154, 74, 0.5); border-radius: 1px;"></div>
-                    <div style="width: 12px; height: 8px; background: rgba(74, 154, 74, 0.7); border-radius: 1px;"></div>
-                    <div style="width: 12px; height: 8px; background: rgba(74, 154, 74, 1.0); border-radius: 1px;"></div>
-                  </div>
-                  <span style="font-size: 0.3125rem; color: var(--text-muted);">HIGH</span>
-                </div>
-                <div id="heatmap-current-hour" style="font-size: 0.3125rem; color: #4a9a4a; font-weight: 600;">Now: --:00 UTC</div>
-              </div>
-            </div>
-            
-            <!-- Stats Grid -->
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-sm);">
-              <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px; text-align: center;">
-                <div style="font-size: 0.875rem; font-weight: 600; color: #6a9a6a;" id="heatmap-posts-today">0</div>
-                <div style="font-size: 0.3125rem; color: var(--text-muted);">POSTS TODAY</div>
-              </div>
-              <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px; text-align: center;">
-                <div style="font-size: 0.875rem; font-weight: 600; color: #9a8a4a;" id="heatmap-peak-hour">--</div>
-                <div style="font-size: 0.3125rem; color: var(--text-muted);">PEAK HOUR</div>
-              </div>
-              <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px; text-align: center;">
-                <div style="font-size: 0.875rem; font-weight: 600; color: #7a9a7a;" id="quality-avg-score">0.50</div>
-                <div style="font-size: 0.3125rem; color: var(--text-muted);">AVG QUALITY</div>
-              </div>
-            </div>
-            
-            <!-- Quality Scoring Details -->
-            <div style="margin-top: var(--spacing-sm); padding-top: var(--spacing-sm); border-top: 1px solid var(--border-color);">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-xs);">
-                <span style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary);">QUALITY SCORING</span>
-                <button class="admin-btn admin-btn-secondary" onclick="refreshQualityScores()" style="font-size: 0.3125rem; padding: 3px 6px;">⟳ REFRESH</button>
-              </div>
-              <div style="font-size: 0.3125rem; color: var(--text-muted); margin-bottom: var(--spacing-xs);">
-                Bots that get more upvotes and real user replies are used more often
-              </div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm);">
-                <div>
-                  <div style="font-size: 0.375rem; color: var(--text-muted);">Top Persona:</div>
-                  <div id="quality-top-persona" style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary);">-</div>
-                </div>
-                <div>
-                  <div style="font-size: 0.375rem; color: var(--text-muted);">Real User Replies:</div>
-                  <div id="quality-total-replies" style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary);">0</div>
-                </div>
-              </div>
-              <div id="quality-top-bots" style="margin-top: var(--spacing-xs);">
-                <div style="font-size: 0.375rem; color: var(--text-muted); margin-bottom: 4px;">Top Performers:</div>
-                <div id="quality-top-list" style="font-size: 0.375rem;"></div>
-              </div>
-            </div>
-            
-            <!-- Seasonal Info -->
-            <div style="margin-top: var(--spacing-sm); padding-top: var(--spacing-sm); border-top: 1px solid var(--border-color);">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-xs);">
-                <span style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary);">🗓️ SEASONAL CONTEXT</span>
-                <span id="seasonal-badge" style="font-size: 0.375rem; padding: 2px 6px; border-radius: 3px; background: #4a5a4a; color: #8a9a8a;">...</span>
-              </div>
-              <div style="font-size: 0.3125rem; color: var(--text-muted); margin-bottom: 4px;">Bots naturally reference current season/holidays</div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--spacing-xs); font-size: 0.375rem;">
-                <div><span style="color: var(--text-muted);">Season:</span> <span id="seasonal-season">-</span></div>
-                <div><span style="color: var(--text-muted);">Holiday:</span> <span id="seasonal-holiday">None</span></div>
-                <div><span style="color: var(--text-muted);">Events:</span> <span id="seasonal-events">-</span></div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- ========== SECTION 5: BOT PROFILES ========== -->
-          <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: var(--spacing-md); margin-bottom: var(--spacing-md);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-sm);">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 1.25rem;">👥</span>
-                <div>
-                  <div style="font-size: 0.625rem; font-weight: 600; color: var(--text-primary);">BOT PROFILES</div>
-                  <div style="font-size: 0.375rem; color: var(--text-muted);">Persistent bot identities that grow over time</div>
-                </div>
-              </div>
-              <button class="admin-btn admin-btn-secondary" id="refresh-bot-profiles" style="font-size: 0.375rem; padding: 4px 8px;">↻ REFRESH</button>
-            </div>
-            
-            <!-- Create Bot Options -->
-            <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px; margin-bottom: var(--spacing-sm);">
-              <div style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary); margin-bottom: var(--spacing-xs);">CREATE NEW BOT</div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm);">
-                <div style="background: var(--bg-tertiary); padding: var(--spacing-sm); border-radius: 4px; border: 1px solid var(--border-color);">
-                  <button class="admin-btn" id="simulate-new-user" style="width: 100%; padding: 8px; font-size: 0.4375rem; margin-bottom: 4px;">
-                    👤 NEW MEMBER (+ intro post)
-                  </button>
-                  <div style="font-size: 0.3125rem; color: var(--text-muted);">Creates bot + posts an introduction</div>
-                  <div style="font-size: 0.3125rem; color: var(--text-muted); margin-top: 2px;"><span id="new-users-today">0</span>/<span id="max-new-users">3</span> today</div>
-                </div>
-                <div style="background: var(--bg-tertiary); padding: var(--spacing-sm); border-radius: 4px; border: 1px solid var(--border-color);">
-                  <button class="admin-btn admin-btn-secondary" id="create-bot-account" style="width: 100%; padding: 8px; font-size: 0.4375rem; margin-bottom: 4px;">
-                    🤖 SILENT BOT (profile only)
-                  </button>
-                  <div style="font-size: 0.3125rem; color: var(--text-muted);">Creates bot profile without posting</div>
-                  <div style="font-size: 0.3125rem; color: var(--text-muted); margin-top: 2px;">For future automated use</div>
-                </div>
-              </div>
-            </div>
-            
-            <div id="bot-profiles-list" style="max-height: 300px; overflow-y: auto;">
-              <div style="text-align: center; color: var(--text-muted); font-size: 0.4375rem; padding: 20px;">
-                Loading bot profiles...
-              </div>
-            </div>
-            
-            <div style="margin-top: var(--spacing-sm); padding-top: var(--spacing-sm); border-top: 1px solid var(--border-color); font-size: 0.3125rem; color: var(--text-muted);">
-              💡 AI generates unique usernames and bios when Groq is enabled. Each bot has a unique avatar.
-            </div>
-          </div>
-          
-          <!-- ========== SECTION 6: ACTIVITY LOG ========== -->
-          <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: var(--spacing-md); margin-bottom: var(--spacing-md);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--spacing-sm);">
-              <span style="font-size: 1.25rem;">📋</span>
-              <div>
-                <div style="font-size: 0.625rem; font-weight: 600; color: var(--text-primary);">ACTIVITY LOG</div>
-                <div style="font-size: 0.375rem; color: var(--text-muted);">Real-time log of bot actions and system events</div>
-              </div>
-            </div>
-            <div id="bot-activity-log" style="background: var(--bg-primary); border: 1px solid var(--border-color); height: 150px; overflow-y: auto; padding: var(--spacing-sm); font-family: var(--font-mono); font-size: 0.4375rem; color: var(--text-muted); border-radius: 4px;">
-              <div>System ready. Use the controls above to generate bot activity.</div>
-            </div>
           </div>
           
           <!-- ========== SECTION 7: OTHER OWNER TOOLS ========== -->
@@ -2434,7 +2254,77 @@
         setTimeout(loadSmartTargets, 500);
       }
 
-      // Generate single reply
+      // ============================================
+      // QUICK ACTION BUTTONS (simplified one-click)
+      // ============================================
+      
+      // Quick Reply - one click, random thread
+      document.getElementById('quick-reply')?.addEventListener('click', function() {
+        if (!isOwner) return;
+        logBot('💬 Quick reply...', 'info');
+        
+        AuthState.apiRequest('/api/admin/bot/reply', {
+          method: 'POST',
+          body: JSON.stringify({ threadId: null, persona: null })
+        }).then(function(data) {
+          if (data.success) {
+            var aiNote = data.usedAI ? ' 🤖' : '';
+            logBot('✓ ' + data.botAlias + aiNote + ' replied in thread #' + data.threadId, 'success');
+          } else {
+            logBot('✗ ' + (data.error || 'Failed'), 'error');
+          }
+        }).catch(function(err) {
+          logBot('✗ ' + err.message, 'error');
+        });
+      });
+      
+      // Quick Thread - one click, random room
+      document.getElementById('quick-thread')?.addEventListener('click', function() {
+        if (!isOwner) return;
+        logBot('📝 Quick thread...', 'info');
+        
+        AuthState.apiRequest('/api/admin/bot/thread', {
+          method: 'POST',
+          body: JSON.stringify({ roomId: null, persona: null })
+        }).then(function(data) {
+          if (data.success) {
+            var aiNote = data.usedAI ? ' 🤖' : '';
+            logBot('✓ ' + data.botAlias + aiNote + ' created: "' + data.title + '"', 'success');
+            loadBotTargets();
+          } else {
+            logBot('✗ ' + (data.error || 'Failed'), 'error');
+          }
+        }).catch(function(err) {
+          logBot('✗ ' + err.message, 'error');
+        });
+      });
+      
+      // Quick Bulk - 5 random actions
+      document.getElementById('quick-bulk')?.addEventListener('click', function() {
+        if (!isOwner) return;
+        logBot('⚡ Bulk activity (5 actions)...', 'info');
+        
+        AuthState.apiRequest('/api/admin/bot/bulk', {
+          method: 'POST',
+          body: JSON.stringify({ count: 5 })
+        }).then(function(data) {
+          if (data.success) {
+            logBot('✓ Completed ' + data.results.length + ' actions', 'success');
+            data.results.forEach(function(r) {
+              if (r.success) {
+                var aiNote = r.usedAI ? ' 🤖' : '';
+                logBot('  → ' + r.alias + aiNote + ': ' + r.action, 'success');
+              }
+            });
+          } else {
+            logBot('✗ ' + (data.error || 'Failed'), 'error');
+          }
+        }).catch(function(err) {
+          logBot('✗ ' + err.message, 'error');
+        });
+      });
+
+      // Generate single reply (advanced)
       document.getElementById('bot-generate-reply')?.addEventListener('click', function() {
         if (!isOwner) return;
         updateBotStatus('WORKING');
