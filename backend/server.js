@@ -9511,6 +9511,14 @@ function startBotScheduler() {
     if (!BOT_SCHEDULER.enabled) return;
     
     const now = new Date();
+    
+    // Simulate lurking activity every interval (bots browsing without posting)
+    try {
+      await simulateBotLurking();
+    } catch (err) {
+      console.error('[BOT LURK]', err.message);
+    }
+    
     if (BOT_SCHEDULER.nextScheduledRun && now >= BOT_SCHEDULER.nextScheduledRun) {
       await runScheduledBotActivity();
     }
@@ -9790,6 +9798,45 @@ The title should be lowercase, casual, sound like a real person.
 Examples: "anyone else struggle with this at work", "therapy update (not great)", "is this just me or"
 Write ONLY the title, nothing else.`;
       maxTokens = 30;
+      break;
+      
+    case 'username':
+      // Generate a realistic username
+      userPrompt = `Generate a single realistic username for an anonymous forum user.
+Style options (pick one randomly):
+- name + birth year: like "mike_92", "alex.87", "sam99"
+- throwaway style: like "throwaway4829", "altacct331", "lurker2847"
+- self-deprecating: like "definitelyfine", "barelyhere", "mehwhatever"
+- word combos: like "burnttoas42", "coldrain", "tireddust"
+- gaming/internet: like "respawn_pls", "error_404", "ctrl_z_life"
+- ironic: like "totally_stable", "mr_positivity", "living_best_life"
+
+Rules:
+- Write ONLY the username, nothing else
+- Lowercase only
+- Use underscores or dots or numbers, not all three
+- 6-20 characters
+- Must look like a real person made it`;
+      maxTokens = 20;
+      break;
+      
+    case 'bio':
+      // Generate a short user bio
+      userPrompt = `Generate a very short bio for an anonymous forum user profile (ASPD forum).
+
+Style: casual, lowercase, minimal punctuation
+Length: 1-2 short sentences max (under 100 characters ideal)
+
+Examples:
+- "dx 2019. lurking mostly."
+- "here to compare notes"
+- "been around a while"
+- "software dev. probably overthinking this"
+- "therapy survivor. still figuring things out"
+- "just observing"
+
+Write ONLY the bio text, nothing else.`;
+      maxTokens = 40;
       break;
       
     default:
@@ -10088,28 +10135,12 @@ async function simulateNewUserJoin() {
       }
     }
     
-    // Generate unique alias
-    let alias = generateNewUserAlias();
-    let attempts = 0;
-    while (attempts < 10) {
-      const exists = await db.query('SELECT id FROM users WHERE alias = $1', [alias]);
-      if (exists.rows.length === 0) {
-        const botExists = await db.query('SELECT id FROM bot_accounts WHERE alias = $1', [alias]);
-        if (botExists.rows.length === 0) break;
-      }
-      alias = generateNewUserAlias();
-      attempts++;
-    }
+    // Generate unique alias for this PERSISTENT bot account
+    // Uses AI when available for more realistic usernames
+    const alias = await generatePersistentBotAlias();
     
-    // Generate avatar
-    const avatar = {
-      head: Math.floor(Math.random() * 6),
-      eyes: Math.floor(Math.random() * 6),
-      overlays: {
-        static: Math.random() > 0.7,
-        crack: Math.random() > 0.85
-      }
-    };
+    // Generate UNIQUE avatar for this bot - no duplicates
+    const avatar = await generateUniqueBotAvatar();
     
     // Find intro room (General Discussion, Introductions, or first room)
     const roomResult = await db.query(`
@@ -10312,13 +10343,118 @@ async function getBotAccountFromThread(threadId) {
   return result.rows[0] || null;
 }
 
-// Update bot account activity
+// Update bot account activity (posting)
 async function updateBotAccountActivity(botAccountId) {
   await db.query(`
     UPDATE bot_accounts 
     SET last_active = NOW(), post_count = post_count + 1
     WHERE id = $1
   `, [botAccountId]);
+}
+
+// Update bot "lurking" activity (viewing without posting)
+// Makes bot profiles look more realistic with last_seen times
+async function updateBotLurkActivity(botAccountId) {
+  await db.query(`
+    UPDATE bot_accounts 
+    SET last_active = NOW()
+    WHERE id = $1
+  `, [botAccountId]);
+}
+
+// Create a new persistent bot account with AI-generated username and unique avatar
+async function createPersistentBotAccount(persona = null) {
+  try {
+    // Pick a random persona if not specified
+    const selectedPersona = persona || Object.keys(BOT_PERSONAS)[Math.floor(Math.random() * Object.keys(BOT_PERSONAS).length)];
+    const p = BOT_PERSONAS[selectedPersona];
+    
+    // Generate AI username for this persistent identity
+    const alias = await generatePersistentBotAlias();
+    
+    // Generate unique avatar
+    const avatar = await generateUniqueBotAvatar();
+    
+    // Generate bio using AI if available
+    let bio = '';
+    if (GROQ_CONFIG.enabled && GROQ_CONFIG.apiKey) {
+      const aiBio = await generateAIContent({
+        persona: selectedPersona,
+        type: 'bio',
+        temperature: 0.9
+      });
+      if (aiBio) {
+        bio = aiBio.substring(0, 200);
+      }
+    }
+    
+    // If no AI bio, use persona-based default
+    if (!bio) {
+      const bioParts = [
+        p.traits[0] || 'here to observe',
+        Math.random() > 0.5 ? 'dx ' + (2010 + Math.floor(Math.random() * 14)) : '',
+        Math.random() > 0.7 ? 'lurker mostly' : ''
+      ].filter(Boolean);
+      bio = bioParts.join('. ');
+    }
+    
+    // Random activity preferences
+    const activityLevels = ['lurker', 'lurker', 'normal', 'normal', 'normal', 'active', 'very_active'];
+    const activityLevel = activityLevels[Math.floor(Math.random() * activityLevels.length)];
+    
+    // Random peak hours (tends towards evening/night)
+    const baseHour = 16 + Math.floor(Math.random() * 6); // 16-21
+    const peakHours = [];
+    for (let h = baseHour; h < baseHour + 4 + Math.floor(Math.random() * 4); h++) {
+      peakHours.push(h % 24);
+    }
+    
+    // Create the bot account
+    const result = await db.query(`
+      INSERT INTO bot_accounts (persona, alias, avatar_config, bio, activity_level, peak_hours)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [selectedPersona, alias, avatar, bio, activityLevel, JSON.stringify(peakHours)]);
+    
+    console.log(`[BOT] Created persistent bot: ${alias} (${selectedPersona}) - ${activityLevel}`);
+    
+    return result.rows[0];
+  } catch (err) {
+    console.error('[BOT] Error creating persistent account:', err.message);
+    return null;
+  }
+}
+
+// Simulate bot lurking activity (updates last_active without posting)
+async function simulateBotLurking() {
+  try {
+    const currentHour = new Date().getUTCHours();
+    
+    // Get bots that should be "online" based on their peak hours
+    const result = await db.query(`
+      SELECT id, alias, activity_level FROM bot_accounts
+      WHERE peak_hours::jsonb ? $1::text
+      ORDER BY RANDOM()
+      LIMIT 5
+    `, [currentHour.toString()]);
+    
+    let lurkedCount = 0;
+    for (const bot of result.rows) {
+      // Lurker bots lurk more often (80%), active bots less (40%)
+      const lurkChance = bot.activity_level === 'lurker' ? 0.8 : 
+                         bot.activity_level === 'normal' ? 0.6 : 0.4;
+      
+      if (Math.random() < lurkChance) {
+        await updateBotLurkActivity(bot.id);
+        lurkedCount++;
+      }
+    }
+    
+    return { lurkedCount };
+  } catch (err) {
+    console.error('[BOT LURK ERROR]', err.message);
+    return { lurkedCount: 0 };
+  }
 }
 
 // =====================================================
@@ -11236,7 +11372,58 @@ async function botEngageWithPosts(botAccountId, threadId = null) {
   }
 }
 
-// Generate random avatar config for bots
+// Generate UNIQUE avatar config for bots - ensures no duplicates
+async function generateUniqueBotAvatar() {
+  // Get all existing avatar configs to ensure uniqueness
+  const existingAvatars = await db.query(`
+    SELECT avatar_config FROM bot_accounts
+    UNION
+    SELECT avatar_config::text FROM users WHERE is_bot = TRUE
+  `);
+  
+  const existingSet = new Set(existingAvatars.rows.map(r => 
+    typeof r.avatar_config === 'string' ? r.avatar_config : JSON.stringify(r.avatar_config)
+  ));
+  
+  // Avatar component ranges
+  const headCount = 8;
+  const eyesCount = 6;
+  const mouthCount = 4;
+  const accessoryCount = 5;
+  
+  // Try to generate a unique avatar
+  for (let attempts = 0; attempts < 100; attempts++) {
+    const avatar = {
+      head: Math.floor(Math.random() * headCount),
+      eyes: Math.floor(Math.random() * eyesCount),
+      mouth: Math.floor(Math.random() * mouthCount),
+      accessory: Math.random() > 0.6 ? Math.floor(Math.random() * accessoryCount) : null,
+      overlays: {
+        static: Math.random() > 0.75,
+        crack: Math.random() > 0.85,
+        glitch: Math.random() > 0.9
+      },
+      // Add color variations for more uniqueness
+      tint: Math.floor(Math.random() * 12)
+    };
+    
+    const avatarStr = JSON.stringify(avatar);
+    if (!existingSet.has(avatarStr)) {
+      return avatarStr;
+    }
+  }
+  
+  // Fallback: return a random one anyway (very unlikely to reach here)
+  return JSON.stringify({
+    head: Math.floor(Math.random() * headCount),
+    eyes: Math.floor(Math.random() * eyesCount),
+    mouth: Math.floor(Math.random() * mouthCount),
+    overlays: { static: false, crack: false },
+    tint: Math.floor(Math.random() * 12)
+  });
+}
+
+// Simple avatar generator (for non-persistent uses)
 function generateBotAvatar() {
   return JSON.stringify({
     head: Math.floor(Math.random() * 8),
@@ -11248,7 +11435,85 @@ function generateBotAvatar() {
   });
 }
 
-// Generate bot alias - realistic usernames that look human-created
+// Generate AI username - uses Groq to create realistic usernames
+// ONLY used when creating persistent bot accounts
+async function generateAIUsername() {
+  if (!GROQ_CONFIG.enabled || !GROQ_CONFIG.apiKey) {
+    return null;
+  }
+  
+  try {
+    const username = await generateAIContent({
+      type: 'username',
+      temperature: 0.95 // High temperature for variety
+    });
+    
+    if (username) {
+      // Clean up the username
+      let clean = username
+        .toLowerCase()
+        .replace(/[^a-z0-9_.-]/g, '')
+        .replace(/^[._-]+|[._-]+$/g, '')
+        .substring(0, 20);
+      
+      if (clean.length >= 4) {
+        // Verify username is unique
+        const exists = await db.query('SELECT id FROM bot_accounts WHERE alias = $1', [clean]);
+        if (exists.rows.length === 0) {
+          return clean;
+        }
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error('[AI USERNAME ERROR]', err.message);
+    return null;
+  }
+}
+
+// Generate bot alias FOR PERSISTENT ACCOUNTS - uses AI when available
+// This creates the bot's permanent identity that grows over time
+async function generatePersistentBotAlias() {
+  // For persistent accounts, always try AI first - this is where we want quality
+  if (GROQ_CONFIG.enabled && GROQ_CONFIG.apiKey) {
+    // Try up to 3 times to get a unique AI username
+    for (let i = 0; i < 3; i++) {
+      const aiUsername = await generateAIUsername();
+      if (aiUsername) {
+        // Double check uniqueness
+        const exists = await db.query(
+          'SELECT id FROM bot_accounts WHERE alias = $1 UNION SELECT id FROM users WHERE alias = $1',
+          [aiUsername]
+        );
+        if (exists.rows.length === 0) {
+          console.log(`[BOT] Generated AI username: ${aiUsername}`);
+          return aiUsername;
+        }
+      }
+    }
+  }
+  
+  // Fallback to template-based generation with uniqueness check
+  for (let i = 0; i < 20; i++) {
+    const alias = generateBotAlias();
+    const exists = await db.query(
+      'SELECT id FROM bot_accounts WHERE alias = $1 UNION SELECT id FROM users WHERE alias = $1',
+      [alias]
+    );
+    if (exists.rows.length === 0) {
+      return alias;
+    }
+  }
+  
+  // Last resort: add random suffix
+  return generateBotAlias() + Math.floor(Math.random() * 9999);
+}
+
+// Simple alias generator for non-persistent use (fallback only)
+async function generateBotAliasAsync() {
+  return generateBotAlias();
+}
+
 function generateBotAlias() {
   const patterns = [
     // Real people often use name + birth year or random numbers
@@ -12677,7 +12942,7 @@ async function createBotReply(threadId, persona, options = {}) {
       alias = personaSelection.previousAlias;
       avatar = personaSelection.previousAvatar;
     } else {
-      alias = generateBotAlias();
+      alias = await generateBotAliasAsync();
       avatar = generateBotAvatar();
     }
   }
@@ -12823,7 +13088,7 @@ async function createBotThread(roomId, persona, options = {}) {
   // Fallback to random generation if no persistent account
   if (!botAccount) {
     p = persona || Object.keys(BOT_PERSONAS)[Math.floor(Math.random() * Object.keys(BOT_PERSONAS).length)];
-    alias = generateBotAlias();
+    alias = await generateBotAliasAsync();
     avatar = generateBotAvatar();
   }
   
@@ -13145,6 +13410,58 @@ app.post('/api/admin/bot/scheduler/reset', authMiddleware, ownerMiddleware, asyn
     });
   } catch (err) {
     console.error('[SCHEDULER RESET ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// List all bot profiles
+app.get('/api/admin/bot/profiles', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        id, persona, alias, avatar_config, bio, 
+        created_at, last_active, post_count, thread_count,
+        activity_level, peak_hours, quality_score
+      FROM bot_accounts
+      ORDER BY last_active DESC NULLS LAST
+    `);
+    
+    res.json({
+      success: true,
+      total: result.rows.length,
+      bots: result.rows.map(bot => ({
+        ...bot,
+        avatar_config: typeof bot.avatar_config === 'string' ? JSON.parse(bot.avatar_config) : bot.avatar_config,
+        peak_hours: typeof bot.peak_hours === 'string' ? JSON.parse(bot.peak_hours) : bot.peak_hours
+      }))
+    });
+  } catch (err) {
+    console.error('[BOT PROFILES ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Create a new persistent bot account (without intro post)
+app.post('/api/admin/bot/create-account', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { persona } = req.body;
+    
+    const botAccount = await createPersistentBotAccount(persona);
+    
+    if (botAccount) {
+      res.json({
+        success: true,
+        message: `Created new bot: ${botAccount.alias}`,
+        bot: {
+          ...botAccount,
+          avatar_config: typeof botAccount.avatar_config === 'string' ? JSON.parse(botAccount.avatar_config) : botAccount.avatar_config
+        }
+      });
+    } else {
+      res.status(400).json({ success: false, error: 'Failed to create bot account' });
+    }
+  } catch (err) {
+    console.error('[CREATE BOT ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
