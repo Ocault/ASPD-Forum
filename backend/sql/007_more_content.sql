@@ -1,92 +1,164 @@
 -- Additional forum content to fill out rooms
 -- Run this via pgAdmin against the Railway database
+-- Uses NOT EXISTS to avoid duplicates (no ON CONFLICT needed)
 
 -- More threads for General Discussion (room 1)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (1, 'thread-workplace-01', 'How do you handle workplace politics?'),
-  (1, 'thread-boredom-01', 'The boredom problem - what actually helps'),
-  (1, 'thread-masking-01', 'Exhaustion from constant masking')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 1, 'thread-workplace-01', 'How do you handle workplace politics?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-workplace-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 1, 'thread-boredom-01', 'The boredom problem - what actually helps'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-boredom-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 1, 'thread-masking-01', 'Exhaustion from constant masking'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-masking-01');
 
 -- Threads for Clinical Literature (room 2)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (2, 'thread-primary-secondary', 'Primary vs secondary - does the distinction matter?'),
-  (2, 'thread-comorb-01', 'ADHD comorbidity and impulse control')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 2, 'thread-primary-secondary', 'Primary vs secondary - does the distinction matter?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-primary-secondary');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 2, 'thread-comorb-01', 'ADHD comorbidity and impulse control'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-comorb-01');
 
 -- Threads for Behavioral Patterns (room 3)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (3, 'thread-anger-01', 'Managing anger without suppression'),
-  (3, 'thread-decisions-01', 'Decision making under pressure')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 3, 'thread-anger-01', 'Managing anger without suppression'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-anger-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 3, 'thread-decisions-01', 'Decision making under pressure'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-decisions-01');
 
 -- Threads for Relationships room (room 4)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (4, 'thread-disclosure-01', 'To disclose or not - partner relationships'),
-  (4, 'thread-attachment-01', 'What does attachment actually feel like to you?'),
-  (4, 'thread-longterm-01', 'Anyone in a long-term relationship? How?'),
-  (4, 'thread-family-01', 'Dealing with family expectations')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 4, 'thread-disclosure-01', 'To disclose or not - partner relationships'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-disclosure-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 4, 'thread-attachment-01', 'What does attachment actually feel like to you?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-attachment-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 4, 'thread-longterm-01', 'Anyone in a long-term relationship? How?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-longterm-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 4, 'thread-family-01', 'Dealing with family expectations'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-family-01');
 
 -- Threads for Work/Career room (room 5)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (5, 'thread-careers-01', 'Careers that actually work for us'),
-  (5, 'thread-management-01', 'Managing people - strategies that work'),
-  (5, 'thread-fired-01', 'Got fired again - pattern or bad luck?'),
-  (5, 'thread-interview-01', 'Interview masking techniques')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 5, 'thread-careers-01', 'Careers that actually work for us'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-careers-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 5, 'thread-management-01', 'Managing people - strategies that work'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-management-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 5, 'thread-fired-01', 'Got fired again - pattern or bad luck?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-fired-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 5, 'thread-interview-01', 'Interview masking techniques'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-interview-01');
 
 -- Threads for Legal room (room 6)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (6, 'thread-lawyer-01', 'Finding a lawyer who gets it'),
-  (6, 'thread-probation-01', 'Surviving probation/parole'),
-  (6, 'thread-record-01', 'Life with a criminal record')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 6, 'thread-lawyer-01', 'Finding a lawyer who gets it'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-lawyer-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 6, 'thread-probation-01', 'Surviving probation/parole'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-probation-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 6, 'thread-record-01', 'Life with a criminal record'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-record-01');
 
 -- Threads for Treatment room (room 7)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (7, 'thread-therapy-01', 'Has therapy ever actually helped?'),
-  (7, 'thread-dbt-01', 'DBT for ASPD - experiences'),
-  (7, 'thread-meds-01', 'Medication experiences - what its actually for')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 7, 'thread-therapy-01', 'Has therapy ever actually helped?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-therapy-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 7, 'thread-dbt-01', 'DBT for ASPD - experiences'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-dbt-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 7, 'thread-meds-01', 'Medication experiences - what its actually for'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-meds-01');
 
 -- Threads for Identity room (room 8)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (8, 'thread-identity-01', 'Do you have a stable sense of self?'),
-  (8, 'thread-values-01', 'Values without morality - how do you decide what matters?'),
-  (8, 'thread-empty-01', 'The emptiness - is it just me?')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 8, 'thread-identity-01', 'Do you have a stable sense of self?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-identity-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 8, 'thread-values-01', 'Values without morality - how do you decide what matters?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-values-01');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 8, 'thread-empty-01', 'The emptiness - is it just me?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-empty-01');
 
 -- Threads for Questions room (room 9)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (9, 'thread-q-diagnosis', 'How did you get diagnosed?'),
-  (9, 'thread-q-feel', 'What DO you actually feel?'),
-  (9, 'thread-q-different', 'When did you realize you were different?')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 9, 'thread-q-diagnosis', 'How did you get diagnosed?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-q-diagnosis');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 9, 'thread-q-feel', 'What DO you actually feel?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-q-feel');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 9, 'thread-q-different', 'When did you realize you were different?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-q-different');
 
 -- Threads for Media room (room 10)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (10, 'thread-media-accurate', 'Most accurate ASPD portrayal in media?'),
-  (10, 'thread-media-cringe', 'Worst ASPD stereotypes in movies/TV'),
-  (10, 'thread-media-books', 'Books that actually get it')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 10, 'thread-media-accurate', 'Most accurate ASPD portrayal in media?'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-media-accurate');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 10, 'thread-media-cringe', 'Worst ASPD stereotypes in movies/TV'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-media-cringe');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 10, 'thread-media-books', 'Books that actually get it'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-media-books');
 
 -- Threads for Vent room (room 11)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (11, 'thread-vent-stigma', 'Sick of the stigma'),
-  (11, 'thread-vent-therapists', 'Therapists who refuse to treat us'),
-  (11, 'thread-vent-alone', 'Sometimes being different is just lonely')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 11, 'thread-vent-stigma', 'Sick of the stigma'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-vent-stigma');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 11, 'thread-vent-therapists', 'Therapists who refuse to treat us'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-vent-therapists');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 11, 'thread-vent-alone', 'Sometimes being different is just lonely'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-vent-alone');
 
 -- Threads for Meta room (room 12)
-INSERT INTO threads (room_id, slug, title) VALUES
-  (12, 'thread-meta-rules', 'Forum rules discussion'),
-  (12, 'thread-meta-features', 'Feature requests for the site'),
-  (12, 'thread-meta-introduce', 'Introduce yourself (if you want)')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO threads (room_id, slug, title)
+SELECT 12, 'thread-meta-rules', 'Forum rules discussion'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-meta-rules');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 12, 'thread-meta-features', 'Feature requests for the site'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-meta-features');
+
+INSERT INTO threads (room_id, slug, title)
+SELECT 12, 'thread-meta-introduce', 'Introduce yourself (if you want)'
+WHERE NOT EXISTS (SELECT 1 FROM threads WHERE slug = 'thread-meta-introduce');
 
 -- Now add entries (posts) to the threads
--- Using NOT EXISTS to prevent duplicates
 
 INSERT INTO entries (thread_id, user_id, content, avatar_config)
 SELECT t.id, 1, 
