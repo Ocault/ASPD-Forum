@@ -6460,14 +6460,43 @@ app.get('/api/users/:alias/last-seen', async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT last_seen_at FROM users WHERE alias = $1',
+      'SELECT id, last_seen_at, is_bot FROM users WHERE alias = $1',
       [alias]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'user_not_found' });
     }
-    res.json({ success: true, last_seen_at: result.rows[0].last_seen_at });
+    
+    const user = result.rows[0];
+    
+    // For bots, check bot_accounts.is_online for accurate status
+    if (user.is_bot) {
+      const botResult = await db.query(
+        `SELECT is_online, session_start FROM bot_accounts WHERE alias = $1`,
+        [alias]
+      );
+      
+      if (botResult.rows.length > 0 && botResult.rows[0].is_online) {
+        // Bot is online - return session start as last_seen to show "Online now"
+        return res.json({ 
+          success: true, 
+          last_seen_at: new Date(), // Current time = online now
+          is_online: true 
+        });
+      } else {
+        // Bot is offline - return last_seen or a recent time
+        return res.json({ 
+          success: true, 
+          last_seen_at: user.last_seen_at || new Date(Date.now() - 30 * 60000), // 30 min ago if null
+          is_online: false 
+        });
+      }
+    }
+    
+    // For regular users, use last_seen_at
+    res.json({ success: true, last_seen_at: user.last_seen_at });
   } catch (err) {
+    console.error('[LAST-SEEN] Error:', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });

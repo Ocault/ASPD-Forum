@@ -581,8 +581,9 @@
         AuthState.apiRequest('/api/users/' + encodeURIComponent(profile.alias) + '/last-seen')
           .then(function(data) {
             if (data.success) {
-              var lastSeenText = formatLastSeen(data.last_seen_at);
-              var isOnline = lastSeenText === 'Online now';
+              // Check explicit is_online flag first (for bots), then fall back to last_seen time
+              var isOnline = data.is_online === true || formatLastSeen(data.last_seen_at) === 'Online now';
+              var lastSeenText = isOnline ? 'Online now' : formatLastSeen(data.last_seen_at);
               profileLastSeen.innerHTML = '<span class="' + (isOnline ? 'status-online' : 'status-offline') + '">' + 
                 (isOnline ? '● ONLINE' : '○ ' + lastSeenText.toUpperCase()) + '</span>';
             }
