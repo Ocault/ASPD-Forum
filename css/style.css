@@ -463,6 +463,10 @@ ul {
   overflow: hidden;
 }
 
+.forum-container[data-page="forum"] {
+  overflow: visible;
+}
+
 .forum-header {
   display: flex;
   justify-content: space-between;
@@ -518,6 +522,7 @@ ul {
   align-content: start;
   overflow-y: auto;
   overflow-x: hidden;
+  min-height: 0;
 }
 
 .room-node {
