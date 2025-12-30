@@ -683,14 +683,6 @@
                 </div>
               </div>
             </details>
-            
-            <!-- New User Button -->
-            <div style="display: flex; align-items: center; gap: var(--spacing-sm); padding-top: var(--spacing-sm); border-top: 1px solid var(--border-color);">
-              <button class="admin-btn" id="simulate-new-user" style="padding: 8px 16px; font-size: 0.4375rem;">
-                👤 NEW USER
-              </button>
-              <span style="font-size: 0.375rem; color: var(--text-muted);">Simulates a new member joining • <span id="new-users-today">0</span>/<span id="max-new-users">3</span> today</span>
-            </div>
           </div>
           
           <!-- ========== SECTION 2: AUTOMATION ========== -->
@@ -929,9 +921,27 @@
                   <div style="font-size: 0.375rem; color: var(--text-muted);">Persistent bot identities that grow over time</div>
                 </div>
               </div>
-              <div style="display: flex; gap: var(--spacing-xs);">
-                <button class="admin-btn" id="create-bot-account" style="font-size: 0.375rem; padding: 4px 8px;">+ CREATE BOT</button>
-                <button class="admin-btn admin-btn-secondary" id="refresh-bot-profiles" style="font-size: 0.375rem; padding: 4px 8px;">↻</button>
+              <button class="admin-btn admin-btn-secondary" id="refresh-bot-profiles" style="font-size: 0.375rem; padding: 4px 8px;">↻ REFRESH</button>
+            </div>
+            
+            <!-- Create Bot Options -->
+            <div style="background: var(--bg-panel); padding: var(--spacing-sm); border-radius: 4px; margin-bottom: var(--spacing-sm);">
+              <div style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary); margin-bottom: var(--spacing-xs);">CREATE NEW BOT</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm);">
+                <div style="background: var(--bg-tertiary); padding: var(--spacing-sm); border-radius: 4px; border: 1px solid var(--border-color);">
+                  <button class="admin-btn" id="simulate-new-user" style="width: 100%; padding: 8px; font-size: 0.4375rem; margin-bottom: 4px;">
+                    👤 NEW MEMBER (+ intro post)
+                  </button>
+                  <div style="font-size: 0.3125rem; color: var(--text-muted);">Creates bot + posts an introduction</div>
+                  <div style="font-size: 0.3125rem; color: var(--text-muted); margin-top: 2px;"><span id="new-users-today">0</span>/<span id="max-new-users">3</span> today</div>
+                </div>
+                <div style="background: var(--bg-tertiary); padding: var(--spacing-sm); border-radius: 4px; border: 1px solid var(--border-color);">
+                  <button class="admin-btn admin-btn-secondary" id="create-bot-account" style="width: 100%; padding: 8px; font-size: 0.4375rem; margin-bottom: 4px;">
+                    🤖 SILENT BOT (profile only)
+                  </button>
+                  <div style="font-size: 0.3125rem; color: var(--text-muted);">Creates bot profile without posting</div>
+                  <div style="font-size: 0.3125rem; color: var(--text-muted); margin-top: 2px;">For future automated use</div>
+                </div>
               </div>
             </div>
             

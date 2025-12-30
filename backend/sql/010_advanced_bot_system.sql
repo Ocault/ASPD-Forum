@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS entry_votes (
   UNIQUE(entry_id, bot_account_id)
 );
 
+-- Add bot_account_id column if table already exists without it
+ALTER TABLE entry_votes ADD COLUMN IF NOT EXISTS bot_account_id INTEGER REFERENCES bot_accounts(id) ON DELETE CASCADE;
+
 -- Add vote count columns to entries for quick access
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS upvotes INTEGER DEFAULT 0;
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS downvotes INTEGER DEFAULT 0;

@@ -10421,7 +10421,8 @@ async function createPersistentBotAccount(persona = null) {
     return result.rows[0];
   } catch (err) {
     console.error('[BOT] Error creating persistent account:', err.message);
-    return null;
+    // Throw the error so the API can return a proper message
+    throw err;
   }
 }
 
@@ -11375,15 +11376,20 @@ async function botEngageWithPosts(botAccountId, threadId = null) {
 // Generate UNIQUE avatar config for bots - ensures no duplicates
 async function generateUniqueBotAvatar() {
   // Get all existing avatar configs to ensure uniqueness
-  const existingAvatars = await db.query(`
-    SELECT avatar_config FROM bot_accounts
-    UNION
-    SELECT avatar_config::text FROM users WHERE is_bot = TRUE
-  `);
+  let existingSet = new Set();
   
-  const existingSet = new Set(existingAvatars.rows.map(r => 
-    typeof r.avatar_config === 'string' ? r.avatar_config : JSON.stringify(r.avatar_config)
-  ));
+  try {
+    const existingAvatars = await db.query(`
+      SELECT avatar_config FROM bot_accounts WHERE avatar_config IS NOT NULL
+    `);
+    existingAvatars.rows.forEach(r => {
+      if (r.avatar_config) {
+        existingSet.add(typeof r.avatar_config === 'string' ? r.avatar_config : JSON.stringify(r.avatar_config));
+      }
+    });
+  } catch (err) {
+    console.log('[BOT AVATAR] Could not check existing avatars:', err.message);
+  }
   
   // Avatar component ranges
   const headCount = 8;
@@ -13448,21 +13454,22 @@ app.post('/api/admin/bot/create-account', authMiddleware, ownerMiddleware, async
     
     const botAccount = await createPersistentBotAccount(persona);
     
-    if (botAccount) {
-      res.json({
-        success: true,
-        message: `Created new bot: ${botAccount.alias}`,
-        bot: {
-          ...botAccount,
-          avatar_config: typeof botAccount.avatar_config === 'string' ? JSON.parse(botAccount.avatar_config) : botAccount.avatar_config
-        }
-      });
-    } else {
-      res.status(400).json({ success: false, error: 'Failed to create bot account' });
-    }
+    res.json({
+      success: true,
+      message: `Created new bot: ${botAccount.alias}`,
+      bot: {
+        ...botAccount,
+        avatar_config: typeof botAccount.avatar_config === 'string' ? JSON.parse(botAccount.avatar_config) : botAccount.avatar_config
+      }
+    });
   } catch (err) {
     console.error('[CREATE BOT ERROR]', err);
-    res.status(500).json({ success: false, error: err.message });
+    // Provide helpful error message
+    let errorMsg = err.message;
+    if (err.message.includes('relation') && err.message.includes('does not exist')) {
+      errorMsg = 'Bot accounts table not found. Run the SQL migration: backend/sql/010_advanced_bot_system.sql';
+    }
+    res.status(500).json({ success: false, error: errorMsg });
   }
 });
 
