@@ -1156,10 +1156,10 @@ let wordFiltersCache = [];
 let wordFiltersCacheTime = 0;
 const WORD_FILTER_CACHE_TTL = 60000; // 1 minute
 
-// Rooms cache (refreshed every 5 minutes)
+// Rooms cache (refreshed every 30 seconds)
 let roomsCache = null;
 let roomsCacheTime = 0;
-const ROOMS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const ROOMS_CACHE_TTL = 30 * 1000; // 30 seconds
 
 async function getCachedRooms() {
   const now = Date.now();
