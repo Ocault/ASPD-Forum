@@ -3562,12 +3562,18 @@
       });
 
       // Event delegation for view user buttons
-      document.getElementById('users-list').addEventListener('click', function(e) {
-        if (e.target.classList.contains('view-user-btn')) {
-          var userId = parseInt(e.target.dataset.userId);
-          viewUser(userId);
-        }
-      });
+      var usersListEl = document.getElementById('users-list');
+      if (usersListEl) {
+        usersListEl.addEventListener('click', function(e) {
+          var btn = e.target.closest('.view-user-btn');
+          if (btn) {
+            var userId = parseInt(btn.dataset.userId);
+            if (userId) {
+              viewUser(userId);
+            }
+          }
+        });
+      }
 
       function viewUser(userId) {
         currentUserId = userId;

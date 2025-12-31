@@ -6139,7 +6139,7 @@ app.get('/api/admin/users', authMiddleware, modMiddleware, async (req, res) => {
       query += ` AND (SELECT COUNT(*) FROM warnings WHERE user_id = u.id) > 0`;
     }
 
-    query += ` ORDER BY u.created_at DESC LIMIT 100`;
+    query += ` ORDER BY u.id ASC LIMIT 100`;
 
     const result = await db.query(query, params);
     res.json({ success: true, users: result.rows });
