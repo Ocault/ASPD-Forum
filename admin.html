@@ -3549,9 +3549,17 @@
                   '<td>' + badges + '</td>' +
                   '<td>' + u.warning_count + '</td>' +
                   '<td>' + formatDate(u.created_at) + '</td>' +
-                  '<td><button class="admin-btn" onclick="viewUser(' + u.id + ')">VIEW</button></td>' +
+                  '<td><button class="admin-btn view-user-btn" data-userid="' + u.id + '">VIEW</button></td>' +
                 '</tr>';
               }).join('');
+              
+              // Attach click handlers after rendering
+              list.querySelectorAll('.view-user-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                  var userId = parseInt(this.dataset.userid);
+                  if (userId) viewUser(userId);
+                });
+              });
             }
           });
       }
@@ -3561,7 +3569,7 @@
         if (e.key === 'Enter') loadUsers();
       });
 
-      window.viewUser = function(userId) {
+      function viewUser(userId) {
         currentUserId = userId;
         AuthState.apiRequest('/api/admin/users/' + userId)
           .then(function(data) {
