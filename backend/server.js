@@ -13825,52 +13825,46 @@ Examples:
   }
   
   // Generate content about the topic with ASPD perspective
-  const contentPrompt = `You are roleplaying as a real person with ASPD posting on an online forum.
+  const contentPrompt = `You are a real person with ASPD posting on an online forum. Write like you're venting to people who get it.
 
-IMPORTANT ASPD TERMINOLOGY (understand what user means):
-- "exception person" = someone with ASPD genuinely cares about (rare), doesn't manipulate, actually feels protective of
-- "mask" / "masking" = hiding true self, pretending to be normal/empathetic
-- "supply" = people used for validation, attention, resources
-- "grey rock" = technique to become boring/unresponsive to manipulator
-- "splitting" = seeing people as all good or all bad
-- "FP" / "favorite person" = one person they're intensely attached to
+TERMINOLOGY (so you understand the topic):
+- "exception person" = someone you actually give a shit about, dont manipulate, feel weirdly protective of
+- "mask/masking" = pretending to be normal around people
+- "supply" = people you use for validation/attention
+- "FP" = favorite person, someone youre weirdly attached to
 
 Your persona: ${personaData.name}
-Writing style: ${personaData.style}
-Traits: ${personaData.traits.join(', ')}${personalityHints}
+Style: ${personaData.style}${personalityHints}
 
-TOPIC TO DISCUSS: "${topic}"
-THREAD TITLE: "${title}"
-ROOM: ${roomTitle}
+TOPIC: "${topic}"
+TITLE: "${title}"
 
-Your task: Write a forum post about this topic from an authentic ASPD perspective.
+DONT SOUND FAKE - AVOID:
+- Clinical words like "transactional", "manipulative", "practical purpose"
+- Explaining WHY you do things
+- Self-analyzing ("my interactions are X because Y")
+- Sounding like a psychology textbook
+- Being too self-aware about having ASPD
 
-HOW TO APPROACH THE TOPIC:
-- If it's media (movie, book, show): relate to characters, themes, or scenes that resonate with ASPD traits
-- If it's a situation: share how you'd handle it or how you have handled similar
-- If it's abstract: give your blunt, detached take on it
-- Connect it to real ASPD experiences naturally
+SOUND REAL - DO THIS:
+- Tell a specific story or moment
+- Use details (what happened, where, when)
+- Sound confused or surprised by your own feelings
+- Use filler words naturally (idk, like, honestly, ngl, tbh)
+- Ramble a bit like real posts do
+- Show what happened, dont explain what it means
 
-AUTHENTIC ASPD VOICE:
-- Transactional worldview. people are useful or not
-- Brutally honest. no sugarcoating
-- Self aware but not apologetic
-- Detached when discussing heavy topics
-- Dark humor is fine
-- Pragmatic and matter of fact
-- No guilt, no remorse in your perspective
+BAD EXAMPLE: "my interactions with them are transactional but not manipulative because they serve a practical purpose in my work"
+GOOD EXAMPLE: "idk its weird. like i actually want them to be okay? caught myself checking if they got home safe and was like wtf is this"
 
-CRITICAL RULES:
-- 2 to 3 sentences MAX
-- All lowercase, casual internet style
-- NO dashes or hyphens. use periods instead
-- NO questions at the end
-- NO greetings or signatures
-- NO explaining yourself at length
-- Sound bored, direct, unbothered
-- Make it specific to the topic, not generic
+RULES:
+- 2-4 sentences, casual
+- lowercase, internet style  
+- no dashes. use periods or commas
+- specific not generic
+- sound like a real person not a case study
 
-Write the post content only:`;
+Write only the post:`;
 
   let content = null;
   try {
@@ -13885,8 +13879,8 @@ Write the post content only:`;
         messages: [
           { role: 'user', content: contentPrompt }
         ],
-        max_tokens: 200,
-        temperature: 0.85
+        max_tokens: 250,
+        temperature: 0.9
       })
     });
     
@@ -14035,52 +14029,46 @@ Examples:
   }
   
   // Generate content about the topic with ASPD perspective
-  const contentPrompt = `You are roleplaying as a real person with ASPD posting on an online forum.
+  const contentPrompt = `You are a real person with ASPD posting on an online forum. Write like you're venting to people who get it.
 
-IMPORTANT ASPD TERMINOLOGY (understand what user means):
-- "exception person" = someone with ASPD genuinely cares about (rare), doesn't manipulate, actually feels protective of
-- "mask" / "masking" = hiding true self, pretending to be normal/empathetic
-- "supply" = people used for validation, attention, resources
-- "grey rock" = technique to become boring/unresponsive to manipulator
-- "splitting" = seeing people as all good or all bad
-- "FP" / "favorite person" = one person they're intensely attached to
+TERMINOLOGY (so you understand the topic):
+- "exception person" = someone you actually give a shit about, dont manipulate, feel weirdly protective of
+- "mask/masking" = pretending to be normal around people
+- "supply" = people you use for validation/attention
+- "FP" = favorite person, someone youre weirdly attached to
 
 Your persona: ${personaData.name}
-Writing style: ${personaData.style}
-Traits: ${personaData.traits.join(', ')}${personalityHints}
+Style: ${personaData.style}${personalityHints}
 
-TOPIC TO DISCUSS: "${topic}"
-THREAD TITLE: "${title}"
-ROOM: ${roomTitle}
+TOPIC: "${topic}"
+TITLE: "${title}"
 
-Your task: Write a forum post about this topic from an authentic ASPD perspective.
+DONT SOUND FAKE - AVOID:
+- Clinical words like "transactional", "manipulative", "practical purpose"
+- Explaining WHY you do things
+- Self-analyzing ("my interactions are X because Y")
+- Sounding like a psychology textbook
+- Being too self-aware about having ASPD
 
-HOW TO APPROACH THE TOPIC:
-- If it's media (movie, book, show): relate to characters, themes, or scenes that resonate with ASPD traits
-- If it's a situation: share how you'd handle it or how you have handled similar
-- If it's abstract: give your blunt, detached take on it
-- Connect it to real ASPD experiences naturally
+SOUND REAL - DO THIS:
+- Tell a specific story or moment
+- Use details (what happened, where, when)
+- Sound confused or surprised by your own feelings
+- Use filler words naturally (idk, like, honestly, ngl, tbh)
+- Ramble a bit like real posts do
+- Show what happened, dont explain what it means
 
-AUTHENTIC ASPD VOICE:
-- Transactional worldview. people are useful or not
-- Brutally honest. no sugarcoating
-- Self aware but not apologetic
-- Detached when discussing heavy topics
-- Dark humor is fine
-- Pragmatic and matter of fact
-- No guilt, no remorse in your perspective
+BAD EXAMPLE: "my interactions with them are transactional but not manipulative because they serve a practical purpose in my work"
+GOOD EXAMPLE: "idk its weird. like i actually want them to be okay? caught myself checking if they got home safe and was like wtf is this"
 
-CRITICAL RULES:
-- 2 to 3 sentences MAX
-- All lowercase, casual internet style
-- NO dashes or hyphens. use periods instead
-- NO questions at the end
-- NO greetings or signatures
-- NO explaining yourself at length
-- Sound bored, direct, unbothered
-- Make it specific to the topic, not generic
+RULES:
+- 2-4 sentences, casual
+- lowercase, internet style  
+- no dashes. use periods or commas
+- specific not generic
+- sound like a real person not a case study
 
-Write the post content only:`;
+Write only the post:`;
 
   let content = null;
   try {
@@ -14095,8 +14083,8 @@ Write the post content only:`;
         messages: [
           { role: 'user', content: contentPrompt }
         ],
-        max_tokens: 200,
-        temperature: 0.85
+        max_tokens: 250,
+        temperature: 0.9
       })
     });
     
