@@ -3549,7 +3549,7 @@
                   '<td>' + badges + '</td>' +
                   '<td>' + u.warning_count + '</td>' +
                   '<td>' + formatDate(u.created_at) + '</td>' +
-                  '<td><button class="admin-btn view-user-btn" data-user-id="' + u.id + '">VIEW</button></td>' +
+                  '<td><button class="admin-btn" onclick="viewUser(' + u.id + ')">VIEW</button></td>' +
                 '</tr>';
               }).join('');
             }
@@ -3561,21 +3561,7 @@
         if (e.key === 'Enter') loadUsers();
       });
 
-      // Event delegation for view user buttons
-      var usersListEl = document.getElementById('users-list');
-      if (usersListEl) {
-        usersListEl.addEventListener('click', function(e) {
-          var btn = e.target.closest('.view-user-btn');
-          if (btn) {
-            var userId = parseInt(btn.dataset.userId);
-            if (userId) {
-              viewUser(userId);
-            }
-          }
-        });
-      }
-
-      function viewUser(userId) {
+      window.viewUser = function(userId) {
         currentUserId = userId;
         AuthState.apiRequest('/api/admin/users/' + userId)
           .then(function(data) {
