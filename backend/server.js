@@ -10403,6 +10403,66 @@ function checkContentSimilarity(original, generated) {
 }
 
 // ==============================================
+// CHECK IF REPLY ENGAGES WITH ORIGINAL POST
+// ==============================================
+// Ensures reply actually addresses content from the original post
+
+function checkReplyEngagement(originalPost, reply) {
+  if (!originalPost || !reply) return true; // Can't check, allow it
+  
+  const origLower = originalPost.toLowerCase();
+  const replyLower = reply.toLowerCase();
+  
+  // Extract key topics/words from original post (4+ char words, not common words)
+  const commonWords = new Set(['this', 'that', 'with', 'have', 'from', 'they', 'been', 'were', 'said', 'each', 'what', 'their', 'will', 'would', 'could', 'should', 'about', 'when', 'your', 'which', 'some', 'them', 'then', 'than', 'into', 'just', 'only', 'come', 'over', 'such', 'take', 'also', 'back', 'after', 'most', 'made', 'being', 'like', 'really', 'people', 'going', 'through', 'everyone', 'else', 'person']);
+  
+  const origWords = origLower
+    .replace(/[^\w\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 4 && !commonWords.has(w));
+  
+  // Get unique significant words from original
+  const origTopics = [...new Set(origWords)];
+  
+  // Check if reply contains at least one topic word from original
+  let topicOverlap = 0;
+  for (const topic of origTopics) {
+    if (replyLower.includes(topic)) {
+      topicOverlap++;
+    }
+  }
+  
+  // Need at least 1 topic word overlap, or 10% of topics
+  const minOverlap = Math.max(1, Math.floor(origTopics.length * 0.1));
+  
+  if (topicOverlap >= minOverlap) {
+    return true; // Reply engages with original
+  }
+  
+  // Also check for semantic connections (reply might use synonyms)
+  // Check if reply mentions concepts related to original's themes
+  const themePatterns = [
+    { orig: /stigma|stereotype|judgment|judge/i, reply: /stigma|stereotype|label|judge|assume|perception|reputation/i },
+    { orig: /serial killer|murder|violent|dangerous/i, reply: /violent|danger|kill|crime|hurt|harm|scary/i },
+    { orig: /work|job|boss|coworker|office/i, reply: /work|job|boss|coworker|office|career|employ/i },
+    { orig: /bills|money|pay|rent|financial/i, reply: /bills|money|pay|rent|financ|broke|afford/i },
+    { orig: /honest|truth|lie|fake|mask/i, reply: /honest|truth|lie|fake|mask|pretend|act|real/i },
+    { orig: /therapy|therapist|diagnosis|diagnosed/i, reply: /therap|diagnos|psych|treat|counsel/i },
+    { orig: /emotion|feel|feeling|empathy/i, reply: /emotion|feel|empath|affect/i },
+    { orig: /relationship|partner|girlfriend|boyfriend|wife|husband/i, reply: /relation|partner|girlfriend|boyfriend|wife|husband|dating|marriage/i }
+  ];
+  
+  for (const theme of themePatterns) {
+    if (theme.orig.test(origLower) && theme.reply.test(replyLower)) {
+      return true; // Thematic connection found
+    }
+  }
+  
+  console.log('[ENGAGEMENT] No topic overlap found. Original topics:', origTopics.slice(0, 10).join(', '));
+  return false;
+}
+
+// ==============================================
 // QUALITY CHECK FOR GENERIC/FILLER CONTENT
 // ==============================================
 // Detects and rejects lazy, generic, low-effort responses
@@ -10804,18 +10864,27 @@ THEIR POST: "${recentContent.substring(0, 300)}"
 YOUR TASK: ${replyStyleHint}
 
 ═══════════════════════════════════════
-CRITICAL - WHAT YOUR REPLY MUST INCLUDE:
+ABSOLUTELY CRITICAL - READ THIS:
 ═══════════════════════════════════════
-✓ Reference something SPECIFIC from their post (a word, phrase, or idea they mentioned)
-✓ Share YOUR OWN concrete experience/detail (a specific time, place, person, or event)
-✓ Add NEW information they didn't already say
+You MUST directly respond to what they wrote. Pick ONE specific thing from their post and react to it.
 
-WHAT WILL GET YOUR REPLY REJECTED:
-✗ Generic meta-commentary like "seen this discussion before"
-✗ Empty validation like "always valuable" or "fair point"
-✗ Vague process statements like "still working on it" or "figuring it out"
-✗ Dismissive cop-outs like "whatever works" or "to each their own"
-✗ Non-committal hedging without substance
+Their post mentions these topics - pick ONE and respond to it:
+${recentContent.split(/[.!?]/).slice(0, 3).map(s => s.trim()).filter(s => s.length > 10).map(s => `• "${s.substring(0, 60)}..."`).join('\n')}
+
+DO NOT talk about random ASPD stuff. DO NOT ignore their post. Your reply must clearly connect to something they said.
+
+═══════════════════════════════════════
+WHAT YOUR REPLY MUST INCLUDE:
+═══════════════════════════════════════
+✓ Mention or reference something SPECIFIC they said (quote a phrase, respond to their example)
+✓ Share YOUR OWN related experience (with a specific detail: time, place, person)
+✓ Add something NEW to the conversation
+
+INSTANT REJECTION:
+✗ Talking about random ASPD topics that don't relate to their post
+✗ Generic statements about emotions/empathy when they didn't mention that
+✗ Filler phrases like "not that anyone asked" or "just my take"
+✗ Replies that could apply to ANY post (not specific to theirs)
 
 ═══════════════════════════════════════
 REAL REPLY EXAMPLES FROM r/aspd:
@@ -11132,6 +11201,13 @@ Write ONLY the personality description, nothing else.`;
       if (checkIsGenericFiller(content)) {
         console.log('[GROQ] Content is generic filler, rejecting');
         return null; // Reject and let retry happen
+      }
+      
+      // Check if reply actually engages with the original post
+      const originalContent = context.recentPosts?.[0]?.content || '';
+      if (originalContent && !checkReplyEngagement(originalContent, content)) {
+        console.log('[GROQ] Reply does not engage with original post, rejecting');
+        return null;
       }
     }
     
