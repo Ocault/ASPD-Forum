@@ -1,5 +1,8 @@
 // Service Worker for ASPD Forum
-const CACHE_NAME = 'aspd-forum-v5';
+const CACHE_NAME = 'aspd-forum-v6';
+const OFFLINE_CACHE = 'aspd-forum-offline-v1';
+const THREAD_CACHE = 'aspd-forum-threads-v1';
+
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -23,7 +26,8 @@ const STATIC_ASSETS = [
   '/js/ui-components.js',
   '/js/avatar-renderer.js',
   '/js/websocket.js',
-  '/favicon.svg'
+  '/favicon.svg',
+  '/offline.html' // Dedicated offline page
 ];
 
 // Install event - cache static assets
@@ -39,11 +43,12 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
+  const validCaches = [CACHE_NAME, OFFLINE_CACHE, THREAD_CACHE];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => name !== CACHE_NAME)
+          .filter((name) => !validCaches.includes(name))
           .map((name) => caches.delete(name))
       );
     }).then(() => self.clients.claim())
@@ -64,7 +69,19 @@ self.addEventListener('fetch', (event) => {
   // Skip external URLs (Google Fonts, CDNs, etc.) - let browser handle them
   if (url.origin !== self.location.origin) return;
 
-  // Skip API calls (always fetch fresh)
+  // Handle API calls for thread data - cache for offline reading
+  if (url.pathname.match(/^\/api\/threads\/[^/]+\/entries/)) {
+    event.respondWith(handleThreadRequest(request));
+    return;
+  }
+
+  // Handle room thread listings - cache for browsing offline
+  if (url.pathname.match(/^\/api\/rooms\/[^/]+\/threads/)) {
+    event.respondWith(handleRoomThreadsRequest(request));
+    return;
+  }
+
+  // Skip other API calls (always fetch fresh)
   if (url.pathname.startsWith('/api/') || 
       url.pathname.startsWith('/login') ||
       url.pathname.startsWith('/register')) {
@@ -84,7 +101,13 @@ self.addEventListener('fetch', (event) => {
             return networkResponse;
           })
           .catch(() => {
-            // Network failed, try cache
+            // Network failed, return cached or offline page
+            if (cachedResponse) return cachedResponse;
+            
+            // Return offline page for HTML requests
+            if (request.headers.get('accept')?.includes('text/html')) {
+              return caches.match('/offline.html');
+            }
             return cachedResponse;
           });
 
@@ -93,6 +116,143 @@ self.addEventListener('fetch', (event) => {
       });
     })
   );
+});
+
+// Handle thread data requests with offline caching
+async function handleThreadRequest(request) {
+  const cache = await caches.open(THREAD_CACHE);
+  
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse && networkResponse.status === 200) {
+      // Cache the thread data for offline reading
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (err) {
+    // Network failed, try cache
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) {
+      // Add offline indicator to response
+      const data = await cachedResponse.clone().json();
+      data._offline = true;
+      data._cachedAt = cachedResponse.headers.get('date');
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    // Return error response if no cache
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'offline',
+      message: 'You are offline and this thread is not cached'
+    }), { 
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// Handle room thread listings with caching
+async function handleRoomThreadsRequest(request) {
+  const cache = await caches.open(OFFLINE_CACHE);
+  
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse && networkResponse.status === 200) {
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (err) {
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) {
+      const data = await cachedResponse.clone().json();
+      data._offline = true;
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'offline' 
+    }), { 
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// Handle background sync for offline posts
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-posts') {
+    event.waitUntil(syncOfflinePosts());
+  }
+});
+
+// Sync offline posts when connection is restored
+async function syncOfflinePosts() {
+  const cache = await caches.open(OFFLINE_CACHE);
+  const requests = await cache.keys();
+  
+  for (const request of requests) {
+    if (request.url.includes('pending-post')) {
+      try {
+        const data = await cache.match(request).then(r => r.json());
+        
+        const response = await fetch(data.url, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': data.auth 
+          },
+          body: JSON.stringify(data.body)
+        });
+        
+        if (response.ok) {
+          // Remove from cache on success
+          await cache.delete(request);
+          
+          // Notify clients
+          const clients = await self.clients.matchAll();
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'SYNC_COMPLETE',
+              data: { url: data.url, success: true }
+            });
+          });
+        }
+      } catch (err) {
+        console.error('[SW] Sync failed:', err);
+      }
+    }
+  }
+}
+
+// Handle messages from clients
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SAVE_FOR_OFFLINE') {
+    // Save thread for offline reading
+    caches.open(THREAD_CACHE).then(cache => {
+      fetch(event.data.url).then(response => {
+        if (response.ok) {
+          cache.put(event.data.url, response);
+        }
+      });
+    });
+  }
+  
+  if (event.data && event.data.type === 'QUEUE_POST') {
+    // Queue a post for when online
+    caches.open(OFFLINE_CACHE).then(cache => {
+      const key = new Request('pending-post-' + Date.now());
+      cache.put(key, new Response(JSON.stringify(event.data.post)));
+    });
+  }
+  
+  if (event.data && event.data.type === 'CLEAR_THREAD_CACHE') {
+    // Clear thread cache
+    caches.delete(THREAD_CACHE);
+  }
 });
 
 // Handle push notifications (future use)
@@ -105,9 +265,15 @@ self.addEventListener('push', (event) => {
     icon: '/favicon.svg',
     badge: '/favicon.svg',
     vibrate: [100, 50, 100],
+    tag: data.tag || 'aspd-notification',
+    renotify: true,
     data: {
       url: data.url || '/forum.html'
-    }
+    },
+    actions: [
+      { action: 'view', title: 'VIEW' },
+      { action: 'dismiss', title: 'DISMISS' }
+    ]
   };
 
   event.waitUntil(
@@ -118,6 +284,8 @@ self.addEventListener('push', (event) => {
 // Handle notification clicks
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  
+  if (event.action === 'dismiss') return;
 
   event.waitUntil(
     clients.matchAll({ type: 'window' }).then((clientList) => {

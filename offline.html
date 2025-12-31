@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OFFLINE | ASPD FORUM</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .offline-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 80vh;
+      text-align: center;
+      padding: 2rem;
+    }
+    
+    .offline-icon {
+      font-size: 4rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+    
+    .offline-title {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      letter-spacing: 0.2em;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+    }
+    
+    .offline-message {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      max-width: 400px;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    
+    .offline-actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    
+    .offline-btn {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      letter-spacing: 0.15em;
+      padding: 0.75rem 1.5rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .offline-btn:hover {
+      background: var(--border-color);
+      border-color: var(--border-hover);
+    }
+    
+    .cached-content {
+      margin-top: 3rem;
+      width: 100%;
+      max-width: 600px;
+    }
+    
+    .cached-title {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      text-align: left;
+    }
+    
+    .cached-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .cached-item {
+      display: block;
+      padding: 0.75rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      text-decoration: none;
+      transition: border-color 0.2s;
+    }
+    
+    .cached-item:hover {
+      border-color: var(--border-hover);
+    }
+    
+    .cached-item-title {
+      font-size: 0.75rem;
+      color: var(--text-primary);
+    }
+    
+    .cached-item-meta {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+    
+    .no-cached {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      color: var(--text-muted);
+      padding: 1rem;
+      text-align: center;
+      background: var(--bg-secondary);
+      border: 1px dashed var(--border-color);
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-content">
+      <a href="/" class="header-logo">ASPD FORUM</a>
+      <span class="header-divider">/</span>
+      <span style="font-size: 0.5rem; color: var(--text-muted);">OFFLINE MODE</span>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="offline-container">
+      <div class="offline-icon">⚠</div>
+      <h1 class="offline-title">CONNECTION LOST</h1>
+      <p class="offline-message">
+        YOU ARE CURRENTLY OFFLINE. SOME FEATURES MAY BE UNAVAILABLE. 
+        CACHED CONTENT IS STILL ACCESSIBLE BELOW.
+      </p>
+      
+      <div class="offline-actions">
+        <button class="offline-btn" onclick="location.reload()">TRY AGAIN</button>
+        <button class="offline-btn" onclick="window.history.back()">GO BACK</button>
+      </div>
+      
+      <div class="cached-content">
+        <h2 class="cached-title">CACHED THREADS</h2>
+        <div id="cached-list" class="cached-list">
+          <div class="no-cached">LOADING CACHED CONTENT...</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Load cached threads
+    (async function() {
+      const listEl = document.getElementById('cached-list');
+      
+      try {
+        const cache = await caches.open('aspd-forum-threads-v1');
+        const keys = await cache.keys();
+        
+        if (keys.length === 0) {
+          listEl.innerHTML = '<div class="no-cached">NO CACHED THREADS AVAILABLE</div>';
+          return;
+        }
+        
+        listEl.innerHTML = '';
+        
+        for (const request of keys.slice(0, 10)) {
+          const response = await cache.match(request);
+          if (response) {
+            try {
+              const data = await response.json();
+              if (data.thread) {
+                const item = document.createElement('a');
+                item.href = request.url.replace('/api/threads/', '/thread.html?slug=').replace('/entries', '');
+                item.className = 'cached-item';
+                item.innerHTML = `
+                  <div class="cached-item-title">${escapeHtml(data.thread.title)}</div>
+                  <div class="cached-item-meta">${data.entries?.length || 0} ENTRIES · CACHED</div>
+                `;
+                listEl.appendChild(item);
+              }
+            } catch (e) {}
+          }
+        }
+        
+        if (listEl.children.length === 0) {
+          listEl.innerHTML = '<div class="no-cached">NO CACHED THREADS AVAILABLE</div>';
+        }
+      } catch (err) {
+        listEl.innerHTML = '<div class="no-cached">UNABLE TO LOAD CACHED CONTENT</div>';
+      }
+      
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+    })();
+    
+    // Auto-refresh when online
+    window.addEventListener('online', function() {
+      location.reload();
+    });
+  </script>
+</body>
+</html>

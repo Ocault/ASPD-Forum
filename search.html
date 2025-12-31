@@ -62,6 +62,44 @@
             <input type="radio" name="search-type" value="users"> USERS
           </label>
         </div>
+        
+        <!-- Advanced Filters (collapsible) -->
+        <details class="search-advanced">
+          <summary class="search-advanced-toggle">⚙ ADVANCED FILTERS</summary>
+          <div class="search-advanced-panel">
+            <div class="search-filter-row">
+              <label class="filter-label">
+                <span>ROOM:</span>
+                <select id="filter-room" class="filter-select">
+                  <option value="">All Rooms</option>
+                </select>
+              </label>
+              <label class="filter-label">
+                <span>USER:</span>
+                <input type="text" id="filter-user" class="filter-input" placeholder="Username...">
+              </label>
+            </div>
+            <div class="search-filter-row">
+              <label class="filter-label">
+                <span>FROM:</span>
+                <input type="date" id="filter-from" class="filter-input">
+              </label>
+              <label class="filter-label">
+                <span>TO:</span>
+                <input type="date" id="filter-to" class="filter-input">
+              </label>
+              <label class="filter-label">
+                <span>SORT:</span>
+                <select id="filter-sort" class="filter-select">
+                  <option value="recent">Most Recent</option>
+                  <option value="oldest">Oldest First</option>
+                </select>
+              </label>
+            </div>
+            <button type="button" id="clear-filters" class="filter-clear">CLEAR FILTERS</button>
+          </div>
+        </details>
+        
         <button type="submit" class="search-submit">SEARCH</button>
       </form>
     </div>
@@ -128,10 +166,36 @@
       var searchQuery = document.getElementById('search-query');
       var searchResults = document.getElementById('search-results');
       var paginationContainer = document.getElementById('pagination-container');
+      var roomSelect = document.getElementById('filter-room');
+      var clearFiltersBtn = document.getElementById('clear-filters');
       
       var currentPage = 1;
       var currentQuery = '';
       var currentType = 'all';
+      
+      // Load rooms for filter dropdown
+      AuthState.apiRequest('/api/rooms')
+        .then(function(data) {
+          if (data.success && data.rooms) {
+            data.rooms.forEach(function(room) {
+              var option = document.createElement('option');
+              option.value = room.slug;
+              option.textContent = room.title;
+              roomSelect.appendChild(option);
+            });
+          }
+        })
+        .catch(function() {});
+      
+      // Clear filters button
+      clearFiltersBtn.addEventListener('click', function() {
+        document.getElementById('filter-room').value = '';
+        document.getElementById('filter-user').value = '';
+        document.getElementById('filter-from').value = '';
+        document.getElementById('filter-to').value = '';
+        document.getElementById('filter-sort').value = 'recent';
+        Notify.show('FILTERS CLEARED', 'info');
+      });
 
       function formatDate(dateStr) {
         if (!dateStr) return '';
@@ -200,10 +264,25 @@
 
         currentQuery = query;
         currentType = type;
+        
+        // Gather advanced filters
+        var room = document.getElementById('filter-room').value;
+        var user = document.getElementById('filter-user').value.trim();
+        var dateFrom = document.getElementById('filter-from').value;
+        var dateTo = document.getElementById('filter-to').value;
+        var sort = document.getElementById('filter-sort').value;
 
         searchResults.innerHTML = '<div class="empty-state">SEARCHING...</div>';
+        
+        // Build query string with filters
+        var params = 'q=' + encodeURIComponent(query) + '&type=' + type + '&page=' + page;
+        if (room) params += '&room=' + encodeURIComponent(room);
+        if (user) params += '&user=' + encodeURIComponent(user);
+        if (dateFrom) params += '&from=' + encodeURIComponent(dateFrom);
+        if (dateTo) params += '&to=' + encodeURIComponent(dateTo);
+        if (sort) params += '&sort=' + encodeURIComponent(sort);
 
-        AuthState.apiRequest('/api/search?q=' + encodeURIComponent(query) + '&type=' + type + '&page=' + page)
+        AuthState.apiRequest('/api/search?' + params)
           .then(function(data) {
             if (data.success) {
               renderResults(data.results, data.total);

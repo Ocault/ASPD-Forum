@@ -11,6 +11,11 @@
   var reconnectDelay = 1000; // Start with 1 second
   var heartbeatInterval = null;
   var subscribers = {};
+  var lastDisconnect = null; // Track when we last disconnected
+  var missedNotifications = 0; // Track potentially missed notifications
+
+  // Connection status indicator
+  var statusIndicator = null;
 
   // Determine WebSocket URL - connect to Railway backend
   function getWsUrl() {
@@ -18,7 +23,57 @@
       ? 'ws://localhost:3001'
       : 'wss://aspd-forum-production.up.railway.app';
     var token = localStorage.getItem('authToken');
-    return wsBase + '/ws' + (token ? '?token=' + encodeURIComponent(token) : '');
+    
+    // Include last disconnect time to fetch missed notifications
+    var params = [];
+    if (token) params.push('token=' + encodeURIComponent(token));
+    if (lastDisconnect) params.push('since=' + lastDisconnect);
+    
+    return wsBase + '/ws' + (params.length ? '?' + params.join('&') : '');
+  }
+
+  // Create/update connection status indicator
+  function updateStatusIndicator(status) {
+    if (!statusIndicator) {
+      statusIndicator = document.createElement('div');
+      statusIndicator.id = 'ws-status';
+      statusIndicator.style.cssText = 'position:fixed;bottom:10px;right:10px;font-size:10px;font-family:monospace;padding:4px 8px;border-radius:2px;z-index:9999;opacity:0.7;transition:opacity 0.3s;';
+      document.body.appendChild(statusIndicator);
+    }
+    
+    switch(status) {
+      case 'connected':
+        statusIndicator.textContent = '● LIVE';
+        statusIndicator.style.background = '#1a1a1a';
+        statusIndicator.style.color = '#4caf50';
+        statusIndicator.style.border = '1px solid #252525';
+        // Fade out after 3 seconds when connected
+        setTimeout(function() {
+          if (statusIndicator) statusIndicator.style.opacity = '0';
+        }, 3000);
+        break;
+      case 'connecting':
+        statusIndicator.style.opacity = '0.7';
+        statusIndicator.textContent = '◌ CONNECTING...';
+        statusIndicator.style.background = '#1a1a1a';
+        statusIndicator.style.color = '#ff9800';
+        statusIndicator.style.border = '1px solid #252525';
+        break;
+      case 'disconnected':
+        statusIndicator.style.opacity = '0.7';
+        statusIndicator.textContent = '○ OFFLINE';
+        statusIndicator.style.background = '#1a1a1a';
+        statusIndicator.style.color = '#666';
+        statusIndicator.style.border = '1px solid #252525';
+        break;
+      case 'reconnecting':
+        statusIndicator.style.opacity = '0.7';
+        statusIndicator.textContent = '◌ RECONNECTING (' + reconnectAttempts + '/' + maxReconnectAttempts + ')';
+        statusIndicator.style.background = '#1a1a1a';
+        statusIndicator.style.color = '#ff9800';
+        statusIndicator.style.border = '1px solid #252525';
+        break;
+    }
   }
 
   // Connect to WebSocket server
@@ -26,6 +81,8 @@
     if (ws && ws.readyState === WebSocket.OPEN) {
       return; // Already connected
     }
+
+    updateStatusIndicator('connecting');
 
     try {
       ws = new WebSocket(getWsUrl());
@@ -35,11 +92,18 @@
         reconnectAttempts = 0;
         reconnectDelay = 1000;
         
+        updateStatusIndicator('connected');
+        
         // Start heartbeat
         startHeartbeat();
         
         // Notify subscribers
         emit('connected', {});
+        
+        // If we were disconnected, check for missed notifications
+        if (lastDisconnect) {
+          checkMissedNotifications();
+        }
       };
 
       ws.onmessage = function(event) {
@@ -54,11 +118,15 @@
       ws.onclose = function(event) {
         console.log('[WS] Disconnected:', event.code, event.reason);
         stopHeartbeat();
+        lastDisconnect = Date.now();
+        
+        updateStatusIndicator('disconnected');
         emit('disconnected', { code: event.code, reason: event.reason });
         
         // Attempt to reconnect
         if (reconnectAttempts < maxReconnectAttempts) {
           reconnectAttempts++;
+          updateStatusIndicator('reconnecting');
           console.log('[WS] Reconnecting in ' + reconnectDelay + 'ms (attempt ' + reconnectAttempts + ')');
           setTimeout(connect, reconnectDelay);
           reconnectDelay = Math.min(reconnectDelay * 2, 30000); // Exponential backoff, max 30s
@@ -75,7 +143,37 @@
 
     } catch (err) {
       console.error('[WS] Connection failed:', err);
+      updateStatusIndicator('disconnected');
     }
+  }
+
+  // Check for notifications missed while disconnected
+  function checkMissedNotifications() {
+    if (!lastDisconnect) return;
+    
+    var token = localStorage.getItem('authToken');
+    if (!token) return;
+    
+    // Fetch notifications since last disconnect
+    fetch('/api/notifications/since?timestamp=' + lastDisconnect, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success && data.count > 0) {
+        missedNotifications = data.count;
+        emit('missedNotifications', { count: data.count, notifications: data.notifications });
+        
+        // Show toast about missed notifications
+        if (typeof Notify !== 'undefined' && data.count > 0) {
+          Notify.show('YOU HAVE ' + data.count + ' NEW NOTIFICATION' + (data.count > 1 ? 'S' : ''), 'info');
+        }
+      }
+      lastDisconnect = null;
+    })
+    .catch(function() {
+      lastDisconnect = null;
+    });
   }
 
   // Disconnect from WebSocket server

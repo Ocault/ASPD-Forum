@@ -5229,6 +5229,103 @@ ul {
   background: var(--border-color);
 }
 
+/* Advanced Search Filters */
+.advanced-filters-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: var(--spacing-md);
+  letter-spacing: 0.1em;
+  transition: color 0.2s;
+}
+
+.advanced-filters-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.toggle-icon {
+  transition: transform 0.2s;
+}
+
+.advanced-filters-toggle.expanded .toggle-icon {
+  transform: rotate(90deg);
+}
+
+.advanced-filters-panel {
+  display: none;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.advanced-filters-panel.expanded {
+  display: block;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.filter-label {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  color: var(--text-muted);
+  letter-spacing: 0.15em;
+}
+
+.filter-input,
+.filter-select {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: var(--spacing-sm);
+}
+
+.filter-input:focus,
+.filter-select:focus {
+  outline: none;
+  border-color: var(--border-hover);
+}
+
+.filter-select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.clear-filters-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clear-filters-btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
+}
+
 .search-results {
   flex: 1;
   padding: var(--spacing-md);

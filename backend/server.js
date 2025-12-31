@@ -1417,6 +1417,26 @@ const voteLimiter = rateLimit({
   keyGenerator: (req) => req.user?.userId?.toString() || hashIp(getClientIp(req)) || 'unknown'
 });
 
+// Rate limiter for registration (stricter to prevent spam accounts)
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // 3 registration attempts per hour per IP
+  message: { success: false, error: 'too_many_registrations', message: 'Too many registration attempts, try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => hashIp(getClientIp(req)) || 'unknown'
+});
+
+// Rate limiter for search (prevent abuse)
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // 20 searches per minute
+  message: { success: false, error: 'rate_limit_exceeded', message: 'Too many searches, slow down' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.userId?.toString() || hashIp(getClientIp(req)) || 'unknown'
+});
+
 // Password strength validation
 function validatePassword(password) {
   const errors = [];
@@ -1489,7 +1509,7 @@ async function verifyCaptcha(token) {
 }
 
 // Register (with rate limiting, password validation, and captcha)
-app.post('/register', authRateLimiter, async (req, res) => {
+app.post('/register', registrationLimiter, authRateLimiter, async (req, res) => {
   const { alias, password, email, captchaToken } = req.body;
 
   if (!alias || !password) {
@@ -3108,12 +3128,19 @@ app.get('/api/rooms', authMiddleware, async (req, res) => {
 // ========================================
 
 // API: Global search across threads and posts
-app.get('/api/search', authMiddleware, async (req, res) => {
+app.get('/api/search', authMiddleware, searchLimiter, async (req, res) => {
   const query = req.query.q || '';
   const type = req.query.type || 'all'; // all, threads, posts, users
   const page = parseInt(req.query.page) || 1;
   const limit = Math.min(parseInt(req.query.limit) || 20, 50);
   const offset = (page - 1) * limit;
+  
+  // Advanced filters
+  const roomFilter = req.query.room || null; // Room slug or ID
+  const userFilter = req.query.user || null; // Username to filter by
+  const dateFrom = req.query.from || null; // Date range start (ISO)
+  const dateTo = req.query.to || null; // Date range end (ISO)
+  const sortBy = req.query.sort || 'recent'; // recent, oldest, relevance
 
   if (!query || query.length < 2) {
     return res.json({ success: true, results: [], total: 0 });
@@ -3124,27 +3151,97 @@ app.get('/api/search', authMiddleware, async (req, res) => {
   try {
     let results = [];
     let total = 0;
+    
+    // Build date filter SQL
+    let dateFilterSQL = '';
+    const dateParams = [];
+    let paramIndex = 4; // After searchPattern, limit, offset
+    
+    if (dateFrom) {
+      dateFilterSQL += ` AND created_at >= $${paramIndex}`;
+      dateParams.push(dateFrom);
+      paramIndex++;
+    }
+    if (dateTo) {
+      dateFilterSQL += ` AND created_at <= $${paramIndex}`;
+      dateParams.push(dateTo);
+      paramIndex++;
+    }
+    
+    // Determine sort order
+    const sortOrder = sortBy === 'oldest' ? 'ASC' : 'DESC';
 
     if (type === 'all' || type === 'threads') {
-      // Search threads
-      const threadResult = await db.query(
-        `SELECT t.id, t.title, t.slug, t.created_at, r.slug AS room_slug, r.title AS room_title,
-                u.alias AS author, 'thread' AS result_type,
-                (SELECT COUNT(*) FROM entries WHERE thread_id = t.id AND is_deleted = FALSE) AS entry_count
-         FROM threads t
-         JOIN rooms r ON r.id = t.room_id
-         JOIN users u ON u.id = t.user_id
-         WHERE t.title ILIKE $1 OR t.slug ILIKE $1
-         ORDER BY t.created_at DESC
-         LIMIT $2 OFFSET $3`,
-        [searchPattern, limit, offset]
-      );
+      // Search threads with filters
+      let threadQuery = `
+        SELECT t.id, t.title, t.slug, t.created_at, r.slug AS room_slug, r.title AS room_title,
+               u.alias AS author, 'thread' AS result_type,
+               (SELECT COUNT(*) FROM entries WHERE thread_id = t.id AND is_deleted = FALSE) AS entry_count
+        FROM threads t
+        JOIN rooms r ON r.id = t.room_id
+        JOIN users u ON u.id = t.user_id
+        WHERE (t.title ILIKE $1 OR t.slug ILIKE $1)`;
+      
+      let threadParams = [searchPattern];
+      let tParamIdx = 2;
+      
+      if (roomFilter) {
+        threadQuery += ` AND (r.slug = $${tParamIdx} OR r.id::text = $${tParamIdx})`;
+        threadParams.push(roomFilter);
+        tParamIdx++;
+      }
+      if (userFilter) {
+        threadQuery += ` AND u.alias ILIKE $${tParamIdx}`;
+        threadParams.push('%' + userFilter + '%');
+        tParamIdx++;
+      }
+      if (dateFrom) {
+        threadQuery += ` AND t.created_at >= $${tParamIdx}`;
+        threadParams.push(dateFrom);
+        tParamIdx++;
+      }
+      if (dateTo) {
+        threadQuery += ` AND t.created_at <= $${tParamIdx}`;
+        threadParams.push(dateTo);
+        tParamIdx++;
+      }
+      
+      threadQuery += ` ORDER BY t.created_at ${sortOrder} LIMIT $${tParamIdx} OFFSET $${tParamIdx + 1}`;
+      threadParams.push(limit, offset);
+      
+      const threadResult = await db.query(threadQuery, threadParams);
       
       if (type === 'threads') {
-        const countResult = await db.query(
-          `SELECT COUNT(*) FROM threads WHERE title ILIKE $1 OR slug ILIKE $1`,
-          [searchPattern]
-        );
+        // Count query with same filters
+        let countQuery = `SELECT COUNT(*) FROM threads t 
+          JOIN rooms r ON r.id = t.room_id 
+          JOIN users u ON u.id = t.user_id
+          WHERE (t.title ILIKE $1 OR t.slug ILIKE $1)`;
+        let countParams = [searchPattern];
+        let cParamIdx = 2;
+        
+        if (roomFilter) {
+          countQuery += ` AND (r.slug = $${cParamIdx} OR r.id::text = $${cParamIdx})`;
+          countParams.push(roomFilter);
+          cParamIdx++;
+        }
+        if (userFilter) {
+          countQuery += ` AND u.alias ILIKE $${cParamIdx}`;
+          countParams.push('%' + userFilter + '%');
+          cParamIdx++;
+        }
+        if (dateFrom) {
+          countQuery += ` AND t.created_at >= $${cParamIdx}`;
+          countParams.push(dateFrom);
+          cParamIdx++;
+        }
+        if (dateTo) {
+          countQuery += ` AND t.created_at <= $${cParamIdx}`;
+          countParams.push(dateTo);
+          cParamIdx++;
+        }
+        
+        const countResult = await db.query(countQuery, countParams);
         total = parseInt(countResult.rows[0].count);
       }
       
@@ -3152,25 +3249,75 @@ app.get('/api/search', authMiddleware, async (req, res) => {
     }
 
     if (type === 'all' || type === 'posts') {
-      // Search posts/entries
-      const postResult = await db.query(
-        `SELECT e.id, e.content, e.created_at, e.alias AS author,
-                t.id AS thread_id, t.title AS thread_title, t.slug AS thread_slug,
-                r.slug AS room_slug, 'post' AS result_type
-         FROM entries e
-         JOIN threads t ON t.id = e.thread_id
-         JOIN rooms r ON r.id = t.room_id
-         WHERE e.is_deleted = FALSE AND e.content ILIKE $1
-         ORDER BY e.created_at DESC
-         LIMIT $2 OFFSET $3`,
-        [searchPattern, limit, offset]
-      );
+      // Search posts/entries with filters
+      let postQuery = `
+        SELECT e.id, e.content, e.created_at, e.alias AS author,
+               t.id AS thread_id, t.title AS thread_title, t.slug AS thread_slug,
+               r.slug AS room_slug, 'post' AS result_type
+        FROM entries e
+        JOIN threads t ON t.id = e.thread_id
+        JOIN rooms r ON r.id = t.room_id
+        WHERE e.is_deleted = FALSE AND e.content ILIKE $1`;
+      
+      let postParams = [searchPattern];
+      let pParamIdx = 2;
+      
+      if (roomFilter) {
+        postQuery += ` AND (r.slug = $${pParamIdx} OR r.id::text = $${pParamIdx})`;
+        postParams.push(roomFilter);
+        pParamIdx++;
+      }
+      if (userFilter) {
+        postQuery += ` AND e.alias ILIKE $${pParamIdx}`;
+        postParams.push('%' + userFilter + '%');
+        pParamIdx++;
+      }
+      if (dateFrom) {
+        postQuery += ` AND e.created_at >= $${pParamIdx}`;
+        postParams.push(dateFrom);
+        pParamIdx++;
+      }
+      if (dateTo) {
+        postQuery += ` AND e.created_at <= $${pParamIdx}`;
+        postParams.push(dateTo);
+        pParamIdx++;
+      }
+      
+      postQuery += ` ORDER BY e.created_at ${sortOrder} LIMIT $${pParamIdx} OFFSET $${pParamIdx + 1}`;
+      postParams.push(limit, offset);
+      
+      const postResult = await db.query(postQuery, postParams);
       
       if (type === 'posts') {
-        const countResult = await db.query(
-          `SELECT COUNT(*) FROM entries WHERE is_deleted = FALSE AND content ILIKE $1`,
-          [searchPattern]
-        );
+        let countQuery = `SELECT COUNT(*) FROM entries e
+          JOIN threads t ON t.id = e.thread_id
+          JOIN rooms r ON r.id = t.room_id
+          WHERE e.is_deleted = FALSE AND e.content ILIKE $1`;
+        let countParams = [searchPattern];
+        let cParamIdx = 2;
+        
+        if (roomFilter) {
+          countQuery += ` AND (r.slug = $${cParamIdx} OR r.id::text = $${cParamIdx})`;
+          countParams.push(roomFilter);
+          cParamIdx++;
+        }
+        if (userFilter) {
+          countQuery += ` AND e.alias ILIKE $${cParamIdx}`;
+          countParams.push('%' + userFilter + '%');
+          cParamIdx++;
+        }
+        if (dateFrom) {
+          countQuery += ` AND e.created_at >= $${cParamIdx}`;
+          countParams.push(dateFrom);
+          cParamIdx++;
+        }
+        if (dateTo) {
+          countQuery += ` AND e.created_at <= $${cParamIdx}`;
+          countParams.push(dateTo);
+          cParamIdx++;
+        }
+        
+        const countResult = await db.query(countQuery, countParams);
         total = parseInt(countResult.rows[0].count);
       }
       
@@ -3178,44 +3325,71 @@ app.get('/api/search', authMiddleware, async (req, res) => {
     }
 
     if (type === 'all' || type === 'users') {
-      // Search users
-      const userResult = await db.query(
-        `SELECT u.id, u.alias, u.bio, u.created_at, u.is_admin, 'user' AS result_type,
-                (SELECT COUNT(*) FROM entries WHERE user_id = u.id AND is_deleted = FALSE) AS post_count
-         FROM users u
-         WHERE u.alias ILIKE $1 AND u.is_banned = FALSE
-         ORDER BY u.created_at DESC
-         LIMIT $2 OFFSET $3`,
-        [searchPattern, limit, offset]
-      );
+      // Search users (no room filter applies)
+      let userQuery = `
+        SELECT u.id, u.alias, u.bio, u.created_at, u.is_admin, 'user' AS result_type,
+               (SELECT COUNT(*) FROM entries WHERE user_id = u.id AND is_deleted = FALSE) AS post_count
+        FROM users u
+        WHERE u.alias ILIKE $1 AND u.is_banned = FALSE`;
+      
+      let userParams = [searchPattern];
+      let uParamIdx = 2;
+      
+      if (dateFrom) {
+        userQuery += ` AND u.created_at >= $${uParamIdx}`;
+        userParams.push(dateFrom);
+        uParamIdx++;
+      }
+      if (dateTo) {
+        userQuery += ` AND u.created_at <= $${uParamIdx}`;
+        userParams.push(dateTo);
+        uParamIdx++;
+      }
+      
+      userQuery += ` ORDER BY u.created_at ${sortOrder} LIMIT $${uParamIdx} OFFSET $${uParamIdx + 1}`;
+      userParams.push(limit, offset);
+      
+      const userResult = await db.query(userQuery, userParams);
       
       if (type === 'users') {
-        const countResult = await db.query(
-          `SELECT COUNT(*) FROM users WHERE alias ILIKE $1 AND is_banned = FALSE`,
-          [searchPattern]
-        );
+        let countQuery = `SELECT COUNT(*) FROM users WHERE alias ILIKE $1 AND is_banned = FALSE`;
+        let countParams = [searchPattern];
+        let cParamIdx = 2;
+        
+        if (dateFrom) {
+          countQuery += ` AND created_at >= $${cParamIdx}`;
+          countParams.push(dateFrom);
+          cParamIdx++;
+        }
+        if (dateTo) {
+          countQuery += ` AND created_at <= $${cParamIdx}`;
+          countParams.push(dateTo);
+          cParamIdx++;
+        }
+        
+        const countResult = await db.query(countQuery, countParams);
         total = parseInt(countResult.rows[0].count);
       }
       
       results = results.concat(userResult.rows);
     }
 
-    // For 'all' type, estimate total
+    // For 'all' type, estimate total (simplified)
     if (type === 'all') {
-      const allCountResult = await db.query(
-        `SELECT 
-           (SELECT COUNT(*) FROM threads WHERE title ILIKE $1 OR slug ILIKE $1) +
-           (SELECT COUNT(*) FROM entries WHERE is_deleted = FALSE AND content ILIKE $1) +
-           (SELECT COUNT(*) FROM users WHERE alias ILIKE $1 AND is_banned = FALSE) AS total`,
-        [searchPattern]
-      );
-      total = parseInt(allCountResult.rows[0].total);
+      total = results.length < limit ? results.length : results.length + 10; // Rough estimate
     }
 
     res.json({
       success: true,
       results: results,
       total: total,
+      filters: {
+        room: roomFilter,
+        user: userFilter,
+        dateFrom: dateFrom,
+        dateTo: dateTo,
+        sort: sortBy
+      },
       pagination: {
         page: page,
         limit: limit,
@@ -6908,6 +7082,37 @@ app.get('/api/notifications/unread-count', authMiddleware, async (req, res) => {
   }
 });
 
+// Get notifications since a timestamp (for missed notifications after reconnect)
+app.get('/api/notifications/since', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const timestamp = parseInt(req.query.timestamp);
+
+  if (!timestamp || isNaN(timestamp)) {
+    return res.status(400).json({ success: false, error: 'invalid_timestamp' });
+  }
+
+  try {
+    const sinceDate = new Date(timestamp);
+    const result = await db.query(
+      `SELECT id, title, message, link, created_at, is_read 
+       FROM notifications 
+       WHERE user_id = $1 AND created_at > $2
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [userId, sinceDate]
+    );
+
+    res.json({ 
+      success: true, 
+      count: result.rows.length,
+      notifications: result.rows 
+    });
+  } catch (err) {
+    console.error('[NOTIFICATIONS SINCE ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
 // ========================================
 // BOOKMARKS SYSTEM
 // ========================================
@@ -10108,44 +10313,101 @@ FORMATTING:
       const recentPost = context.recentPosts?.[0];
       const recentContent = recentPost?.content?.substring(0, 400) || '';
       const recentAlias = recentPost?.alias || 'someone';
+      const threadTitle = context.title || '';
+      const originalPost = context.originalPost;
+      const opContent = originalPost?.content?.substring(0, 200) || '';
+      const opAlias = originalPost?.alias || 'OP';
       const shouldQuote = Math.random() < 0.35;
       
       const replyStyleHint = {
-        'react': 'React to something specific they said with your take',
-        'share': 'Share a similar experience you had',
-        'pushback': 'Disagree or push back on something they said',
-        'add': 'Add onto their point with another angle'
+        'react': 'React to something specific they said with your honest take',
+        'share': 'Share a similar experience you had that relates to their post',
+        'pushback': 'Disagree or push back on something - you see it differently',
+        'add': 'Add onto their point with another angle or detail they missed'
       }[selectedReplyStyle];
       
+      // Include OP context if this is a reply to someone other than OP
+      const opContext = (opContent && recentAlias !== opAlias) 
+        ? `\nORIGINAL POST by ${opAlias}: "${opContent.substring(0, 150)}..."`
+        : '';
+      
+      // Rich context block with OP reference
+      const replyContext = `
+THREAD: "${threadTitle}"${opContext}
+REPLYING TO: ${recentAlias}
+
+COMMON ASPD FORUM REPLY PATTERNS:
+- Validate with personal experience: "yeah same thing happened to me..."
+- Disagree bluntly: "nah i dont buy that" or "hard disagree"
+- Add practical advice: "what worked for me was..."
+- Dark humor acknowledgment: "lmao yeah the mask thing is real"
+- Analytical observation: "interesting, ive noticed..."
+- Bored acknowledgment: "eh whatever works"
+- Reference OP if relevant: "like op said..." or "going back to the original point..."`;
+
       if (shouldQuote && recentContent.length > 30) {
         const sentences = recentContent.split(/[.!?]+/).filter(s => s.trim().length > 15);
         const quoteFragment = sentences.length > 0 ? sentences[Math.floor(Math.random() * sentences.length)].trim() : recentContent.substring(0, 80);
         
-        userPrompt = `Someone posted: "${recentContent.substring(0, 300)}"
+        userPrompt = `${replyContext}
 
-Quote this part and respond:
+THEIR POST: "${recentContent.substring(0, 300)}"
+
+Quote this specific part and respond:
 > ${quoteFragment.substring(0, 80)}
 
 YOUR TASK: ${replyStyleHint}
 
-REAL REPLY EXAMPLES:
-- "lol yeah the mask slipping thing is real. happened to me at work last month and now my coworker avoids me"
-- "this is exactly it. the constant performing is exhausting and idk how long i can keep it up tbh"
-- "disagree actually. some of us do feel things, just not in the way people expect"
+═══════════════════════════════════════
+REAL REPLY EXAMPLES FROM r/aspd:
+═══════════════════════════════════════
+QUOTING STYLE:
+> "i just stared at them"
+lol yeah the mask slipping thing is real. happened to me at work last month and now my coworker avoids me which honestly is an improvement
 
-Write 2-3 sentences. Start with the quote block, then your response.`;
+> "the performing is exhausting"
+this is exactly it. the constant energy it takes is insane and idk how long i can keep it up tbh
+
+> "i dont feel bad about it"
+disagree actually. some of us do feel things, just not in the way people expect. for me its more like... muted
+
+═══════════════════════════════════════
+RULES:
+- Start with the > quote block, then your response
+- 2-3 sentences max
+- Respond to THEIR specific point, not generic ASPD talk
+- End with statement not question`;
       } else {
-        userPrompt = `Replying to ${recentAlias}'s post:
-"${recentContent.substring(0, 300)}"
+        userPrompt = `${replyContext}
+
+THEIR POST: "${recentContent.substring(0, 300)}"
 
 YOUR TASK: ${replyStyleHint}
 
-REAL REPLY EXAMPLES:
-- "same thing with the therapy stuff. went for 6 months because court ordered and just got really good at telling them what they wanted to hear"
-- "the boredom part is what gets me. nothing holds my attention for more than a few weeks"
-- "nah i think youre overthinking it. if it works it works, dont need to analyze everything"
+═══════════════════════════════════════
+REAL REPLY EXAMPLES FROM r/aspd:
+═══════════════════════════════════════
+REACT:
+"lmao the part about funerals - literally sat at my grandmas funeral thinking about what i was gonna eat after. people kept hugging me and i just stood there"
 
-Write 2-3 sentences that ACTUALLY respond to their specific points. No generic ASPD statements.`;
+SHARE EXPERIENCE:
+"same with the therapy thing. went for 6 months because court ordered and just got really good at telling them what they wanted to hear. waste of everyones time"
+
+PUSHBACK:
+"nah i think youre overthinking it. if it works it works, dont need to psychoanalyze everything. some of us just operate different"
+
+ADD ON:
+"the boredom part is what gets me too. nothing holds my attention for more than a few weeks and then i need to blow something up just to feel something"
+
+BLUNT:
+"sounds like depression tbh not aspd. the whole self-loathing thing isnt really our deal"
+
+═══════════════════════════════════════
+RULES:
+- 2-3 sentences that ACTUALLY respond to their specific points
+- No generic "as someone with ASPD" statements
+- Pick up on a specific detail from their post
+- End with statement not question`;
       }
       break;
       
@@ -10154,64 +10416,127 @@ Write 2-3 sentences that ACTUALLY respond to their specific points. No generic A
       const selectedThreadStyle = threadStyles[Math.floor(Math.random() * threadStyles.length)];
       
       const threadStyleHint = {
-        'experience': 'Share something that happened to you recently',
-        'observation': 'Share something youve noticed about yourself or how you operate',
-        'rant': 'Vent about something that annoys you',
-        'question': 'Ask something youve been wondering about'
+        'experience': 'Share something specific that happened to you recently',
+        'observation': 'Share something youve noticed about how you operate vs others',
+        'rant': 'Vent about something that annoyed you - be specific',
+        'question': 'Ask something youve genuinely been wondering about'
       }[selectedThreadStyle];
       
-      userPrompt = `Start a new thread. Style: ${selectedThreadStyle}
+      const roomContext = context.room ? `ROOM: ${context.room}\n` : '';
+      
+      userPrompt = `${roomContext}Start a new thread. Style: ${selectedThreadStyle}
 ${threadStyleHint}
 
-REAL THREAD EXAMPLES FROM r/aspd:
-- "so my mask slipped at work yesterday. was in a meeting and someone said something stupid and i just stared at them. now theyre avoiding me which is honestly kinda nice"
-- "noticed i only feel something close to happy when im in control of a situation. doesnt matter what. could be something small like deciding where to eat"
-- "fucking neurotypicals and their need to process emotions out loud. just had a coworker corner me for 45 minutes about her breakup. smiled and nodded the whole time"
+═══════════════════════════════════════
+REAL THREAD STARTERS FROM r/aspd (match the specificity):
+═══════════════════════════════════════
+EXPERIENCE:
+"so my mask slipped at work yesterday. was in a meeting and someone said something stupid and i just... stared at them. didnt say anything, just stared. now theyre avoiding me and honestly its kinda nice not having to make small talk anymore"
 
-Write 3-5 sentences. Be specific, include details. End with a statement not a question.`;
+OBSERVATION:
+"noticed i only feel something close to happy when im in control of a situation. doesnt matter what the situation is. could be something small like deciding where to eat. the second someone else takes over i just go blank again"
+
+RANT:
+"fucking neurotypicals and their need to process emotions out loud. just had a coworker corner me for 45 minutes about her breakup. i literally do not care. smiled and nodded the whole time but god i wanted to walk away so bad"
+
+QUESTION:
+"for those in long term relationships - how do you keep up the act? ive been with my gf for 2 years and im running out of ways to seem interested in her day. genuinely asking because i dont want to blow this up"
+
+PRACTICAL:
+"figured out that if you ask people questions about themselves they think youre a great listener. been doing this at work for months. say maybe 10 words total, just keep asking follow ups, and now everyone thinks im the nicest person lmao"
+
+═══════════════════════════════════════
+RULES:
+- 3-5 sentences with specific details (names, places, times)
+- Include something that happened or a specific observation
+- End with a statement, NOT "thoughts?" or "anyone else?"
+- Sound bored or matter-of-fact, not dramatic`;
       break;
       
     case 'intro':
-      userPrompt = `Write a brief intro post. Why youre on this forum.
+      userPrompt = `Write a brief intro post for an ASPD forum. Why youre here.
 
-REAL INTRO EXAMPLES:
+═══════════════════════════════════════
+REAL INTRO EXAMPLES FROM r/aspd:
+═══════════════════════════════════════
 - "diagnosed 3 years ago. mostly lurk but figured id start posting"
 - "been reading here for a while. relate to most of it"
 - "therapist suggested i find a community. this seemed less annoying than the alternatives"
+- "got curious after my dx. seeing what other people deal with"
+- "found this place after googling some stuff. feels less fake than other forums"
+- "27, dx last year. here to compare notes i guess"
 
-1-2 sentences only. Not friendly. Matter of fact.`;
+RULES:
+- 1-2 sentences ONLY
+- Not friendly or enthusiastic
+- Matter of fact tone
+- Can mention: diagnosis, how you found the forum, why youre posting
+- NO "excited to be here" or "looking forward to" type phrases`;
       maxTokens = 100;
       break;
       
     case 'disagreement':
-      const disagreeContent = context.targetContent?.substring(0, 300) || '';
+      const disagreeContent = context.targetContent?.substring(0, 400) || '';
+      const targetPersona = context.targetPersona || 'someone';
       const disagreeSentences = disagreeContent.split(/[.!?]+/).filter(s => s.trim().length > 10);
       const disagreeQuote = disagreeSentences.length > 0 ? disagreeSentences[0].trim() : disagreeContent.substring(0, 80);
       
-      userPrompt = `Disagree with this post: "${disagreeContent}"
+      userPrompt = `You disagree with what ${targetPersona} posted. Push back on their take.
 
-Quote and push back:
-> ${disagreeQuote.substring(0, 80)}
+THEIR POST: "${disagreeContent}"
 
-EXAMPLE DISAGREEMENTS:
-- "nah this is cope. youre just rationalizing"
-- "this hasnt been my experience at all. sounds more like depression tbh"
-- "hard disagree. some of us actually function fine without all the drama"
+Quote this part and respond:
+> ${disagreeQuote.substring(0, 100)}
 
-Write 2-3 sentences. Be direct but not aggressive. Quote first then respond.`;
+═══════════════════════════════════════
+REAL DISAGREEMENT EXAMPLES FROM r/aspd:
+═══════════════════════════════════════
+> "we dont feel anything"
+nah thats not accurate. i feel things, theyre just... quieter? like watching a movie with the volume at 2 instead of full blast. different from nothing
+
+> "therapy is pointless for us"
+disagree. therapy taught me how to mask better which is actually useful. not what they intended but still valuable
+
+> "its all about manipulation"
+this is such a stereotype. some of us are just direct because emotional games are exhausting and we cant be bothered. not everything is 4d chess
+
+> "you have to accept youre broken"
+nah fuck that framing. different wiring isnt broken. thats NT cope to feel superior
+
+═══════════════════════════════════════
+RULES:
+- Start with > quote, then your pushback
+- 2-3 sentences
+- Be direct but not hostile
+- Offer an alternative perspective, not just "youre wrong"
+- End with statement not question`;
       break;
       
     case 'continuation':
-      userPrompt = `Follow up to your earlier post in "${context.title || 'this thread'}".
+      const prevPostContent = context.lastPost?.substring(0, 200) || '';
+      const threadContext = context.title || 'this thread';
+      
+      userPrompt = `Follow up to your earlier post in "${threadContext}".
 
-Add something you forgot to mention, or respond to how the conversation developed.
+What you said before: "${prevPostContent}"
 
-EXAMPLES:
-- "forgot to mention the part where she tried to guilt trip me afterwards. that was fun"
-- "to clarify what i meant earlier, its not that i dont feel anything, its more like the volume is turned way down"
-- "reading some of these responses and yeah, seems like this is pretty common"
+Add something you forgot, clarify a point, or respond to how the thread developed.
 
-1-2 sentences. Casual.`;
+═══════════════════════════════════════
+REAL CONTINUATION EXAMPLES:
+═══════════════════════════════════════
+- "forgot to mention the part where she tried to guilt trip me afterwards. that was fun to navigate"
+- "to clarify what i meant earlier - its not that i dont feel anything, more like the volume is turned way down compared to other people"
+- "reading some of these responses and yeah seems like this is more common than i thought"
+- "update on the work situation: ended up just ignoring him and it worked. problem solved itself"
+- "should also add that this took like 3 years to figure out. wasnt overnight"
+
+═══════════════════════════════════════
+RULES:
+- 1-2 sentences
+- Connect to your previous point
+- Casual tone
+- No "edit:" or "update:" prefix needed`;
       maxTokens = 150;
       break;
       
@@ -11911,6 +12236,55 @@ async function botEngageWithPosts(botAccountId, threadId = null) {
     const bot = botResult.rows[0];
     const persona = bot.persona;
     
+    // Persona-based voting preferences
+    // Each persona has content they tend to upvote/downvote
+    const votingPreferences = {
+      analytical: {
+        upvotePatterns: ['research', 'study', 'evidence', 'data', 'pattern', 'analysis', 'interesting', 'noticed'],
+        downvotePatterns: ['feel', 'emotional', 'heart', 'spiritual', 'believe', 'faith'],
+        upvoteChance: 0.5,
+        downvoteChance: 0.15
+      },
+      blunt: {
+        upvotePatterns: ['honest', 'direct', 'truth', 'fact', 'bullshit', 'stupid', 'waste', 'pointless'],
+        downvotePatterns: ['maybe', 'possibly', 'might', 'not sure', 'feelings', 'sensitive'],
+        upvoteChance: 0.35,
+        downvoteChance: 0.25
+      },
+      strategic: {
+        upvotePatterns: ['plan', 'strategy', 'long-term', 'advantage', 'useful', 'leverage', 'benefit', 'goal'],
+        downvotePatterns: ['impulsive', 'random', 'chaotic', 'yolo', 'wing it'],
+        upvoteChance: 0.4,
+        downvoteChance: 0.1
+      },
+      dark_humor: {
+        upvotePatterns: ['lmao', 'lol', 'joke', 'funny', 'hilarious', 'dead', 'irony', 'sarcas'],
+        downvotePatterns: ['serious', 'important', 'grave', 'concerned', 'worried'],
+        upvoteChance: 0.55,
+        downvoteChance: 0.1
+      },
+      observer: {
+        upvotePatterns: ['notice', 'observe', 'watch', 'see', 'quiet', 'lurk', 'interesting'],
+        downvotePatterns: ['attention', 'spotlight', 'drama', 'loud'],
+        upvoteChance: 0.25, // Observers vote less
+        downvoteChance: 0.05
+      },
+      nihilistic: {
+        upvotePatterns: ['pointless', 'meaningless', 'nothing matters', 'whatever', 'dont care', 'arbitrary'],
+        downvotePatterns: ['purpose', 'meaning', 'important', 'matters', 'significant', 'inspiring'],
+        upvoteChance: 0.3,
+        downvoteChance: 0.2
+      },
+      pragmatic: {
+        upvotePatterns: ['works', 'practical', 'useful', 'effective', 'result', 'solution', 'fixed'],
+        downvotePatterns: ['theory', 'philosophy', 'abstract', 'hypothetical', 'imagine'],
+        upvoteChance: 0.45,
+        downvoteChance: 0.15
+      }
+    };
+    
+    const prefs = votingPreferences[persona] || votingPreferences.analytical;
+    
     // Get recent posts to potentially vote on
     let query = `
       SELECT e.id, e.content, e.bot_persona, e.bot_account_id, e.upvotes, e.downvotes
@@ -11932,20 +12306,35 @@ async function botEngageWithPosts(botAccountId, threadId = null) {
     
     let voteCount = 0;
     for (const entry of entries.rows) {
-      // Decide whether to vote
-      if (Math.random() > 0.4) continue; // 60% chance to skip
+      const contentLower = (entry.content || '').toLowerCase();
       
-      // Determine vote type based on persona tensions
-      let voteType = 'up';
-      if (entry.bot_persona && shouldDisagree(persona, entry.bot_persona)) {
-        voteType = 'down';
-      } else if (Math.random() < 0.1) {
-        // Small chance to downvote anyway
-        voteType = 'down';
+      // Check if content matches persona preferences
+      const matchesUpvote = prefs.upvotePatterns.some(p => contentLower.includes(p));
+      const matchesDownvote = prefs.downvotePatterns.some(p => contentLower.includes(p));
+      
+      // Determine vote based on content analysis + randomness
+      let voteType = null;
+      
+      if (matchesUpvote && !matchesDownvote) {
+        // Content aligns with persona - higher upvote chance
+        if (Math.random() < prefs.upvoteChance * 1.5) voteType = 'up';
+      } else if (matchesDownvote && !matchesUpvote) {
+        // Content clashes with persona - higher downvote chance
+        if (Math.random() < prefs.downvoteChance * 2) voteType = 'down';
+      } else if (entry.bot_persona && shouldDisagree(persona, entry.bot_persona)) {
+        // Persona tension - tend to downvote
+        if (Math.random() < prefs.downvoteChance * 1.5) voteType = 'down';
+      } else {
+        // Neutral content - base vote chance
+        if (Math.random() < prefs.upvoteChance) {
+          voteType = Math.random() < 0.85 ? 'up' : 'down';
+        }
       }
       
-      const result = await botVoteOnEntry(botAccountId, entry.id, voteType);
-      if (result.success) voteCount++;
+      if (voteType) {
+        const result = await botVoteOnEntry(botAccountId, entry.id, voteType);
+        if (result.success) voteCount++;
+      }
     }
     
     return { votes: voteCount };
@@ -12361,7 +12750,7 @@ function extractTopics(text, roomTitle = '') {
 // Get thread context (title + recent posts)
 async function getThreadContext(threadId) {
   const threadResult = await db.query(`
-    SELECT t.title, t.id, r.title as room_title
+    SELECT t.title, t.id, t.created_at as thread_created, r.title as room_title
     FROM threads t
     JOIN rooms r ON r.id = t.room_id
     WHERE t.id = $1
@@ -12369,6 +12758,16 @@ async function getThreadContext(threadId) {
   
   if (threadResult.rows.length === 0) return null;
   
+  // Get the original post (OP) separately for context
+  const opResult = await db.query(`
+    SELECT content, alias, created_at, bot_persona, is_bot
+    FROM entries
+    WHERE thread_id = $1 AND is_deleted = FALSE
+    ORDER BY created_at ASC
+    LIMIT 1
+  `, [threadId]);
+  
+  // Get recent posts (excluding OP to avoid duplication)
   const entriesResult = await db.query(`
     SELECT content, alias, created_at, bot_persona, is_bot
     FROM entries
@@ -12377,11 +12776,31 @@ async function getThreadContext(threadId) {
     LIMIT 5
   `, [threadId]);
   
+  // Get last activity time
+  const activityResult = await db.query(`
+    SELECT MAX(created_at) as last_activity, COUNT(*) as total_posts
+    FROM entries
+    WHERE thread_id = $1 AND is_deleted = FALSE
+  `, [threadId]);
+  
+  const lastActivity = activityResult.rows[0]?.last_activity;
+  const totalPosts = parseInt(activityResult.rows[0]?.total_posts) || 0;
+  
+  // Calculate thread age in days
+  const threadAgeDays = lastActivity 
+    ? Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24))
+    : 999;
+  
   return {
     title: threadResult.rows[0].title,
     room: threadResult.rows[0].room_title,
+    originalPost: opResult.rows[0] || null,
     recentPosts: entriesResult.rows,
-    postCount: entriesResult.rows.length
+    postCount: entriesResult.rows.length,
+    totalPosts: totalPosts,
+    lastActivity: lastActivity,
+    threadAgeDays: threadAgeDays,
+    isStale: threadAgeDays > 14 // Thread with no activity for 2 weeks
   };
 }
 
