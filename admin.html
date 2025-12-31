@@ -3543,23 +3543,15 @@
                 else if (role === 'moderator') badges += '<span class="badge badge--mod">MOD</span> ';
                 if (u.is_banned) badges += '<span class="badge badge--banned">BANNED</span> ';
                 if (u.is_shadow_banned) badges += '<span class="badge badge--shadow">SHADOW</span> ';
-                return '<tr>' +
+                return '<tr data-user-id="' + u.id + '">' +
                   '<td>' + u.id + '</td>' +
                   '<td><a href="profile.html?u=' + encodeURIComponent(u.alias) + '" class="user-alias-link" target="_blank">' + escapeHtml(u.alias) + '</a></td>' +
                   '<td>' + badges + '</td>' +
                   '<td>' + u.warning_count + '</td>' +
                   '<td>' + formatDate(u.created_at) + '</td>' +
-                  '<td><button class="admin-btn view-user-btn" data-userid="' + u.id + '">VIEW</button></td>' +
+                  '<td><button type="button" class="admin-btn view-user-btn">VIEW</button></td>' +
                 '</tr>';
               }).join('');
-              
-              // Attach click handlers after rendering
-              list.querySelectorAll('.view-user-btn').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                  var userId = parseInt(this.dataset.userid);
-                  if (userId) viewUser(userId);
-                });
-              });
             }
           });
       }
@@ -3567,6 +3559,21 @@
       document.getElementById('search-users-btn').addEventListener('click', loadUsers);
       document.getElementById('user-search').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') loadUsers();
+      });
+      
+      // Use document-level delegation for view buttons
+      document.addEventListener('click', function(e) {
+        if (e.target && e.target.classList.contains('view-user-btn')) {
+          var row = e.target.closest('tr');
+          if (row && row.dataset.userId) {
+            var userId = parseInt(row.dataset.userId);
+            if (userId) {
+              e.preventDefault();
+              e.stopPropagation();
+              viewUser(userId);
+            }
+          }
+        }
       });
 
       function viewUser(userId) {
