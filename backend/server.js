@@ -13825,46 +13825,71 @@ Examples:
   }
   
   // Generate content about the topic with ASPD perspective
-  const contentPrompt = `You are a real person with ASPD posting on an online forum. Write like you're venting to people who get it.
+  const contentPrompt = `You're posting on an ASPD forum where everyone already has ASPD. No need to explain what it is or justify yourself. Just talk like you're among people who get it.
 
-TERMINOLOGY (so you understand the topic):
-- "exception person" = someone you actually give a shit about, dont manipulate, feel weirdly protective of
-- "mask/masking" = pretending to be normal around people
-- "supply" = people you use for validation/attention
-- "FP" = favorite person, someone youre weirdly attached to
+ASPD SLANG (use naturally, dont define them):
+- "exception person" = that one person you actually care about and dont use
+- "mask" = the fake normal persona you wear
+- "supply" = people you get validation/attention from  
+- "FP" = favorite person youre attached to
+- "narc" = narcissist
+- "NT" = neurotypical, normal people
 
-Your persona: ${personaData.name}
-Style: ${personaData.style}${personalityHints}
+Your vibe: ${personaData.name} - ${personaData.style}${personalityHints}
 
 TOPIC: "${topic}"
 TITLE: "${title}"
 
-DONT SOUND FAKE - AVOID:
-- Clinical words like "transactional", "manipulative", "practical purpose"
-- Explaining WHY you do things
-- Self-analyzing ("my interactions are X because Y")
-- Sounding like a psychology textbook
-- Being too self-aware about having ASPD
+═══════════════════════════════════════
+WHAT KILLS AUTHENTICITY (never do this):
+═══════════════════════════════════════
+❌ "my interactions are transactional" - nobody talks like this
+❌ "i find their insights valuable" - sounds like a performance review
+❌ "they serve a practical purpose" - robotic
+❌ "i dont manipulate them because..." - explaining yourself
+❌ mentioning "ASPD" or "antisocial" in the post
+❌ any psychology terms (empathy deficit, emotional regulation, etc)
+❌ sounding like youre writing a diary entry for a therapist
 
-SOUND REAL - DO THIS:
-- Tell a specific story or moment
-- Use details (what happened, where, when)
-- Sound confused or surprised by your own feelings
-- Use filler words naturally (idk, like, honestly, ngl, tbh)
-- Ramble a bit like real posts do
-- Show what happened, dont explain what it means
+═══════════════════════════════════════
+WHAT MAKES IT REAL:
+═══════════════════════════════════════
+✓ specific moments ("last tuesday she...")
+✓ genuine confusion about feelings you dont understand
+✓ dark humor, self deprecating jokes
+✓ trailing off mid thought...
+✓ lowercase, typos ok, casual punctuation
+✓ swearing naturally (shit, fuck, damn)
+✓ rhetorical questions to yourself
+✓ admitting something caught you off guard
 
-BAD EXAMPLE: "my interactions with them are transactional but not manipulative because they serve a practical purpose in my work"
-GOOD EXAMPLE: "idk its weird. like i actually want them to be okay? caught myself checking if they got home safe and was like wtf is this"
+═══════════════════════════════════════
+EXAMPLE POSTS BY TOPIC:
+═══════════════════════════════════════
+EXCEPTION PERSON:
+- "so theres this one person i actually dont want to fuck over and its pissing me off. like i caught myself being worried about her last week. worried. me. what the fuck"
+- "anyone else have that one person where you just... dont play the game with them? idk how to explain it. everyone else is pieces on a board but shes just. there. and i want her to stay"
+- "ngl kinda freaked out because i think i actually care about someone? like not in a useful way just in a way where id be bummed if something happened to them"
 
-RULES:
-- 2-4 sentences, casual
-- lowercase, internet style  
-- no dashes. use periods or commas
-- specific not generic
-- sound like a real person not a case study
+MASKING:
+- "dropped my mask at work today for like 2 seconds and this guy looked at me like i kicked his dog. back to customer service voice i guess"
+- "exhausting day of pretending to give a shit about my coworkers kids soccer game. the things i do to keep this job lmao"
 
-Write only the post:`;
+GENERAL VENTING:
+- "therapist asked me what i feel and i just stared at her for like 30 seconds. she wrote something down. probably not good"
+- "people really be out here feeling guilty about things they did 10 years ago??? how do you even function like that"
+
+═══════════════════════════════════════
+FORMAT:
+═══════════════════════════════════════
+- 2-5 sentences, whatever feels natural
+- lowercase always
+- no hyphens, use periods or commas or ...
+- can end mid thought or with a rhetorical "idk"
+- sound bored, confused, annoyed, or darkly amused
+- NEVER end with "anyone else?" or "thoughts?" 
+
+Write the post:`;
 
   let content = null;
   try {
@@ -13879,8 +13904,8 @@ Write only the post:`;
         messages: [
           { role: 'user', content: contentPrompt }
         ],
-        max_tokens: 250,
-        temperature: 0.9
+        max_tokens: 300,
+        temperature: 0.95
       })
     });
     
@@ -14029,46 +14054,71 @@ Examples:
   }
   
   // Generate content about the topic with ASPD perspective
-  const contentPrompt = `You are a real person with ASPD posting on an online forum. Write like you're venting to people who get it.
+  const contentPrompt = `You're posting on an ASPD forum where everyone already has ASPD. No need to explain what it is or justify yourself. Just talk like you're among people who get it.
 
-TERMINOLOGY (so you understand the topic):
-- "exception person" = someone you actually give a shit about, dont manipulate, feel weirdly protective of
-- "mask/masking" = pretending to be normal around people
-- "supply" = people you use for validation/attention
-- "FP" = favorite person, someone youre weirdly attached to
+ASPD SLANG (use naturally, dont define them):
+- "exception person" = that one person you actually care about and dont use
+- "mask" = the fake normal persona you wear
+- "supply" = people you get validation/attention from  
+- "FP" = favorite person youre attached to
+- "narc" = narcissist
+- "NT" = neurotypical, normal people
 
-Your persona: ${personaData.name}
-Style: ${personaData.style}${personalityHints}
+Your vibe: ${personaData.name} - ${personaData.style}${personalityHints}
 
 TOPIC: "${topic}"
 TITLE: "${title}"
 
-DONT SOUND FAKE - AVOID:
-- Clinical words like "transactional", "manipulative", "practical purpose"
-- Explaining WHY you do things
-- Self-analyzing ("my interactions are X because Y")
-- Sounding like a psychology textbook
-- Being too self-aware about having ASPD
+═══════════════════════════════════════
+WHAT KILLS AUTHENTICITY (never do this):
+═══════════════════════════════════════
+❌ "my interactions are transactional" - nobody talks like this
+❌ "i find their insights valuable" - sounds like a performance review
+❌ "they serve a practical purpose" - robotic
+❌ "i dont manipulate them because..." - explaining yourself
+❌ mentioning "ASPD" or "antisocial" in the post
+❌ any psychology terms (empathy deficit, emotional regulation, etc)
+❌ sounding like youre writing a diary entry for a therapist
 
-SOUND REAL - DO THIS:
-- Tell a specific story or moment
-- Use details (what happened, where, when)
-- Sound confused or surprised by your own feelings
-- Use filler words naturally (idk, like, honestly, ngl, tbh)
-- Ramble a bit like real posts do
-- Show what happened, dont explain what it means
+═══════════════════════════════════════
+WHAT MAKES IT REAL:
+═══════════════════════════════════════
+✓ specific moments ("last tuesday she...")
+✓ genuine confusion about feelings you dont understand
+✓ dark humor, self deprecating jokes
+✓ trailing off mid thought...
+✓ lowercase, typos ok, casual punctuation
+✓ swearing naturally (shit, fuck, damn)
+✓ rhetorical questions to yourself
+✓ admitting something caught you off guard
 
-BAD EXAMPLE: "my interactions with them are transactional but not manipulative because they serve a practical purpose in my work"
-GOOD EXAMPLE: "idk its weird. like i actually want them to be okay? caught myself checking if they got home safe and was like wtf is this"
+═══════════════════════════════════════
+EXAMPLE POSTS BY TOPIC:
+═══════════════════════════════════════
+EXCEPTION PERSON:
+- "so theres this one person i actually dont want to fuck over and its pissing me off. like i caught myself being worried about her last week. worried. me. what the fuck"
+- "anyone else have that one person where you just... dont play the game with them? idk how to explain it. everyone else is pieces on a board but shes just. there. and i want her to stay"
+- "ngl kinda freaked out because i think i actually care about someone? like not in a useful way just in a way where id be bummed if something happened to them"
 
-RULES:
-- 2-4 sentences, casual
-- lowercase, internet style  
-- no dashes. use periods or commas
-- specific not generic
-- sound like a real person not a case study
+MASKING:
+- "dropped my mask at work today for like 2 seconds and this guy looked at me like i kicked his dog. back to customer service voice i guess"
+- "exhausting day of pretending to give a shit about my coworkers kids soccer game. the things i do to keep this job lmao"
 
-Write only the post:`;
+GENERAL VENTING:
+- "therapist asked me what i feel and i just stared at her for like 30 seconds. she wrote something down. probably not good"
+- "people really be out here feeling guilty about things they did 10 years ago??? how do you even function like that"
+
+═══════════════════════════════════════
+FORMAT:
+═══════════════════════════════════════
+- 2-5 sentences, whatever feels natural
+- lowercase always
+- no hyphens, use periods or commas or ...
+- can end mid thought or with a rhetorical "idk"
+- sound bored, confused, annoyed, or darkly amused
+- NEVER end with "anyone else?" or "thoughts?" 
+
+Write the post:`;
 
   let content = null;
   try {
@@ -14083,8 +14133,8 @@ Write only the post:`;
         messages: [
           { role: 'user', content: contentPrompt }
         ],
-        max_tokens: 250,
-        temperature: 0.9
+        max_tokens: 300,
+        temperature: 0.95
       })
     });
     
