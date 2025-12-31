@@ -3633,7 +3633,7 @@ app.get('/api/room/:id', authMiddleware, async (req, res) => {
       SELECT t.id, t.title, t.slug,
              COALESCE(t.is_pinned, false) AS is_pinned, 
              COALESCE(t.is_locked, false) AS is_locked,
-             COUNT(e.id)::int AS "entriesCount"
+             COUNT(e.id) FILTER (WHERE e.is_deleted = FALSE OR e.is_deleted IS NULL)::int AS "entriesCount"
        FROM threads t
        LEFT JOIN entries e ON e.thread_id = t.id
        WHERE ${whereClause}
