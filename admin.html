@@ -3563,18 +3563,26 @@
       
       // Use document-level delegation for view buttons
       document.addEventListener('click', function(e) {
-        if (e.target && e.target.classList.contains('view-user-btn')) {
-          var row = e.target.closest('tr');
-          if (row && row.dataset.userId) {
-            var userId = parseInt(row.dataset.userId);
+        var target = e.target;
+        console.log('[CLICK DEBUG] Clicked:', target.tagName, target.className);
+        
+        // Check if clicked element or its parent is a view button
+        var viewBtn = target.closest('.view-user-btn');
+        if (viewBtn) {
+          console.log('[CLICK DEBUG] Found view button');
+          var row = viewBtn.closest('tr');
+          console.log('[CLICK DEBUG] Row:', row);
+          if (row) {
+            var userId = row.getAttribute('data-user-id');
+            console.log('[CLICK DEBUG] User ID from row:', userId);
             if (userId) {
               e.preventDefault();
               e.stopPropagation();
-              viewUser(userId);
+              viewUser(parseInt(userId));
             }
           }
         }
-      });
+      }, true);
 
       function viewUser(userId) {
         currentUserId = userId;
