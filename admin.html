@@ -288,12 +288,32 @@
     }
     .user-detail-panel {
       display: none;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      padding: var(--spacing-md);
-      margin-top: var(--spacing-md);
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90%;
+      max-width: 700px;
+      max-height: 80vh;
+      overflow-y: auto;
+      background: var(--bg-primary);
+      border: 2px solid var(--accent-primary);
+      padding: var(--spacing-lg);
+      z-index: 1000;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.8);
     }
     .user-detail-panel.active { display: block; }
+    .user-detail-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 999;
+    }
+    .user-detail-overlay.active { display: block; }
     .user-detail-header {
       display: flex;
       justify-content: space-between;
@@ -1342,10 +1362,11 @@
             </thead>
             <tbody id="users-list"></tbody>
           </table>
+          <div class="user-detail-overlay" id="user-detail-overlay"></div>
           <div class="user-detail-panel" id="user-detail-panel">
             <div class="user-detail-header">
               <span class="user-detail-alias" id="detail-alias"></span>
-              <button class="admin-btn" id="close-detail">CLOSE</button>
+              <button class="admin-btn" id="close-detail">✕ CLOSE</button>
             </div>
             <div class="user-ip-row" style="font-size: 0.4375rem; color: var(--text-muted); padding: var(--spacing-xs) 0; border-bottom: 1px solid var(--border-color); margin-bottom: var(--spacing-sm);">
               <span>LAST IP:</span> <code id="user-ip-display" style="font-family: var(--font-mono); color: var(--text-secondary);">-</code>
@@ -3599,6 +3620,8 @@
                 return;
               }
               panel.classList.add('active');
+              var overlay = document.getElementById('user-detail-overlay');
+              if (overlay) overlay.classList.add('active');
               console.log('[VIEW USER] Panel should now be visible');
               
               var userRole = data.user.role || (data.user.is_admin ? 'admin' : 'user');
@@ -3774,6 +3797,14 @@
 
       document.getElementById('close-detail').addEventListener('click', function() {
         document.getElementById('user-detail-panel').classList.remove('active');
+        document.getElementById('user-detail-overlay').classList.remove('active');
+        currentUserId = null;
+      });
+      
+      // Also close when clicking overlay
+      document.getElementById('user-detail-overlay').addEventListener('click', function() {
+        document.getElementById('user-detail-panel').classList.remove('active');
+        this.classList.remove('active');
         currentUserId = null;
       });
 
