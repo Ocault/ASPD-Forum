@@ -14998,6 +14998,176 @@ Write the post:`;
 }
 
 // ================================================
+// SERVER HEALTH & MAINTENANCE MODE
+// ================================================
+
+// Maintenance mode state
+let maintenanceMode = {
+  enabled: false,
+  message: 'The forum is currently undergoing scheduled maintenance. Please check back soon.',
+  scheduledEnd: null,
+  allowAdmins: true
+};
+
+// Get server health metrics
+app.get('/api/admin/health', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const memUsage = process.memoryUsage();
+    const cpuUsage = process.cpuUsage();
+    const uptime = process.uptime();
+    
+    // Get database connection pool stats
+    let dbStats = { total: 0, idle: 0, waiting: 0 };
+    try {
+      dbStats = {
+        total: db.pool.totalCount || 0,
+        idle: db.pool.idleCount || 0,
+        waiting: db.pool.waitingCount || 0
+      };
+    } catch (e) {}
+    
+    // Get database size
+    let dbSize = 'Unknown';
+    try {
+      const sizeResult = await db.query(`
+        SELECT pg_size_pretty(pg_database_size(current_database())) as size
+      `);
+      dbSize = sizeResult.rows[0]?.size || 'Unknown';
+    } catch (e) {}
+    
+    // Get table row counts
+    let tableCounts = {};
+    try {
+      const tables = ['users', 'threads', 'entries', 'rooms', 'notifications', 'messages'];
+      for (const table of tables) {
+        const result = await db.query(`SELECT COUNT(*) FROM ${table}`);
+        tableCounts[table] = parseInt(result.rows[0].count);
+      }
+    } catch (e) {}
+    
+    // Get active WebSocket connections
+    let wsConnections = 0;
+    try {
+      if (typeof wss !== 'undefined' && wss.clients) {
+        wsConnections = wss.clients.size;
+      }
+    } catch (e) {}
+    
+    // Get recent error count (from logs if available)
+    const recentRequests = {
+      total: 0,
+      errors: 0
+    };
+    
+    res.json({
+      success: true,
+      health: {
+        status: 'healthy',
+        uptime: {
+          seconds: Math.floor(uptime),
+          formatted: formatUptime(uptime)
+        },
+        memory: {
+          heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+          heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+          rss: Math.round(memUsage.rss / 1024 / 1024),
+          external: Math.round(memUsage.external / 1024 / 1024)
+        },
+        cpu: {
+          user: Math.round(cpuUsage.user / 1000),
+          system: Math.round(cpuUsage.system / 1000)
+        },
+        database: {
+          size: dbSize,
+          connections: dbStats,
+          tables: tableCounts
+        },
+        websocket: {
+          connections: wsConnections
+        },
+        node: {
+          version: process.version,
+          platform: process.platform,
+          arch: process.arch
+        },
+        maintenance: maintenanceMode
+      }
+    });
+  } catch (err) {
+    console.error('[HEALTH CHECK ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Format uptime helper
+function formatUptime(seconds) {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  const parts = [];
+  if (days > 0) parts.push(days + 'd');
+  if (hours > 0) parts.push(hours + 'h');
+  if (mins > 0) parts.push(mins + 'm');
+  parts.push(secs + 's');
+  
+  return parts.join(' ');
+}
+
+// Get maintenance mode status (public endpoint)
+app.get('/api/maintenance', (req, res) => {
+  res.json({
+    enabled: maintenanceMode.enabled,
+    message: maintenanceMode.enabled ? maintenanceMode.message : null,
+    scheduledEnd: maintenanceMode.enabled ? maintenanceMode.scheduledEnd : null
+  });
+});
+
+// Set maintenance mode
+app.post('/api/admin/maintenance', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { enabled, message, scheduledEnd, allowAdmins } = req.body;
+    
+    maintenanceMode = {
+      enabled: !!enabled,
+      message: message || 'The forum is currently undergoing scheduled maintenance. Please check back soon.',
+      scheduledEnd: scheduledEnd ? new Date(scheduledEnd).toISOString() : null,
+      allowAdmins: allowAdmins !== false
+    };
+    
+    console.log('[MAINTENANCE]', enabled ? 'ENABLED' : 'DISABLED', maintenanceMode);
+    
+    res.json({ success: true, maintenance: maintenanceMode });
+  } catch (err) {
+    console.error('[MAINTENANCE ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Maintenance mode middleware (add to protected routes if needed)
+function maintenanceMiddleware(req, res, next) {
+  if (!maintenanceMode.enabled) {
+    return next();
+  }
+  
+  // Allow admins if configured
+  if (maintenanceMode.allowAdmins && req.user) {
+    const role = req.user.role || (req.user.isAdmin ? 'admin' : 'user');
+    if (role === 'admin' || role === 'owner') {
+      return next();
+    }
+  }
+  
+  return res.status(503).json({
+    success: false,
+    error: 'maintenance',
+    message: maintenanceMode.message,
+    scheduledEnd: maintenanceMode.scheduledEnd
+  });
+}
+
+// ================================================
 // GROQ AI ADMIN ENDPOINTS
 // ================================================
 

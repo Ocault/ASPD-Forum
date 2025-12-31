@@ -633,6 +633,7 @@
         <button class="admin-nav-btn" data-section="filters" data-role="admin">WORD FILTERS</button>
         <button class="admin-nav-btn" data-section="audit" data-role="admin">AUDIT LOG</button>
         <button class="admin-nav-btn" data-section="badges" data-role="admin">BADGES</button>
+        <button class="admin-nav-btn" data-section="health" data-role="owner">SERVER HEALTH</button>
         <button class="admin-nav-btn" data-section="owner" data-role="owner">OWNER TOOLS</button>
       </div>
 
@@ -696,6 +697,154 @@
               <div class="permission-item denied" data-role="mod" data-needs="owner"><span class="permission-icon">✗</span> Download any user data</div>
               <div class="permission-item denied" data-role="mod" data-needs="owner"><span class="permission-icon">✗</span> Site settings</div>
               <div class="permission-item denied" data-role="mod" data-needs="owner"><span class="permission-icon">✗</span> Database tools</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Server Health Dashboard -->
+        <div class="admin-section" id="section-health">
+          <div class="admin-section-title">SERVER HEALTH DASHBOARD</div>
+          <p style="font-size: 0.5rem; color: var(--text-muted); margin-bottom: var(--spacing-md);">
+            Real-time server metrics and maintenance controls.
+          </p>
+          
+          <!-- Maintenance Mode Control -->
+          <div class="permission-card" style="margin-bottom: var(--spacing-md); border: 2px solid #4a3a3a;">
+            <div class="permission-card-title" style="display: flex; align-items: center; justify-content: space-between;">
+              <span>🚧 MAINTENANCE MODE</span>
+              <span id="maintenance-status" style="font-size: 0.4375rem; padding: 3px 8px; border-radius: 3px; background: #2a4a2a; color: #6a8a6a;">DISABLED</span>
+            </div>
+            <div style="font-size: 0.375rem; color: var(--text-muted); margin-bottom: var(--spacing-sm);">
+              Enable to show a maintenance banner to all users. Admins can still access the site.
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm);">
+              <div>
+                <label style="font-size: 0.375rem; color: var(--text-muted); display: block; margin-bottom: 4px;">MESSAGE</label>
+                <textarea id="maintenance-message" class="admin-input" placeholder="The forum is undergoing maintenance..." style="font-size: 0.4375rem; padding: 8px; width: 100%; height: 60px; resize: none;"></textarea>
+              </div>
+              <div>
+                <label style="font-size: 0.375rem; color: var(--text-muted); display: block; margin-bottom: 4px;">SCHEDULED END (optional)</label>
+                <input type="datetime-local" id="maintenance-end" class="admin-input" style="font-size: 0.4375rem; padding: 8px; width: 100%; margin-bottom: 8px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="maintenance-allow-admins" checked style="width: 14px; height: 14px;">
+                  <span style="font-size: 0.375rem; color: var(--text-muted);">Allow admins to bypass</span>
+                </label>
+              </div>
+            </div>
+            
+            <div style="display: flex; gap: var(--spacing-xs);">
+              <button class="admin-btn" id="maintenance-enable" style="flex: 1; padding: 8px; font-size: 0.4375rem; background: #4a3a3a; border-color: #6a4a4a;">
+                ⚠️ ENABLE MAINTENANCE
+              </button>
+              <button class="admin-btn admin-btn-secondary" id="maintenance-disable" style="padding: 8px 16px; font-size: 0.4375rem;">
+                ✓ DISABLE
+              </button>
+            </div>
+          </div>
+          
+          <!-- Health Metrics -->
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--spacing-sm); margin-bottom: var(--spacing-md);">
+            <div class="stat-box" style="text-align: center;">
+              <div class="stat-value" id="health-uptime" style="font-size: 0.875rem;">--</div>
+              <div class="stat-label">UPTIME</div>
+            </div>
+            <div class="stat-box" style="text-align: center;">
+              <div class="stat-value" id="health-memory" style="font-size: 0.875rem;">-- MB</div>
+              <div class="stat-label">MEMORY (HEAP)</div>
+            </div>
+            <div class="stat-box" style="text-align: center;">
+              <div class="stat-value" id="health-connections" style="font-size: 0.875rem;">--</div>
+              <div class="stat-label">WS CONNECTIONS</div>
+            </div>
+            <div class="stat-box" style="text-align: center;">
+              <div class="stat-value" id="health-db-size" style="font-size: 0.875rem;">--</div>
+              <div class="stat-label">DATABASE SIZE</div>
+            </div>
+          </div>
+          
+          <!-- Detailed Stats -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md);">
+            <!-- Memory Details -->
+            <div class="permission-card">
+              <div class="permission-card-title">💾 MEMORY</div>
+              <div style="font-size: 0.4375rem; color: var(--text-secondary);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>Heap Used:</span>
+                  <span id="health-heap-used">-- MB</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>Heap Total:</span>
+                  <span id="health-heap-total">-- MB</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>RSS:</span>
+                  <span id="health-rss">-- MB</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>External:</span>
+                  <span id="health-external">-- MB</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Database Details -->
+            <div class="permission-card">
+              <div class="permission-card-title">🗄️ DATABASE</div>
+              <div style="font-size: 0.4375rem; color: var(--text-secondary);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>Size:</span>
+                  <span id="health-db-size-detail">--</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>Connections (Active/Idle):</span>
+                  <span id="health-db-connections">--/--</span>
+                </div>
+              </div>
+              <div style="margin-top: 8px; font-size: 0.375rem; color: var(--text-muted);">TABLE ROWS</div>
+              <div id="health-table-counts" style="font-size: 0.4375rem; color: var(--text-secondary); display: grid; grid-template-columns: 1fr 1fr; gap: 2px;">
+              </div>
+            </div>
+            
+            <!-- System Info -->
+            <div class="permission-card">
+              <div class="permission-card-title">🖥️ SYSTEM</div>
+              <div style="font-size: 0.4375rem; color: var(--text-secondary);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>Node.js:</span>
+                  <span id="health-node-version">--</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>Platform:</span>
+                  <span id="health-platform">--</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>CPU User:</span>
+                  <span id="health-cpu-user">-- ms</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>CPU System:</span>
+                  <span id="health-cpu-system">-- ms</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Status -->
+            <div class="permission-card">
+              <div class="permission-card-title">✅ STATUS</div>
+              <div style="font-size: 0.4375rem; color: var(--text-secondary);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>Server Status:</span>
+                  <span id="health-status" style="color: #6a8a6a;">HEALTHY</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>Last Check:</span>
+                  <span id="health-last-check">--</span>
+                </div>
+              </div>
+              <button class="admin-btn admin-btn-secondary" id="health-refresh" style="width: 100%; margin-top: 8px; padding: 6px; font-size: 0.4375rem;">
+                🔄 REFRESH
+              </button>
             </div>
           </div>
         </div>
@@ -1538,7 +1687,172 @@
         else if (section === 'audit') loadAuditLog();
         else if (section === 'badges') loadBadges();
         else if (section === 'permissions') { /* Static content */ }
+        else if (section === 'health') loadHealthDashboard();
         else if (section === 'owner') loadOwnerTools();
+      }
+
+      // Server Health Dashboard
+      var healthRefreshInterval = null;
+      
+      function loadHealthDashboard() {
+        if (!isOwner) return;
+        loadHealthData();
+        loadMaintenanceStatus();
+        
+        // Auto-refresh every 30 seconds
+        if (healthRefreshInterval) clearInterval(healthRefreshInterval);
+        healthRefreshInterval = setInterval(loadHealthData, 30000);
+      }
+      
+      function loadHealthData() {
+        AuthState.apiRequest('/api/admin/health')
+          .then(function(data) {
+            if (data.success) {
+              var h = data.health;
+              
+              // Top stats
+              document.getElementById('health-uptime').textContent = h.uptime.formatted;
+              document.getElementById('health-memory').textContent = h.memory.heapUsedMB + ' MB';
+              document.getElementById('health-connections').textContent = h.connections.websocket;
+              document.getElementById('health-db-size').textContent = h.database.size || '--';
+              
+              // Memory details
+              document.getElementById('health-heap-used').textContent = h.memory.heapUsedMB + ' MB';
+              document.getElementById('health-heap-total').textContent = h.memory.heapTotalMB + ' MB';
+              document.getElementById('health-rss').textContent = h.memory.rssMB + ' MB';
+              document.getElementById('health-external').textContent = h.memory.externalMB + ' MB';
+              
+              // Database details
+              document.getElementById('health-db-size-detail').textContent = h.database.size || '--';
+              document.getElementById('health-db-connections').textContent = 
+                (h.connections.database.total - h.connections.database.idle) + '/' + h.connections.database.idle;
+              
+              // Table counts
+              var tableCountsEl = document.getElementById('health-table-counts');
+              if (h.database.tables) {
+                tableCountsEl.innerHTML = Object.keys(h.database.tables).map(function(table) {
+                  return '<div style="display: flex; justify-content: space-between; padding: 1px 0;">' +
+                    '<span style="color: var(--text-muted);">' + table + ':</span>' +
+                    '<span>' + h.database.tables[table].toLocaleString() + '</span>' +
+                    '</div>';
+                }).join('');
+              }
+              
+              // System info
+              document.getElementById('health-node-version').textContent = h.node.version;
+              document.getElementById('health-platform').textContent = h.node.platform;
+              document.getElementById('health-cpu-user').textContent = (h.cpu.user / 1000).toFixed(0) + ' ms';
+              document.getElementById('health-cpu-system').textContent = (h.cpu.system / 1000).toFixed(0) + ' ms';
+              
+              // Status
+              document.getElementById('health-status').textContent = 'HEALTHY';
+              document.getElementById('health-status').style.color = '#6a8a6a';
+              document.getElementById('health-last-check').textContent = new Date().toLocaleTimeString();
+            }
+          })
+          .catch(function(err) {
+            document.getElementById('health-status').textContent = 'ERROR';
+            document.getElementById('health-status').style.color = '#8a6a6a';
+            console.error('Health check failed:', err);
+          });
+      }
+      
+      function loadMaintenanceStatus() {
+        AuthState.apiRequest('/api/maintenance')
+          .then(function(data) {
+            if (data.success) {
+              var m = data.maintenance;
+              var statusEl = document.getElementById('maintenance-status');
+              var messageEl = document.getElementById('maintenance-message');
+              var endEl = document.getElementById('maintenance-end');
+              var allowAdminsEl = document.getElementById('maintenance-allow-admins');
+              
+              if (m.enabled) {
+                statusEl.textContent = 'ENABLED';
+                statusEl.style.background = '#4a3a3a';
+                statusEl.style.color = '#aa6a6a';
+                if (m.message) messageEl.value = m.message;
+                if (m.scheduledEnd) {
+                  var d = new Date(m.scheduledEnd);
+                  endEl.value = d.toISOString().slice(0, 16);
+                }
+                if (typeof m.allowAdmins === 'boolean') {
+                  allowAdminsEl.checked = m.allowAdmins;
+                }
+              } else {
+                statusEl.textContent = 'DISABLED';
+                statusEl.style.background = '#2a4a2a';
+                statusEl.style.color = '#6a8a6a';
+              }
+            }
+          });
+      }
+      
+      // Maintenance enable button
+      var maintenanceEnableBtn = document.getElementById('maintenance-enable');
+      if (maintenanceEnableBtn) {
+        maintenanceEnableBtn.addEventListener('click', function() {
+          if (!isOwner) return;
+          
+          var message = document.getElementById('maintenance-message').value.trim();
+          var scheduledEnd = document.getElementById('maintenance-end').value;
+          var allowAdmins = document.getElementById('maintenance-allow-admins').checked;
+          
+          AuthState.apiRequest('/api/admin/maintenance', {
+            method: 'POST',
+            body: JSON.stringify({
+              enabled: true,
+              message: message || 'The forum is currently undergoing maintenance. Please check back soon.',
+              scheduledEnd: scheduledEnd ? new Date(scheduledEnd).toISOString() : null,
+              allowAdmins: allowAdmins
+            })
+          })
+          .then(function(data) {
+            if (data.success) {
+              Notify.show('Maintenance mode enabled', 'success');
+              loadMaintenanceStatus();
+            } else {
+              Notify.show(data.error || 'Failed to enable maintenance', 'error');
+            }
+          })
+          .catch(function(err) {
+            Notify.show(err.message || 'Error enabling maintenance', 'error');
+          });
+        });
+      }
+      
+      // Maintenance disable button
+      var maintenanceDisableBtn = document.getElementById('maintenance-disable');
+      if (maintenanceDisableBtn) {
+        maintenanceDisableBtn.addEventListener('click', function() {
+          if (!isOwner) return;
+          
+          AuthState.apiRequest('/api/admin/maintenance', {
+            method: 'POST',
+            body: JSON.stringify({ enabled: false })
+          })
+          .then(function(data) {
+            if (data.success) {
+              Notify.show('Maintenance mode disabled', 'success');
+              loadMaintenanceStatus();
+            } else {
+              Notify.show(data.error || 'Failed to disable maintenance', 'error');
+            }
+          })
+          .catch(function(err) {
+            Notify.show(err.message || 'Error disabling maintenance', 'error');
+          });
+        });
+      }
+      
+      // Health refresh button
+      var healthRefreshBtn = document.getElementById('health-refresh');
+      if (healthRefreshBtn) {
+        healthRefreshBtn.addEventListener('click', function() {
+          if (!isOwner) return;
+          loadHealthData();
+          Notify.show('Health data refreshed', 'info');
+        });
       }
 
       // Owner Tools
