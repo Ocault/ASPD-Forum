@@ -13732,6 +13732,43 @@ async function createBotThread(roomId, persona, options = {}) {
   };
 }
 
+// Post-process AI content to remove any remaining AI tells
+function cleanAIContent(content) {
+  if (!content) return content;
+  
+  let cleaned = content;
+  
+  // Remove common AI openers
+  cleaned = cleaned.replace(/^(So,?\s+|Well,?\s+|Honestly,?\s+)/i, '');
+  
+  // Remove em-dashes (AI favorite)
+  cleaned = cleaned.replace(/\s*—\s*/g, ' - ');
+  
+  // Remove overly formal phrases
+  cleaned = cleaned.replace(/\bI find myself\b/gi, 'I');
+  cleaned = cleaned.replace(/\bI've come to realize\b/gi, 'I realized');
+  cleaned = cleaned.replace(/\bI've noticed that\b/gi, 'I noticed');
+  cleaned = cleaned.replace(/\bIt's worth noting\b/gi, '');
+  cleaned = cleaned.replace(/\bTo be honest\b/gi, 'tbh');
+  cleaned = cleaned.replace(/\bIn my experience\b/gi, 'for me');
+  
+  // Remove validation-seeking endings
+  cleaned = cleaned.replace(/\s*Does anyone else feel this way\??\s*$/i, '');
+  cleaned = cleaned.replace(/\s*Can anyone relate\??\s*$/i, '');
+  cleaned = cleaned.replace(/\s*Anyone else\??\s*$/i, '');
+  cleaned = cleaned.replace(/\s*Thoughts\??\s*$/i, '');
+  cleaned = cleaned.replace(/\s*Just me\??\s*$/i, '');
+  cleaned = cleaned.replace(/\s*Curious to hear your thoughts\.?\s*$/i, '');
+  
+  // Remove quotes if the AI wrapped its response in them
+  cleaned = cleaned.replace(/^["']|["']$/g, '');
+  
+  // Clean up any double spaces
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  return cleaned;
+}
+
 // Generate CUSTOM TOPIC PREVIEW - generates content without posting
 async function generateCustomTopicPreview(roomId, topic, persona, roomTitle) {
   if (!GROQ_CONFIG.enabled || !GROQ_CONFIG.apiKey) {
@@ -13785,40 +13822,47 @@ async function generateCustomTopicPreview(roomId, topic, persona, roomTitle) {
     }
   }
   
-  // ASPD terminology guide for AI understanding
-  const aspdTerminology = `
-ASPD TERMINOLOGY:
-- "exception person" = someone you genuinely care about and dont play games with
-- "masking" = pretending to be normal around people
-- "mirroring" = copying someones vibe to blend in
-- "bored" = that empty feeling that makes you do dumb shit for stimulation`;
+  // ASPD context for AI - based on real r/aspd and r/sociopath posts
+  const aspdContext = `
+YOU ARE POSTING ON AN ASPD SUPPORT FORUM. These are real topics that come up:
+- Boredom/understimulation and what to do about it
+- Relationships and whether theyre worth the effort
+- Masking around neurotypicals and when the mask slips
+- "Exception person" - that rare person you actually care about
+- Diagnosis experiences - getting diagnosed, what changed
+- Work situations - coworkers, bosses, office politics
+- Therapy - usually court ordered or partner demanded, mixed results
+- Impulsive decisions and their aftermath
+- Feeling different from everyone else since childhood
+- Whether you can actually change or if this is just who you are`;
   
   // Generate title about the topic
-  const titlePrompt = `You're posting on an ASPD forum in the "${roomTitle}" section about: "${topic}"
+  const titlePrompt = `You're posting on an ASPD forum in the "${roomTitle}" section.
 
-Generate ONE thread title.
+Topic to write about: "${topic}"
 
-Rules:
-- all lowercase
-- no quotes or punctuation at end
-- specific and interesting, makes people want to click
-- sounds like a real person not a therapist
+Generate a thread title. Study these REAL titles from r/aspd:
 
-Good examples:
-"got promoted by making my boss think it was his idea"
-"anyone else have zero memory of childhood"  
-"therapist figured me out. time to find a new one"
-"best lie youve told to get out of something"
-"coworker thinks were friends and idk how to act"
-"told my partner the truth and she didnt leave"
+REAL EXAMPLES:
+- "How do you deal with it when boredom becomes too much?"
+- "Is there any point in therapy for people like us?"
+- "Do you have an 'exception' person?"
+- "goddamn the neurotypicals are stupid"
+- "Those who mask: do you notice people who see through it?"
+- "How shallow are your emotions?"
+- "Do you take pleasure in influencing people"
+- "What made you suspect you were a sociopath?"
+- "Empathy is Coercion, change my mind"
+- "Do you feel a build-up to bad behavior?"
 
-Bad examples (dont do these):
-"feeling weird about something"
-"idk whats wrong with me"
-"anyone relate"
-"just thinking"
+RULES:
+- Can be a question OR a statement
+- Specific to the topic, not vague
+- Sounds like a real person starting a discussion
+- All lowercase except proper nouns
+- No quotation marks in output
 
-Title:`;
+Write just the title:`;
 
   let title = null;
   try {
@@ -13833,8 +13877,8 @@ Title:`;
         messages: [
           { role: 'user', content: titlePrompt }
         ],
-        max_tokens: 40,
-        temperature: 0.85
+        max_tokens: 50,
+        temperature: 0.8
       })
     });
     
@@ -13854,59 +13898,75 @@ Title:`;
     return null;
   }
   
+  // Randomly select a post style for variety
+  const postStyles = ['experience', 'question', 'rant', 'observation', 'advice'];
+  const selectedStyle = postStyles[Math.floor(Math.random() * postStyles.length)];
+  
   // Generate content about the topic with ASPD perspective
-  const contentPrompt = `You're ${personaData.name} posting on a forum. Write a post about "${topic}" with title "${title}".
-${personalityHints}
+  const contentPrompt = `You're posting on an ASPD forum. Write the body of a post with title: "${title}"
+${aspdContext}
+
+YOUR PERSONA: ${personaData.name} - ${personaData.style}${personalityHints}
+
+POST STYLE FOR THIS ONE: ${selectedStyle}
+- experience = share something that happened to you
+- question = genuinely ask for others' input/experiences  
+- rant = vent about something that annoys you
+- observation = share something youve noticed about yourself or others
+- advice = share a tip or strategy that works for you
 
 ═══════════════════════════════════════
-WHAT MAKES A GOOD FORUM POST:
+REAL POST EXAMPLES FROM r/aspd (match the vibe):
 ═══════════════════════════════════════
-1. HAS A POINT - shares an experience, asks a real question, or discusses a strategy
-2. SPECIFIC DETAILS - mentions actual situations, people, places, times
-3. INVITES DISCUSSION - other people can respond with their own takes
-4. DIRECT - says what it means without hedging
 
-═══════════════════════════════════════
-POST TYPES (pick one that fits):
-═══════════════════════════════════════
-SHARING EXPERIENCE:
-"so yesterday i was at this work thing and realized i was copying my managers personality the whole time. like word for word mirroring how he talks. been doing it for months and only just noticed"
+EXPERIENCE:
+"so my mask slipped at work yesterday. was in a meeting and someone said something stupid and i just... stared at them. didnt say anything, just stared. now theyre avoiding me and honestly its kinda nice not having to make small talk anymore"
 
-"got into it with my roommate bc she said i dont care about her feelings. tried to explain thats not how i work but she just kept crying. gave up and left"
+QUESTION:
+"for those in long term relationships - how do you keep up the act? ive been with my gf for 2 years and im running out of ways to seem interested in her day. genuinely asking because i dont want to blow this up, she's useful"
 
-ASKING FOR ADVICE/INPUT:
-"how do you guys handle the boredom at like 3am when you cant sleep and your brain just wants to do something stupid. asking for myself obviously"
+RANT:
+"fucking neurotypicals and their need to process emotions out loud. just had a coworker corner me for 45 minutes about her breakup. i literally do not care. smiled and nodded the whole time but god i wanted to walk away so bad"
 
-"anyone figured out how to actually enjoy things? like actually feel it not just go thru the motions. serious question"
+OBSERVATION:
+"noticed i only feel something close to happy when im in control of a situation. doesnt matter what the situation is. could be something small like deciding where to eat. the second someone else takes over i just go blank again"
 
-DISCUSSING A STRATEGY:
-"found out if you just agree with everything in therapy they leave you alone faster. nod along say the right words collect your paperwork"
-
-"pro tip for work stuff. let people think theyre smarter than you. they help you more and expect less. been coasting for 2 years"
-
-MAKING AN OBSERVATION:
-"weird thing i noticed. i can read people perfectly when its for me but when someone actually needs help i got nothing. zero. brain just goes blank"
-
-"people really do believe anything if you say it confident enough. tested this at a party last week. told someone i was a pilot and they bought it completely"
+ADVICE/STRATEGY:
+"figured out that if you ask people questions about themselves they think youre a great listener. been doing this at work for months. say maybe 10 words total, just keep asking follow ups, and now everyone thinks im the nicest person on the team lmao"
 
 ═══════════════════════════════════════
-NEVER DO:
+AUTHENTICITY MARKERS (include 2-3 of these):
 ═══════════════════════════════════════
-- "whats wrong with me??" self pity
-- asking for validation/reassurance
-- vague rambling with no point
-- psychology jargon (supply, transactional, narcissistic)
-- perfectly structured sentences
-- starting with "I"
-- ending thoughts neatly
+- Abbreviations: tbh, idk, ngl, imo, lol, lmao
+- Trailing thoughts: "but idk", "whatever", "anyway"
+- Self-aware asides: (in parentheses like this)
+- Casual swearing: shit, damn, fuck, hell
+- Specific details: times, places, days, people (my boss, this girl, etc)
+- Rhetorical questions to self
+- Run-on sentences connected with "and"
 
 ═══════════════════════════════════════
-STYLE:
+AI DETECTION - NEVER DO THESE:
 ═══════════════════════════════════════
-- 2-4 sentences with actual content
-- all lowercase, casual punctuation
-- specific not vague
-- sounds like youre telling a friend not writing an essay
+❌ Starting with "So," or "Well," (classic AI opener)
+❌ Using em-dashes (—) 
+❌ Perfect paragraph structure
+❌ Wrapping up thoughts neatly at the end
+❌ Words like "genuinely", "essentially", "particularly"  
+❌ "I find myself..." or "I've come to realize..."
+❌ Explaining your own psychology
+❌ Being inspirational or uplifting
+❌ Asking "does anyone else feel this way?" at the end
+
+═══════════════════════════════════════
+RULES:
+═══════════════════════════════════════
+1. DO NOT start by repeating the title
+2. 3-6 sentences, natural flow
+3. Match the ${selectedStyle} style above
+4. Include 2-3 authenticity markers
+5. End mid-thought or with a casual closer, not a neat summary
+6. Lowercase, messy punctuation is fine
 
 Write the post:`;
 
@@ -13923,14 +13983,16 @@ Write the post:`;
         messages: [
           { role: 'user', content: contentPrompt }
         ],
-        max_tokens: 200,
-        temperature: 0.98
+        max_tokens: 280,
+        temperature: 0.9
       })
     });
     
     if (contentResponse.ok) {
       const data = await contentResponse.json();
       content = data.choices?.[0]?.message?.content?.trim();
+      // Clean AI artifacts
+      content = cleanAIContent(content);
     }
   } catch (err) {
     console.error('[CUSTOM TOPIC PREVIEW] Content generation failed:', err.message);
@@ -14009,40 +14071,47 @@ async function createCustomTopicThread(roomId, topic, persona, roomTitle) {
     }
   }
   
-  // ASPD terminology guide for AI understanding
-  const aspdTerminology = `
-ASPD TERMINOLOGY:
-- "exception person" = someone you genuinely care about and dont play games with
-- "masking" = pretending to be normal around people
-- "mirroring" = copying someones vibe to blend in
-- "bored" = that empty feeling that makes you do dumb shit for stimulation`;
+  // ASPD context for AI - based on real r/aspd and r/sociopath posts
+  const aspdContext = `
+YOU ARE POSTING ON AN ASPD SUPPORT FORUM. These are real topics that come up:
+- Boredom/understimulation and what to do about it
+- Relationships and whether theyre worth the effort
+- Masking around neurotypicals and when the mask slips
+- "Exception person" - that rare person you actually care about
+- Diagnosis experiences - getting diagnosed, what changed
+- Work situations - coworkers, bosses, office politics
+- Therapy - usually court ordered or partner demanded, mixed results
+- Impulsive decisions and their aftermath
+- Feeling different from everyone else since childhood
+- Whether you can actually change or if this is just who you are`;
   
   // Generate title about the topic
-  const titlePrompt = `You're posting on an ASPD forum in the "${roomTitle}" section about: "${topic}"
+  const titlePrompt = `You're posting on an ASPD forum in the "${roomTitle}" section.
 
-Generate ONE thread title.
+Topic to write about: "${topic}"
 
-Rules:
-- all lowercase
-- no quotes or punctuation at end
-- specific and interesting, makes people want to click
-- sounds like a real person not a therapist
+Generate a thread title. Study these REAL titles from r/aspd:
 
-Good examples:
-"got promoted by making my boss think it was his idea"
-"anyone else have zero memory of childhood"  
-"therapist figured me out. time to find a new one"
-"best lie youve told to get out of something"
-"coworker thinks were friends and idk how to act"
-"told my partner the truth and she didnt leave"
+REAL EXAMPLES:
+- "How do you deal with it when boredom becomes too much?"
+- "Is there any point in therapy for people like us?"
+- "Do you have an 'exception' person?"
+- "goddamn the neurotypicals are stupid"
+- "Those who mask: do you notice people who see through it?"
+- "How shallow are your emotions?"
+- "Do you take pleasure in influencing people"
+- "What made you suspect you were a sociopath?"
+- "Empathy is Coercion, change my mind"
+- "Do you feel a build-up to bad behavior?"
 
-Bad examples (dont do these):
-"feeling weird about something"
-"idk whats wrong with me"
-"anyone relate"
-"just thinking"
+RULES:
+- Can be a question OR a statement
+- Specific to the topic, not vague
+- Sounds like a real person starting a discussion
+- All lowercase except proper nouns
+- No quotation marks in output
 
-Title:`;
+Write just the title:`;
 
   let title = null;
   try {
@@ -14057,8 +14126,8 @@ Title:`;
         messages: [
           { role: 'user', content: titlePrompt }
         ],
-        max_tokens: 40,
-        temperature: 0.85
+        max_tokens: 50,
+        temperature: 0.8
       })
     });
     
@@ -14079,59 +14148,75 @@ Title:`;
     return null;
   }
   
+  // Randomly select a post style for variety
+  const postStyles = ['experience', 'question', 'rant', 'observation', 'advice'];
+  const selectedStyle = postStyles[Math.floor(Math.random() * postStyles.length)];
+  
   // Generate content about the topic with ASPD perspective
-  const contentPrompt = `You're ${personaData.name} posting on a forum. Write a post about "${topic}" with title "${title}".
-${personalityHints}
+  const contentPrompt = `You're posting on an ASPD forum. Write the body of a post with title: "${title}"
+${aspdContext}
+
+YOUR PERSONA: ${personaData.name} - ${personaData.style}${personalityHints}
+
+POST STYLE FOR THIS ONE: ${selectedStyle}
+- experience = share something that happened to you
+- question = genuinely ask for others' input/experiences  
+- rant = vent about something that annoys you
+- observation = share something youve noticed about yourself or others
+- advice = share a tip or strategy that works for you
 
 ═══════════════════════════════════════
-WHAT MAKES A GOOD FORUM POST:
+REAL POST EXAMPLES FROM r/aspd (match the vibe):
 ═══════════════════════════════════════
-1. HAS A POINT - shares an experience, asks a real question, or discusses a strategy
-2. SPECIFIC DETAILS - mentions actual situations, people, places, times
-3. INVITES DISCUSSION - other people can respond with their own takes
-4. DIRECT - says what it means without hedging
 
-═══════════════════════════════════════
-POST TYPES (pick one that fits):
-═══════════════════════════════════════
-SHARING EXPERIENCE:
-"so yesterday i was at this work thing and realized i was copying my managers personality the whole time. like word for word mirroring how he talks. been doing it for months and only just noticed"
+EXPERIENCE:
+"so my mask slipped at work yesterday. was in a meeting and someone said something stupid and i just... stared at them. didnt say anything, just stared. now theyre avoiding me and honestly its kinda nice not having to make small talk anymore"
 
-"got into it with my roommate bc she said i dont care about her feelings. tried to explain thats not how i work but she just kept crying. gave up and left"
+QUESTION:
+"for those in long term relationships - how do you keep up the act? ive been with my gf for 2 years and im running out of ways to seem interested in her day. genuinely asking because i dont want to blow this up, she's useful"
 
-ASKING FOR ADVICE/INPUT:
-"how do you guys handle the boredom at like 3am when you cant sleep and your brain just wants to do something stupid. asking for myself obviously"
+RANT:
+"fucking neurotypicals and their need to process emotions out loud. just had a coworker corner me for 45 minutes about her breakup. i literally do not care. smiled and nodded the whole time but god i wanted to walk away so bad"
 
-"anyone figured out how to actually enjoy things? like actually feel it not just go thru the motions. serious question"
+OBSERVATION:
+"noticed i only feel something close to happy when im in control of a situation. doesnt matter what the situation is. could be something small like deciding where to eat. the second someone else takes over i just go blank again"
 
-DISCUSSING A STRATEGY:
-"found out if you just agree with everything in therapy they leave you alone faster. nod along say the right words collect your paperwork"
-
-"pro tip for work stuff. let people think theyre smarter than you. they help you more and expect less. been coasting for 2 years"
-
-MAKING AN OBSERVATION:
-"weird thing i noticed. i can read people perfectly when its for me but when someone actually needs help i got nothing. zero. brain just goes blank"
-
-"people really do believe anything if you say it confident enough. tested this at a party last week. told someone i was a pilot and they bought it completely"
+ADVICE/STRATEGY:
+"figured out that if you ask people questions about themselves they think youre a great listener. been doing this at work for months. say maybe 10 words total, just keep asking follow ups, and now everyone thinks im the nicest person on the team lmao"
 
 ═══════════════════════════════════════
-NEVER DO:
+AUTHENTICITY MARKERS (include 2-3 of these):
 ═══════════════════════════════════════
-- "whats wrong with me??" self pity
-- asking for validation/reassurance
-- vague rambling with no point
-- psychology jargon (supply, transactional, narcissistic)
-- perfectly structured sentences
-- starting with "I"
-- ending thoughts neatly
+- Abbreviations: tbh, idk, ngl, imo, lol, lmao
+- Trailing thoughts: "but idk", "whatever", "anyway"
+- Self-aware asides: (in parentheses like this)
+- Casual swearing: shit, damn, fuck, hell
+- Specific details: times, places, days, people (my boss, this girl, etc)
+- Rhetorical questions to self
+- Run-on sentences connected with "and"
 
 ═══════════════════════════════════════
-STYLE:
+AI DETECTION - NEVER DO THESE:
 ═══════════════════════════════════════
-- 2-4 sentences with actual content
-- all lowercase, casual punctuation
-- specific not vague
-- sounds like youre telling a friend not writing an essay
+❌ Starting with "So," or "Well," (classic AI opener)
+❌ Using em-dashes (—) 
+❌ Perfect paragraph structure
+❌ Wrapping up thoughts neatly at the end
+❌ Words like "genuinely", "essentially", "particularly"  
+❌ "I find myself..." or "I've come to realize..."
+❌ Explaining your own psychology
+❌ Being inspirational or uplifting
+❌ Asking "does anyone else feel this way?" at the end
+
+═══════════════════════════════════════
+RULES:
+═══════════════════════════════════════
+1. DO NOT start by repeating the title
+2. 3-6 sentences, natural flow
+3. Match the ${selectedStyle} style above
+4. Include 2-3 authenticity markers
+5. End mid-thought or with a casual closer, not a neat summary
+6. Lowercase, messy punctuation is fine
 
 Write the post:`;
 
@@ -14148,7 +14233,7 @@ Write the post:`;
         messages: [
           { role: 'user', content: contentPrompt }
         ],
-        max_tokens: 200,
+        max_tokens: 280,
         temperature: 0.9
       })
     });
@@ -14156,6 +14241,8 @@ Write the post:`;
     if (contentResponse.ok) {
       const data = await contentResponse.json();
       content = data.choices?.[0]?.message?.content?.trim();
+      // Clean AI artifacts
+      content = cleanAIContent(content);
     }
   } catch (err) {
     console.error('[CUSTOM TOPIC] Content generation failed:', err.message);
