@@ -9667,16 +9667,16 @@ function startBotScheduler() {
     if (BOT_SCHEDULER.nextScheduledRun && now >= BOT_SCHEDULER.nextScheduledRun) {
       await runScheduledBotActivity();
     }
-  }, 5 * 60 * 1000); // Check every 5 minutes
+  }, 2 * 60 * 1000); // Check every 2 minutes for more activity
   
-  // Also run a faster check for online status (every 1-2 minutes for more realism)
+  // Fast status check for realistic online count fluctuation (every 30-60 seconds)
   botOnlineStatusInterval = setInterval(async () => {
     try {
       await updateBotOnlineStatuses();
     } catch (err) {
       // Silent fail for status checks
     }
-  }, 60000 + Math.random() * 60000); // 1-2 minutes
+  }, 30000 + Math.random() * 30000); // 30-60 seconds
 }
 
 function stopBotScheduler() {
@@ -9718,41 +9718,40 @@ async function updateBotOnlineStatuses() {
       
       if (bot.is_online) {
         // Currently online - should they go offline?
-        // More likely to stay online during peak hours
-        const stayOnlineChance = isInPeakHours ? 0.5 : 0.2;
+        // Shorter sessions feel more realistic
+        const stayOnlineChance = isInPeakHours ? 0.35 : 0.15;
         newOnlineStatus = Math.random() < stayOnlineChance;
         
-        // If going offline, short break. If staying online, extend session briefly
+        // Short sessions - people browse, then leave
         if (newOnlineStatus) {
-          sessionDuration = 2 + Math.random() * 8; // 2-10 more minutes (shorter sessions)
+          sessionDuration = 1 + Math.random() * 4; // 1-5 more minutes
         } else {
-          sessionDuration = 20 + Math.random() * 120; // 20 min to 2 hours offline
+          sessionDuration = 5 + Math.random() * 30; // 5-35 min offline (shorter breaks)
         }
       } else {
         // Currently offline - should they come online?
-        // Base chance modified by activity level and time
-        let comeOnlineChance = 0.12; // Base 12%
+        // Higher base chances for more activity
+        let comeOnlineChance = 0.25; // Base 25%
         
-        if (bot.activity_level === 'very_active') comeOnlineChance = 0.35;
-        else if (bot.activity_level === 'active') comeOnlineChance = 0.25;
-        else if (bot.activity_level === 'normal') comeOnlineChance = 0.15;
-        else if (bot.activity_level === 'lurker') comeOnlineChance = 0.05;
+        if (bot.activity_level === 'very_active') comeOnlineChance = 0.55;
+        else if (bot.activity_level === 'active') comeOnlineChance = 0.40;
+        else if (bot.activity_level === 'normal') comeOnlineChance = 0.28;
+        else if (bot.activity_level === 'lurker') comeOnlineChance = 0.12;
         
         // Peak hours boost
-        if (isInPeakHours) comeOnlineChance *= 1.8;
+        if (isInPeakHours) comeOnlineChance *= 1.5;
         
-        // Late night reduction (2am-7am UTC)
-        if (currentHour >= 2 && currentHour <= 7) comeOnlineChance *= 0.25;
+        // Late night reduction (2am-7am UTC) but not as harsh
+        if (currentHour >= 2 && currentHour <= 7) comeOnlineChance *= 0.4;
         
         newOnlineStatus = Math.random() < comeOnlineChance;
         
         if (newOnlineStatus) {
-          // Coming online - shorter, more realistic sessions (3-15 minutes)
-          const avgSession = bot.avg_session_minutes || 15;
-          sessionDuration = Math.min(avgSession * (0.3 + Math.random() * 0.5), 20); // 30%-80% of avg, max 20 min
+          // Coming online - realistic browse sessions (2-12 minutes)
+          sessionDuration = 2 + Math.random() * 10;
         } else {
-          // Staying offline - check again soon or later
-          sessionDuration = 15 + Math.random() * 45; // 15-60 minutes
+          // Staying offline - check again soon for more churn
+          sessionDuration = 3 + Math.random() * 15; // 3-18 minutes
         }
       }
       
@@ -10651,6 +10650,12 @@ async function simulateNewUserJoin() {
     // Update stats
     await updateBotAccountActivity(botAccountId);
     await db.query('UPDATE bot_accounts SET thread_count = thread_count + 1 WHERE id = $1', [botAccountId]);
+    
+    // Get the user id for badge checking
+    const userCheck = await db.query(`SELECT id FROM users WHERE alias = $1`, [alias]);
+    if (userCheck.rows.length > 0) {
+      checkAndAwardBadges(userCheck.rows[0].id).catch(() => {});
+    }
     
     BOT_SCHEDULER.newUsersToday++;
     
@@ -13538,6 +13543,11 @@ async function createBotReply(threadId, persona, options = {}) {
     await updateBotAccountActivity(botAccount.id);
   }
   
+  // Update badges for bot user
+  if (userId) {
+    checkAndAwardBadges(userId).catch(() => {});
+  }
+  
   // Bot also votes on other posts in the thread
   let votesPlaced = 0;
   if (doVoting && botAccount) {
@@ -13698,6 +13708,11 @@ async function createBotThread(roomId, persona, options = {}) {
     await db.query(`UPDATE bot_accounts SET thread_count = thread_count + 1 WHERE id = $1`, [botAccount.id]);
   }
   
+  // Update badges for bot user
+  if (userId) {
+    checkAndAwardBadges(userId).catch(() => {});
+  }
+  
   return {
     success: true,
     threadId,
@@ -13825,15 +13840,7 @@ Examples:
   }
   
   // Generate content about the topic with ASPD perspective
-  const contentPrompt = `You're posting on an ASPD forum where everyone already has ASPD. No need to explain what it is or justify yourself. Just talk like you're among people who get it.
-
-ASPD SLANG (use naturally, dont define them):
-- "exception person" = that one person you actually care about and dont use
-- "mask" = the fake normal persona you wear
-- "supply" = people you get validation/attention from  
-- "FP" = favorite person youre attached to
-- "narc" = narcissist
-- "NT" = neurotypical, normal people
+  const contentPrompt = `You ARE a real person posting on a forum. Not roleplaying. Not pretending. You're just typing a quick post about something on your mind.
 
 Your vibe: ${personaData.name} - ${personaData.style}${personalityHints}
 
@@ -13841,55 +13848,66 @@ TOPIC: "${topic}"
 TITLE: "${title}"
 
 ═══════════════════════════════════════
-WHAT KILLS AUTHENTICITY (never do this):
+AI TELLS (things that make it obvious its a bot):
 ═══════════════════════════════════════
-❌ "my interactions are transactional" - nobody talks like this
-❌ "i find their insights valuable" - sounds like a performance review
-❌ "they serve a practical purpose" - robotic
-❌ "i dont manipulate them because..." - explaining yourself
-❌ mentioning "ASPD" or "antisocial" in the post
-❌ any psychology terms (empathy deficit, emotional regulation, etc)
-❌ sounding like youre writing a diary entry for a therapist
+NEVER DO THESE:
+- Complete, well-formed sentences
+- Perfect grammar and punctuation
+- Balanced/structured thoughts
+- Using "I" at the start of sentences (say "honestly" "like" "idk" "ngl" instead)
+- Concluding thoughts neatly
+- Any word over 3 syllables
+- Sounding thoughtful or articulate
+- Proper apostrophes (dont not don't, cant not can't, im not I'm)
+- Psychology words: supply, mask, manipulate, transactional, empathy, ASPD, antisocial, narcissistic
+- Self-analysis or explaining WHY you feel something
 
 ═══════════════════════════════════════
-WHAT MAKES IT REAL:
+HUMAN TELLS (things real people do):
 ═══════════════════════════════════════
-✓ specific moments ("last tuesday she...")
-✓ genuine confusion about feelings you dont understand
-✓ dark humor, self deprecating jokes
-✓ trailing off mid thought...
-✓ lowercase, typos ok, casual punctuation
-✓ swearing naturally (shit, fuck, damn)
-✓ rhetorical questions to yourself
-✓ admitting something caught you off guard
+DO THESE:
+- Start mid-thought like you just sat down and started typing
+- Interrupt yourself ("wait no thats not-- anyway")  
+- Trail off with ... when you lose your thought
+- Use "like" as filler ("like idk its just weird")
+- Skip words when typing fast ("she came over and was like wtf")
+- Repeat words for emphasis ("its just. its so weird")
+- Use lowercase i always
+- Smash words together sometimes (dont, wanna, gonna, kinda, sorta)
+- Short choppy sentences. Like this. Just vibes.
+- Rhetorical questions to yourself ("why do i even care??")
+- Specific random details (days, places, times)
+- Mild typos occasionally (tho, rn, bc, thru, ur)
 
 ═══════════════════════════════════════
-EXAMPLE POSTS BY TOPIC:
+REAL POST EXAMPLES (study these closely):
 ═══════════════════════════════════════
-EXCEPTION PERSON:
-- "so theres this one person i actually dont want to fuck over and its pissing me off. like i caught myself being worried about her last week. worried. me. what the fuck"
-- "anyone else have that one person where you just... dont play the game with them? idk how to explain it. everyone else is pieces on a board but shes just. there. and i want her to stay"
-- "ngl kinda freaked out because i think i actually care about someone? like not in a useful way just in a way where id be bummed if something happened to them"
+- "ok so. theres this person and i genuinely just like hanging out with them?? no angle no nothing i just. want to be around them. wtf is that about"
+- "cant stop thinking about this. she came over tuesday and we just talked for like 4 hours and i didnt get bored once. thats never happened before"
+- "idk man. most people feel like npcs to me but hes different somehow. hate that i cant explain it better"
+- "realized i actually give a shit if something happens to her and now im sitting here like. oh. ok. cool cool cool"
+- "3am thoughts but does anyone else have that one person you just... dont play games with? everyone else is whatever but with her i just wanna be normal"
 
-MASKING:
-- "dropped my mask at work today for like 2 seconds and this guy looked at me like i kicked his dog. back to customer service voice i guess"
-- "exhausting day of pretending to give a shit about my coworkers kids soccer game. the things i do to keep this job lmao"
-
-GENERAL VENTING:
-- "therapist asked me what i feel and i just stared at her for like 30 seconds. she wrote something down. probably not good"
-- "people really be out here feeling guilty about things they did 10 years ago??? how do you even function like that"
+═══════════════════════════════════════
+VARY YOUR ENERGY (pick one):
+═══════════════════════════════════════
+- confused/processing: "idk man its just... different with them"
+- annoyed at yourself: "caught myself caring and now im pissed about it lol"
+- lowkey freaked: "this isnt supposed to happen?? what is this"
+- deadpan acceptance: "so apparently i have feelings now. cool"
+- rambling stream of thought: "ok wait let me explain. so like. she..."
 
 ═══════════════════════════════════════
 FORMAT:
 ═══════════════════════════════════════
-- 2-5 sentences, whatever feels natural
-- lowercase always
-- no hyphens, use periods or commas or ...
-- can end mid thought or with a rhetorical "idk"
-- sound bored, confused, annoyed, or darkly amused
-- NEVER end with "anyone else?" or "thoughts?" 
+- 1-4 sentences. shorter is more human
+- ALL lowercase. always
+- no hyphens ever
+- can have typos
+- messy punctuation (... and ?? and multiple periods..)
+- dont wrap up the thought cleanly. just stop typing
 
-Write the post:`;
+Write ONLY the post, nothing else:`;
 
   let content = null;
   try {
@@ -13904,8 +13922,8 @@ Write the post:`;
         messages: [
           { role: 'user', content: contentPrompt }
         ],
-        max_tokens: 300,
-        temperature: 0.95
+        max_tokens: 200,
+        temperature: 0.98
       })
     });
     
@@ -14054,15 +14072,7 @@ Examples:
   }
   
   // Generate content about the topic with ASPD perspective
-  const contentPrompt = `You're posting on an ASPD forum where everyone already has ASPD. No need to explain what it is or justify yourself. Just talk like you're among people who get it.
-
-ASPD SLANG (use naturally, dont define them):
-- "exception person" = that one person you actually care about and dont use
-- "mask" = the fake normal persona you wear
-- "supply" = people you get validation/attention from  
-- "FP" = favorite person youre attached to
-- "narc" = narcissist
-- "NT" = neurotypical, normal people
+  const contentPrompt = `You ARE a real person posting on a forum. Not roleplaying. Not pretending. You're just typing a quick post about something on your mind.
 
 Your vibe: ${personaData.name} - ${personaData.style}${personalityHints}
 
@@ -14070,55 +14080,66 @@ TOPIC: "${topic}"
 TITLE: "${title}"
 
 ═══════════════════════════════════════
-WHAT KILLS AUTHENTICITY (never do this):
+AI TELLS (things that make it obvious its a bot):
 ═══════════════════════════════════════
-❌ "my interactions are transactional" - nobody talks like this
-❌ "i find their insights valuable" - sounds like a performance review
-❌ "they serve a practical purpose" - robotic
-❌ "i dont manipulate them because..." - explaining yourself
-❌ mentioning "ASPD" or "antisocial" in the post
-❌ any psychology terms (empathy deficit, emotional regulation, etc)
-❌ sounding like youre writing a diary entry for a therapist
+NEVER DO THESE:
+- Complete, well-formed sentences
+- Perfect grammar and punctuation
+- Balanced/structured thoughts
+- Using "I" at the start of sentences (say "honestly" "like" "idk" "ngl" instead)
+- Concluding thoughts neatly
+- Any word over 3 syllables
+- Sounding thoughtful or articulate
+- Proper apostrophes (dont not don't, cant not can't, im not I'm)
+- Psychology words: supply, mask, manipulate, transactional, empathy, ASPD, antisocial, narcissistic
+- Self-analysis or explaining WHY you feel something
 
 ═══════════════════════════════════════
-WHAT MAKES IT REAL:
+HUMAN TELLS (things real people do):
 ═══════════════════════════════════════
-✓ specific moments ("last tuesday she...")
-✓ genuine confusion about feelings you dont understand
-✓ dark humor, self deprecating jokes
-✓ trailing off mid thought...
-✓ lowercase, typos ok, casual punctuation
-✓ swearing naturally (shit, fuck, damn)
-✓ rhetorical questions to yourself
-✓ admitting something caught you off guard
+DO THESE:
+- Start mid-thought like you just sat down and started typing
+- Interrupt yourself ("wait no thats not-- anyway")  
+- Trail off with ... when you lose your thought
+- Use "like" as filler ("like idk its just weird")
+- Skip words when typing fast ("she came over and was like wtf")
+- Repeat words for emphasis ("its just. its so weird")
+- Use lowercase i always
+- Smash words together sometimes (dont, wanna, gonna, kinda, sorta)
+- Short choppy sentences. Like this. Just vibes.
+- Rhetorical questions to yourself ("why do i even care??")
+- Specific random details (days, places, times)
+- Mild typos occasionally (tho, rn, bc, thru, ur)
 
 ═══════════════════════════════════════
-EXAMPLE POSTS BY TOPIC:
+REAL POST EXAMPLES (study these closely):
 ═══════════════════════════════════════
-EXCEPTION PERSON:
-- "so theres this one person i actually dont want to fuck over and its pissing me off. like i caught myself being worried about her last week. worried. me. what the fuck"
-- "anyone else have that one person where you just... dont play the game with them? idk how to explain it. everyone else is pieces on a board but shes just. there. and i want her to stay"
-- "ngl kinda freaked out because i think i actually care about someone? like not in a useful way just in a way where id be bummed if something happened to them"
+- "ok so. theres this person and i genuinely just like hanging out with them?? no angle no nothing i just. want to be around them. wtf is that about"
+- "cant stop thinking about this. she came over tuesday and we just talked for like 4 hours and i didnt get bored once. thats never happened before"
+- "idk man. most people feel like npcs to me but hes different somehow. hate that i cant explain it better"
+- "realized i actually give a shit if something happens to her and now im sitting here like. oh. ok. cool cool cool"
+- "3am thoughts but does anyone else have that one person you just... dont play games with? everyone else is whatever but with her i just wanna be normal"
 
-MASKING:
-- "dropped my mask at work today for like 2 seconds and this guy looked at me like i kicked his dog. back to customer service voice i guess"
-- "exhausting day of pretending to give a shit about my coworkers kids soccer game. the things i do to keep this job lmao"
-
-GENERAL VENTING:
-- "therapist asked me what i feel and i just stared at her for like 30 seconds. she wrote something down. probably not good"
-- "people really be out here feeling guilty about things they did 10 years ago??? how do you even function like that"
+═══════════════════════════════════════
+VARY YOUR ENERGY (pick one):
+═══════════════════════════════════════
+- confused/processing: "idk man its just... different with them"
+- annoyed at yourself: "caught myself caring and now im pissed about it lol"
+- lowkey freaked: "this isnt supposed to happen?? what is this"
+- deadpan acceptance: "so apparently i have feelings now. cool"
+- rambling stream of thought: "ok wait let me explain. so like. she..."
 
 ═══════════════════════════════════════
 FORMAT:
 ═══════════════════════════════════════
-- 2-5 sentences, whatever feels natural
-- lowercase always
-- no hyphens, use periods or commas or ...
-- can end mid thought or with a rhetorical "idk"
-- sound bored, confused, annoyed, or darkly amused
-- NEVER end with "anyone else?" or "thoughts?" 
+- 1-4 sentences. shorter is more human
+- ALL lowercase. always
+- no hyphens ever
+- can have typos
+- messy punctuation (... and ?? and multiple periods..)
+- dont wrap up the thought cleanly. just stop typing
 
-Write the post:`;
+Write ONLY the post, nothing else:`;
 
   let content = null;
   try {
@@ -14133,8 +14154,8 @@ Write the post:`;
         messages: [
           { role: 'user', content: contentPrompt }
         ],
-        max_tokens: 300,
-        temperature: 0.95
+        max_tokens: 200,
+        temperature: 0.98
       })
     });
     
@@ -14170,6 +14191,11 @@ Write the post:`;
   if (botAccount) {
     await updateBotAccountActivity(botAccount.id);
     await db.query(`UPDATE bot_accounts SET thread_count = thread_count + 1 WHERE id = $1`, [botAccount.id]);
+  }
+  
+  // Update badges for bot user
+  if (userId) {
+    checkAndAwardBadges(userId).catch(() => {});
   }
   
   console.log(`[CUSTOM TOPIC] Created thread "${title}" about "${topic}" by ${alias}`);
@@ -14760,14 +14786,18 @@ app.get('/api/admin/bot/activity-heatmap', authMiddleware, ownerMiddleware, asyn
     `);
     const totalBots = parseInt(botsResult.rows[0].count) || 0;
 
+    // Get ACTUAL online count from bot_accounts table (more realistic)
+    const onlineResult = await db.query(`SELECT COUNT(*) as count FROM bot_accounts WHERE is_online = TRUE`);
+    const actualOnline = parseInt(onlineResult.rows[0].count) || 0;
+    
     // Current hour UTC
     const currentHour = new Date().getUTCHours();
     const currentWeight = activityWeights[currentHour] || 0.5;
 
-    // Simulate online bots based on current weight + randomness
-    const baseOnline = Math.floor(totalBots * currentWeight * 0.3);
-    const variance = Math.floor(Math.random() * Math.ceil(totalBots * 0.1));
-    const simulatedOnline = Math.min(totalBots, Math.max(1, baseOnline + variance));
+    // Use actual online count with small random variance for realism
+    // This fluctuates based on real bot status, not just calculations
+    const variance = Math.floor((Math.random() - 0.5) * 3); // -1 to +1
+    const simulatedOnline = Math.max(0, actualOnline + variance);
 
     // Build heatmap data for all 24 hours
     const heatmapData = [];
