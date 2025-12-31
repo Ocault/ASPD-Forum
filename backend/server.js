@@ -14741,14 +14741,15 @@ app.post('/api/admin/bot/custom-topic/preview', authMiddleware, ownerMiddleware,
       return res.status(400).json({ success: false, error: 'Room is required' });
     }
     
-    // Get room title for context
-    const roomResult = await db.query('SELECT title FROM rooms WHERE id = $1', [roomId]);
+    // Get room by slug or id
+    const roomResult = await db.query('SELECT id, title FROM rooms WHERE slug = $1 OR id::text = $1', [roomId]);
     if (roomResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
     }
+    const roomDbId = roomResult.rows[0].id;
     const roomTitle = roomResult.rows[0].title;
     
-    const result = await generateCustomTopicPreview(roomId, topic.trim(), persona, roomTitle);
+    const result = await generateCustomTopicPreview(roomDbId, topic.trim(), persona, roomTitle);
     if (!result) {
       return res.json({ success: false, error: 'AI generation failed - try a different topic' });
     }
@@ -14768,6 +14769,10 @@ app.post('/api/admin/bot/custom-topic/confirm', authMiddleware, ownerMiddleware,
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
     
+    // Get room by slug or id to get actual DB id
+    const roomResult = await db.query('SELECT id FROM rooms WHERE slug = $1 OR id::text = $1', [String(roomId)]);
+    const roomDbId = roomResult.rows.length > 0 ? roomResult.rows[0].id : roomId;
+    
     // Get bot account avatar
     let avatar = null;
     if (botAccountId) {
@@ -14782,7 +14787,7 @@ app.post('/api/admin/bot/custom-topic/confirm', authMiddleware, ownerMiddleware,
       INSERT INTO threads (room_id, title, user_id, is_bot, bot_persona, bot_account_id)
       VALUES ($1, $2, $3, TRUE, $4, $5)
       RETURNING id
-    `, [roomId, title, userId || 1, persona, botAccountId || null]);
+    `, [roomDbId, title, userId || 1, persona, botAccountId || null]);
     
     const threadId = threadResult.rows[0].id;
     
