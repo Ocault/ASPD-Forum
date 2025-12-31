@@ -10395,6 +10395,123 @@ function checkContentSimilarity(original, generated) {
 }
 
 // ==============================================
+// QUALITY CHECK FOR GENERIC/FILLER CONTENT
+// ==============================================
+// Detects and rejects lazy, generic, low-effort responses
+
+function checkIsGenericFiller(content) {
+  if (!content) return false;
+  
+  const lowerContent = content.toLowerCase();
+  
+  // List of banned filler phrases - any match = rejection
+  const bannedPhrases = [
+    // Meta-commentary about the discussion
+    'seen variations of this',
+    'seen this before',
+    'seen this discussion',
+    'this comes up',
+    'this topic comes up',
+    'common discussion',
+    'common topic',
+    
+    // Lazy validation
+    'always valuable',
+    'always interesting',
+    'always worth',
+    'valid point',
+    'fair point',
+    'good point',
+    'interesting point',
+    
+    // Vague process statements
+    'still working on it',
+    'working through it',
+    'working on that',
+    'figuring it out',
+    'taking it day by day',
+    
+    // Lazy dismissals
+    'you get the idea',
+    'if that makes sense',
+    'you know what i mean',
+    'hard to explain',
+    'cant put it into words',
+    'the nuance gets lost',
+    
+    // Time-based filler
+    'over the years',
+    'through the years',
+    'as time goes on',
+    'as i get older',
+    
+    // Generic agreement without substance
+    'this resonates',
+    'i relate to this',
+    'same here basically',
+    'been there',
+    'felt that',
+    'get that',
+    'i feel you',
+    'totally get it',
+    
+    // Cop-out phrases
+    'its complicated',
+    'its complex',
+    'depends on the situation',
+    'to each their own',
+    'whatever works',
+    'different for everyone',
+    'everyone is different',
+    
+    // Empty acknowledgments  
+    'thats real',
+    'thats true',
+    'thats valid',
+    'cant argue with that',
+    
+    // Non-committal hedging
+    'in a way',
+    'sort of',
+    'kind of',
+    'in some ways'
+  ];
+  
+  for (const phrase of bannedPhrases) {
+    if (lowerContent.includes(phrase)) {
+      console.log('[QUALITY] Rejected for banned filler phrase:', phrase);
+      return true;
+    }
+  }
+  
+  // Check if response is too short and lacks specificity
+  const words = content.split(/\s+/).filter(w => w.length > 0);
+  if (words.length < 10) {
+    // Very short responses need to have SOME specific content
+    const hasSpecific = /\b(yesterday|today|last week|this morning|at work|my boss|my therapist|my gf|my bf|my wife|my husband|my coworker|[0-9]+ (year|month|week|day|hour|minute))/i.test(content);
+    if (!hasSpecific) {
+      console.log('[QUALITY] Rejected: too short with no specifics');
+      return true;
+    }
+  }
+  
+  // Check for patterns that indicate empty agreement
+  const emptyAgreementPatterns = [
+    /^(yeah|yep|yup|true|same|this|mood|real|felt|facts?)\s*\.?\s*$/i,
+    /^(totally|completely|absolutely|exactly)\s+(agree|this|same)\.?\s*$/i
+  ];
+  
+  for (const pattern of emptyAgreementPatterns) {
+    if (pattern.test(content.trim())) {
+      console.log('[QUALITY] Rejected: empty agreement pattern');
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+// ==============================================
 // UNIFIED AI CONTENT GENERATION
 // ==============================================
 // This function handles ALL bot content types via Groq
@@ -10523,6 +10640,23 @@ ABSOLUTE BANS - NEVER DO THESE:
 ❌ Saying the same thing they said but with different words
 
 ═══════════════════════════════════════
+BANNED FILLER PHRASES - INSTANT FAIL:
+═══════════════════════════════════════
+These phrases are lazy filler. NEVER use them:
+❌ "seen variations of this" / "seen this before" / "seen this discussion"
+❌ "always valuable though" / "always interesting" / "always worth discussing"
+❌ "still working on it" / "working through it" / "working on that myself"
+❌ "you get the idea" / "if that makes sense" / "you know what i mean"
+❌ "the nuance gets lost" / "hard to explain" / "cant put it into words"
+❌ "over the years" / "through the years" / "as time goes on"
+❌ "valid point" / "fair point" / "good point" / "interesting point"
+❌ "this resonates" / "i relate to this" / "same here basically"
+❌ "been there" / "felt that" / "get that"
+❌ "its complicated" / "its complex" / "depends on the situation"
+❌ "to each their own" / "whatever works" / "different for everyone"
+❌ Generic acknowledgments without specifics
+
+═══════════════════════════════════════
 ORIGINALITY REQUIREMENT - CRITICAL:
 ═══════════════════════════════════════
 Your reply MUST add NEW information, perspective, or experience.
@@ -10597,6 +10731,18 @@ Quote this specific part and respond:
 YOUR TASK: ${replyStyleHint}
 
 ═══════════════════════════════════════
+CRITICAL - WHAT YOUR REPLY MUST INCLUDE:
+═══════════════════════════════════════
+✓ Your response must include a SPECIFIC detail (a time, place, person, or concrete event)
+✓ Add something NEW they didn't say
+
+WHAT WILL GET YOUR REPLY REJECTED:
+✗ Generic meta-commentary like "seen this discussion before"
+✗ Empty validation like "always valuable" or "fair point"
+✗ Vague process statements like "still working on it" or "figuring it out"
+✗ Dismissive cop-outs like "whatever works" or "to each their own"
+
+═══════════════════════════════════════
 REAL REPLY EXAMPLES FROM r/aspd:
 ═══════════════════════════════════════
 QUOTING STYLE:
@@ -10612,7 +10758,7 @@ disagree actually. some of us do feel things, just not in the way people expect.
 ═══════════════════════════════════════
 RULES:
 - Start with the > quote block, then your response
-- 2-3 sentences max
+- 2-3 sentences max with at least one SPECIFIC detail (time, place, person)
 - Respond to THEIR specific point, not generic ASPD talk
 - End with statement not question
 - YOUR response must be COMPLETELY DIFFERENT from what they said
@@ -10626,12 +10772,18 @@ THEIR POST: "${recentContent.substring(0, 300)}"
 YOUR TASK: ${replyStyleHint}
 
 ═══════════════════════════════════════
-CRITICAL - AVOID DUPLICATION:
+CRITICAL - WHAT YOUR REPLY MUST INCLUDE:
 ═══════════════════════════════════════
-DO NOT paraphrase or restate what they said.
-Share a DIFFERENT experience or perspective.
-If they talk about their boss, talk about YOUR different situation.
-Your reply should add NEW information to the conversation.
+✓ Reference something SPECIFIC from their post (a word, phrase, or idea they mentioned)
+✓ Share YOUR OWN concrete experience/detail (a specific time, place, person, or event)
+✓ Add NEW information they didn't already say
+
+WHAT WILL GET YOUR REPLY REJECTED:
+✗ Generic meta-commentary like "seen this discussion before"
+✗ Empty validation like "always valuable" or "fair point"
+✗ Vague process statements like "still working on it" or "figuring it out"
+✗ Dismissive cop-outs like "whatever works" or "to each their own"
+✗ Non-committal hedging without substance
 
 ═══════════════════════════════════════
 REAL REPLY EXAMPLES FROM r/aspd:
@@ -10654,6 +10806,7 @@ BLUNT:
 ═══════════════════════════════════════
 RULES:
 - 2-3 sentences that ACTUALLY respond to their specific points
+- MUST mention a specific detail: a place, time, person, or concrete event
 - No generic "as someone with ASPD" statements
 - Pick up on a specific detail from their post
 - End with statement not question
@@ -10975,6 +11128,14 @@ Write ONLY the personality description, nothing else.`;
       if (checkContentSimilarity(originalContent, content)) {
         console.log('[GROQ] Content too similar to original, rejecting');
         return null; // Reject and let fallback or retry happen
+      }
+    }
+    
+    // Check for generic filler content
+    if (type === 'reply' || type === 'disagreement' || type === 'continuation') {
+      if (checkIsGenericFiller(content)) {
+        console.log('[GROQ] Content is generic filler, rejecting');
+        return null; // Reject and let retry happen
       }
     }
     
