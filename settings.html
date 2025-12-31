@@ -370,10 +370,25 @@
       <div class="settings-field">
         <label class="settings-label" for="new-pass">New Password</label>
         <input type="password" id="new-pass" class="settings-input" placeholder="Enter new password">
+        
+        <!-- Password Strength Indicator -->
+        <div class="password-strength" id="password-strength" style="display: none; margin-top: 0.5rem;">
+          <div class="strength-bar" style="height: 3px; background: #1a1a1a; margin-bottom: 0.5rem;">
+            <div class="strength-fill" id="strength-fill" style="height: 100%; width: 0%; transition: all 0.3s;"></div>
+          </div>
+          <div class="strength-label" id="strength-label" style="font-size: 0.65rem; margin-bottom: 0.25rem;"></div>
+          <div class="strength-checks" style="font-size: 0.6rem; color: #404040; display: grid; grid-template-columns: 1fr 1fr; gap: 2px;">
+            <div id="check-length"><span class="check-icon">✗</span> 8+ chars</div>
+            <div id="check-upper"><span class="check-icon">✗</span> Uppercase</div>
+            <div id="check-lower"><span class="check-icon">✗</span> Lowercase</div>
+            <div id="check-number"><span class="check-icon">✗</span> Number</div>
+          </div>
+        </div>
       </div>
       <div class="settings-field">
         <label class="settings-label" for="confirm-pass">Confirm New Password</label>
         <input type="password" id="confirm-pass" class="settings-input" placeholder="Confirm new password">
+        <div id="pass-match-indicator" style="font-size: 0.6rem; margin-top: 0.25rem; display: none;"></div>
       </div>
       <button id="change-pass-btn" class="settings-btn">Change Password</button>
     </section>
@@ -436,6 +451,15 @@
       <div style="display: flex; gap: 0.5rem;">
         <button id="refresh-sessions-btn" class="settings-btn">Refresh</button>
         <button id="logout-all-btn" class="settings-btn danger">Logout All Devices</button>
+      </div>
+    </section>
+    
+    <!-- Login History Section -->
+    <section class="settings-section">
+      <h2 class="settings-section-title">Login History</h2>
+      <p class="settings-toggle-desc" style="margin-bottom: 1rem;">Recent login attempts to your account. Failed attempts may indicate someone trying to access your account.</p>
+      <div id="login-history-list" style="margin-bottom: 1rem;">
+        <div class="empty-state" style="color: #404040; font-size: 0.8rem;">Loading...</div>
       </div>
     </section>
     
@@ -581,6 +605,88 @@
         });
       });
       
+      // Password strength meter
+      var newPassInput = document.getElementById('new-pass');
+      var confirmPassInput = document.getElementById('confirm-pass');
+      var strengthContainer = document.getElementById('password-strength');
+      var strengthFill = document.getElementById('strength-fill');
+      var strengthLabel = document.getElementById('strength-label');
+      var passMatchIndicator = document.getElementById('pass-match-indicator');
+      var checkLength = document.getElementById('check-length');
+      var checkUpper = document.getElementById('check-upper');
+      var checkLower = document.getElementById('check-lower');
+      var checkNumber = document.getElementById('check-number');
+      
+      function updatePasswordStrength(password) {
+        if (!password) {
+          strengthContainer.style.display = 'none';
+          return;
+        }
+        strengthContainer.style.display = 'block';
+        
+        var checks = {
+          length: password.length >= 8,
+          upper: /[A-Z]/.test(password),
+          lower: /[a-z]/.test(password),
+          number: /[0-9]/.test(password)
+        };
+        
+        // Update check marks
+        updateStrengthCheck(checkLength, checks.length);
+        updateStrengthCheck(checkUpper, checks.upper);
+        updateStrengthCheck(checkLower, checks.lower);
+        updateStrengthCheck(checkNumber, checks.number);
+        
+        // Calculate strength
+        var score = Object.values(checks).filter(Boolean).length;
+        var percent = (score / 4) * 100;
+        var colors = ['#603030', '#604030', '#606030', '#405030', '#306030'];
+        var labels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
+        var color = colors[score];
+        
+        strengthFill.style.width = percent + '%';
+        strengthFill.style.background = color;
+        strengthLabel.textContent = labels[score];
+        strengthLabel.style.color = color;
+      }
+      
+      function updateStrengthCheck(el, passed) {
+        var icon = el.querySelector('.check-icon');
+        if (passed) {
+          icon.textContent = '✓';
+          el.style.color = '#406040';
+        } else {
+          icon.textContent = '✗';
+          el.style.color = '#404040';
+        }
+      }
+      
+      function checkPasswordMatch() {
+        var newPass = newPassInput.value;
+        var confirmPass = confirmPassInput.value;
+        
+        if (!confirmPass) {
+          passMatchIndicator.style.display = 'none';
+          return;
+        }
+        
+        passMatchIndicator.style.display = 'block';
+        if (newPass === confirmPass) {
+          passMatchIndicator.textContent = '✓ Passwords match';
+          passMatchIndicator.style.color = '#406040';
+        } else {
+          passMatchIndicator.textContent = '✗ Passwords do not match';
+          passMatchIndicator.style.color = '#604040';
+        }
+      }
+      
+      newPassInput.addEventListener('input', function() {
+        updatePasswordStrength(this.value);
+        checkPasswordMatch();
+      });
+      
+      confirmPassInput.addEventListener('input', checkPasswordMatch);
+      
       // Change password
       document.getElementById('change-pass-btn').addEventListener('click', function() {
         var btn = this;
@@ -621,6 +727,8 @@
             document.getElementById('current-pass').value = '';
             document.getElementById('new-pass').value = '';
             document.getElementById('confirm-pass').value = '';
+            strengthContainer.style.display = 'none';
+            passMatchIndicator.style.display = 'none';
           } else {
             Notify.show(data.error === 'invalid_password' ? 'CURRENT PASSWORD INCORRECT' : (data.message || 'FAILED'), 'error');
           }
@@ -1012,31 +1120,41 @@
       // ========================================
       
       var sessionsList = document.getElementById('sessions-list');
+      var loginHistoryList = document.getElementById('login-history-list');
       var refreshSessionsBtn = document.getElementById('refresh-sessions-btn');
       var logoutAllBtn = document.getElementById('logout-all-btn');
       
+      // Device type icons
+      var deviceIcons = {
+        'mobile': '📱',
+        'tablet': '📱',
+        'desktop': '💻',
+        'unknown': '🖥️'
+      };
+      
       function loadSessions() {
         sessionsList.innerHTML = '<div style="color: #404040; font-size: 0.8rem;">Loading...</div>';
-        console.log('Loading sessions from:', AuthState.API_BASE + '/api/settings/sessions');
         
         fetch(AuthState.API_BASE + '/api/settings/sessions', { headers: headers })
-          .then(function(res) { 
-            console.log('Sessions response status:', res.status);
-            return res.json(); 
-          })
+          .then(function(res) { return res.json(); })
           .then(function(data) {
-            console.log('Sessions response:', data);
             if (data.success && data.sessions && data.sessions.length > 0) {
               sessionsList.innerHTML = data.sessions.map(function(session) {
                 var created = new Date(session.createdAt);
-                var expires = new Date(session.expiresAt);
-                var timeAgo = getTimeAgo(created);
-                var currentTag = session.isCurrent ? ' <span style="color: #406040; font-weight: bold;">(CURRENT)</span>' : '';
+                var lastUsed = session.lastUsedAt ? new Date(session.lastUsedAt) : created;
+                var timeAgo = getTimeAgo(lastUsed);
+                var currentTag = session.isCurrent ? '<span style="color: #406040; font-weight: bold; margin-left: 8px;">● CURRENT</span>' : '';
+                var deviceIcon = deviceIcons[session.deviceType] || deviceIcons['unknown'];
+                var deviceInfo = session.browser + ' on ' + session.os;
                 
                 return '<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid #1a1a1a; margin-bottom: 0.5rem; background: #0d0d0d;">' +
-                  '<div>' +
-                    '<div style="font-size: 0.8rem; color: #606060;">Session started ' + timeAgo + currentTag + '</div>' +
-                    '<div style="font-size: 0.7rem; color: #404040;">Expires: ' + expires.toLocaleDateString() + '</div>' +
+                  '<div style="display: flex; align-items: flex-start; gap: 12px;">' +
+                    '<span style="font-size: 1.5rem;">' + deviceIcon + '</span>' +
+                    '<div>' +
+                      '<div style="font-size: 0.8rem; color: #808080; display: flex; align-items: center;">' + deviceInfo + currentTag + '</div>' +
+                      '<div style="font-size: 0.65rem; color: #505050; margin-top: 2px;">Last active: ' + timeAgo + '</div>' +
+                      (session.ipHash ? '<div style="font-size: 0.55rem; color: #404040; margin-top: 2px; font-family: monospace;">IP: ' + session.ipHash + '</div>' : '') +
+                    '</div>' +
                   '</div>' +
                   (session.isCurrent ? '' : '<button class="settings-btn danger revoke-session-btn" data-id="' + session.id + '" style="padding: 0.25rem 0.5rem; font-size: 0.65rem;">REVOKE</button>') +
                 '</div>';
@@ -1055,6 +1173,42 @@
           })
           .catch(function() {
             sessionsList.innerHTML = '<div style="color: #604040; font-size: 0.8rem;">Failed to load sessions</div>';
+          });
+      }
+      
+      function loadLoginHistory() {
+        loginHistoryList.innerHTML = '<div style="color: #404040; font-size: 0.8rem;">Loading...</div>';
+        
+        fetch(AuthState.API_BASE + '/api/settings/login-history', { headers: headers })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data.success && data.history && data.history.length > 0) {
+              loginHistoryList.innerHTML = data.history.map(function(h) {
+                var date = new Date(h.createdAt);
+                var timeAgo = getTimeAgo(date);
+                var dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                var statusIcon = h.success ? '<span style="color: #406040;">✓</span>' : '<span style="color: #804040;">✗</span>';
+                var statusText = h.success ? 'Successful login' : 'Failed: ' + (h.failureReason || 'unknown');
+                var statusColor = h.success ? '#506050' : '#605050';
+                
+                return '<div style="display: flex; align-items: center; padding: 0.5rem 0.75rem; border: 1px solid #1a1a1a; margin-bottom: 0.25rem; background: ' + (h.success ? '#0d0d0d' : '#100d0d') + ';">' +
+                  '<span style="font-size: 1rem; margin-right: 12px;">' + statusIcon + '</span>' +
+                  '<div style="flex: 1;">' +
+                    '<div style="font-size: 0.75rem; color: ' + statusColor + ';">' + statusText + '</div>' +
+                    '<div style="font-size: 0.55rem; color: #404040;">' + h.browser + ' on ' + h.os + (h.ipHash ? ' · IP: ' + h.ipHash : '') + '</div>' +
+                  '</div>' +
+                  '<div style="font-size: 0.55rem; color: #404040; text-align: right;">' +
+                    '<div>' + timeAgo + '</div>' +
+                    '<div>' + dateStr + '</div>' +
+                  '</div>' +
+                '</div>';
+              }).join('');
+            } else {
+              loginHistoryList.innerHTML = '<div style="color: #404040; font-size: 0.8rem;">No login history available</div>';
+            }
+          })
+          .catch(function() {
+            loginHistoryList.innerHTML = '<div style="color: #604040; font-size: 0.8rem;">Failed to load login history</div>';
           });
       }
       
@@ -1088,7 +1242,10 @@
         });
       }
       
-      refreshSessionsBtn.addEventListener('click', loadSessions);
+      refreshSessionsBtn.addEventListener('click', function() {
+        loadSessions();
+        loadLoginHistory();
+      });
       
       logoutAllBtn.addEventListener('click', function() {
         if (!confirm('This will log you out of all other devices. Continue?')) return;
@@ -1112,8 +1269,9 @@
         });
       });
       
-      // Load sessions on page load
+      // Load sessions and login history on page load
       loadSessions();
+      loadLoginHistory();
       
       // ========================================
       // THREAD SUBSCRIPTIONS

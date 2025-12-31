@@ -1086,6 +1086,105 @@ function getClientIp(req) {
   return req.socket?.remoteAddress || req.connection?.remoteAddress || null;
 }
 
+// Detect device type from user agent
+function detectDeviceType(userAgent) {
+  if (!userAgent) return 'unknown';
+  const ua = userAgent.toLowerCase();
+  if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone')) return 'mobile';
+  if (ua.includes('tablet') || ua.includes('ipad')) return 'tablet';
+  if (ua.includes('windows') || ua.includes('macintosh') || ua.includes('linux')) return 'desktop';
+  return 'unknown';
+}
+
+// Parse user agent for display
+function parseUserAgent(userAgent) {
+  if (!userAgent) return { browser: 'Unknown', os: 'Unknown' };
+  
+  let browser = 'Unknown';
+  let os = 'Unknown';
+  
+  // Detect browser
+  if (userAgent.includes('Firefox/')) browser = 'Firefox';
+  else if (userAgent.includes('Edg/')) browser = 'Edge';
+  else if (userAgent.includes('Chrome/')) browser = 'Chrome';
+  else if (userAgent.includes('Safari/') && !userAgent.includes('Chrome')) browser = 'Safari';
+  else if (userAgent.includes('Opera') || userAgent.includes('OPR/')) browser = 'Opera';
+  
+  // Detect OS
+  if (userAgent.includes('Windows NT 10')) os = 'Windows 10/11';
+  else if (userAgent.includes('Windows')) os = 'Windows';
+  else if (userAgent.includes('Mac OS X')) os = 'macOS';
+  else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
+  else if (userAgent.includes('Android')) os = 'Android';
+  else if (userAgent.includes('Linux')) os = 'Linux';
+  
+  return { browser, os };
+}
+
+// Log login attempt
+async function logLoginAttempt(userId, ipHash, userAgent, success, failureReason = null) {
+  try {
+    await db.query(
+      `INSERT INTO login_attempts (user_id, ip_hash, user_agent, success, failure_reason) 
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId, ipHash, userAgent, success, failureReason]
+    );
+    
+    // If failed login from new IP, check if we should alert the user
+    if (!success && userId) {
+      checkNewIpLoginAlert(userId, ipHash, userAgent);
+    }
+  } catch (err) {
+    // Don't fail login if logging fails
+    console.error('[LOGIN ATTEMPT LOG ERROR]', err.message);
+  }
+}
+
+// Check if this is a new IP and alert user
+async function checkNewIpLoginAlert(userId, ipHash, userAgent) {
+  try {
+    // Check if this IP has been used before successfully
+    const knownIp = await db.query(
+      `SELECT id FROM login_attempts 
+       WHERE user_id = $1 AND ip_hash = $2 AND success = TRUE 
+       LIMIT 1`,
+      [userId, ipHash]
+    );
+    
+    if (knownIp.rows.length === 0) {
+      // This is a new IP - check if user has email and wants alerts
+      const userResult = await db.query(
+        `SELECT alias, email, email_verified FROM users WHERE id = $1`,
+        [userId]
+      );
+      
+      if (userResult.rows.length > 0) {
+        const user = userResult.rows[0];
+        
+        // Create in-app notification about failed login
+        await db.query(
+          `INSERT INTO notifications (user_id, type, title, message, link) 
+           VALUES ($1, 'security', 'Failed Login Attempt', $2, '/settings.html')`,
+          [userId, `A failed login attempt was detected from a new location. If this wasn't you, consider changing your password.`]
+        );
+        
+        // Send email if verified
+        if (user.email && user.email_verified && typeof sendNotificationEmail === 'function') {
+          const { browser, os } = parseUserAgent(userAgent);
+          sendNotificationEmail(
+            userId,
+            'security',
+            `Security Alert: Failed login attempt on ${user.alias}`,
+            `A failed login attempt was detected from ${browser} on ${os}. If this wasn't you, please change your password immediately.`
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[NEW IP ALERT ERROR]', err.message);
+  }
+}
+
 // Role hierarchy: owner > admin > moderator > user
 // owner: Full control, can manage admins
 // admin: Full moderation, can manage moderators, can ban users
@@ -1583,6 +1682,7 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
 
     if (result.rows.length === 0) {
       recordFailedLogin(ipHash);
+      logLoginAttempt(null, ipHash, req.get('User-Agent'), false, 'invalid_user');
       return res.status(401).json({ success: false, error: 'invalid_credentials' });
     }
 
@@ -1591,6 +1691,7 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
 
     if (!valid) {
       recordFailedLogin(ipHash);
+      logLoginAttempt(user.id, ipHash, req.get('User-Agent'), false, 'invalid_password');
       return res.status(401).json({ success: false, error: 'invalid_credentials' });
     }
 
@@ -1653,6 +1754,7 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
           
           if (backupCheck.rows.length === 0) {
             recordFailedLogin(ipHash);
+            logLoginAttempt(user.id, ipHash, req.get('User-Agent'), false, 'invalid_2fa');
             return res.status(401).json({ success: false, error: 'invalid_2fa_code' });
           }
           
@@ -1691,10 +1793,17 @@ app.post('/login', authRateLimiter, strictAuthLimiter, async (req, res) => {
     // Store refresh token hash in database for revocation support
     const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     const refreshExpiryDate = new Date(Date.now() + refreshExpiryMs);
+    const userAgent = req.get('User-Agent') || 'unknown';
+    const deviceType = detectDeviceType(userAgent);
+    
     await db.query(
-      'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
-      [user.id, refreshTokenHash, refreshExpiryDate]
+      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, ip_hash, user_agent, device_type) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [user.id, refreshTokenHash, refreshExpiryDate, ipHash, userAgent, deviceType]
     );
+    
+    // Log successful login
+    logLoginAttempt(user.id, ipHash, userAgent, true);
 
     // Generate device token if user wants to trust this device (for 2FA skip)
     let newDeviceToken = null;
@@ -2813,22 +2922,30 @@ app.get('/api/settings/sessions', authMiddleware, async (req, res) => {
   
   try {
     const result = await db.query(
-      `SELECT id, created_at, expires_at, 
+      `SELECT id, created_at, expires_at, ip_hash, user_agent, device_type, last_used_at,
               CASE WHEN token_hash = $2 THEN true ELSE false END AS is_current
        FROM refresh_tokens 
        WHERE user_id = $1 AND revoked = FALSE AND expires_at > NOW()
-       ORDER BY created_at DESC`,
+       ORDER BY last_used_at DESC NULLS LAST, created_at DESC`,
       [userId, req.currentTokenHash || '']
     );
     
     res.json({ 
       success: true, 
-      sessions: result.rows.map(s => ({
-        id: s.id,
-        createdAt: s.created_at,
-        expiresAt: s.expires_at,
-        isCurrent: s.is_current
-      }))
+      sessions: result.rows.map(s => {
+        const parsed = parseUserAgent(s.user_agent);
+        return {
+          id: s.id,
+          createdAt: s.created_at,
+          expiresAt: s.expires_at,
+          lastUsedAt: s.last_used_at,
+          isCurrent: s.is_current,
+          deviceType: s.device_type || 'unknown',
+          browser: parsed.browser,
+          os: parsed.os,
+          ipHash: s.ip_hash ? s.ip_hash.slice(0, 8) + '...' : null // Truncated for display
+        };
+      })
     });
   } catch (err) {
     console.error('[GET SESSIONS ERROR]', err.message);
@@ -2881,6 +2998,41 @@ app.post('/api/settings/sessions/logout-all', authMiddleware, async (req, res) =
     res.json({ success: true, message: 'All other sessions have been logged out.' });
   } catch (err) {
     console.error('[LOGOUT ALL ERROR]', err.message);
+    res.status(500).json({ success: false, error: 'server_error' });
+  }
+});
+
+// API: Get login history
+app.get('/api/settings/login-history', authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    const result = await db.query(
+      `SELECT id, ip_hash, user_agent, success, failure_reason, created_at
+       FROM login_attempts 
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [userId]
+    );
+    
+    res.json({
+      success: true,
+      history: result.rows.map(h => {
+        const parsed = parseUserAgent(h.user_agent);
+        return {
+          id: h.id,
+          success: h.success,
+          failureReason: h.failure_reason,
+          createdAt: h.created_at,
+          browser: parsed.browser,
+          os: parsed.os,
+          ipHash: h.ip_hash ? h.ip_hash.slice(0, 8) + '...' : null
+        };
+      })
+    });
+  } catch (err) {
+    console.error('[LOGIN HISTORY ERROR]', err.message);
     res.status(500).json({ success: false, error: 'server_error' });
   }
 });
@@ -8850,10 +9002,33 @@ async function migrate() {
         token_hash VARCHAR(255) NOT NULL,
         expires_at TIMESTAMP NOT NULL,
         created_at TIMESTAMP DEFAULT NOW(),
-        revoked BOOLEAN DEFAULT FALSE
+        revoked BOOLEAN DEFAULT FALSE,
+        ip_hash VARCHAR(64),
+        user_agent TEXT,
+        device_type VARCHAR(20) DEFAULT 'unknown',
+        last_used_at TIMESTAMP DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
       CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+      
+      -- Add new columns to refresh_tokens if they don't exist
+      ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS ip_hash VARCHAR(64);
+      ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS user_agent TEXT;
+      ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS device_type VARCHAR(20) DEFAULT 'unknown';
+      ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP DEFAULT NOW();
+      
+      -- Login attempts tracking table
+      CREATE TABLE IF NOT EXISTS login_attempts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        ip_hash VARCHAR(64) NOT NULL,
+        user_agent TEXT,
+        success BOOLEAN NOT NULL,
+        failure_reason VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_login_attempts_user ON login_attempts(user_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_hash, created_at DESC);
       
       -- Password reset tokens table
       CREATE TABLE IF NOT EXISTS password_reset_tokens (
