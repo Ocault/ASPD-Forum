@@ -10422,6 +10422,8 @@ function checkIsGenericFiller(content) {
     'this topic comes up',
     'common discussion',
     'common topic',
+    'over the years',
+    'through the years',
     
     // Lazy validation
     'always valuable',
@@ -11124,6 +11126,15 @@ Write ONLY the personality description, nothing else.`;
     
     if (!content) return null;
     
+    // Check for generic filler content BEFORE cleaning (so we catch it even if we'd strip it)
+    // This ensures truly lazy responses get rejected outright
+    if (type === 'reply' || type === 'disagreement' || type === 'continuation') {
+      if (checkIsGenericFiller(content)) {
+        console.log('[GROQ] Content is generic filler, rejecting');
+        return null; // Reject and let retry happen
+      }
+    }
+    
     // Clean up the response - basic cleanup first
     content = content
       .replace(/^["']|["']$/g, '') // Remove wrapping quotes
@@ -11158,14 +11169,6 @@ Write ONLY the personality description, nothing else.`;
       if (checkContentSimilarity(originalContent, content)) {
         console.log('[GROQ] Content too similar to original, rejecting');
         return null; // Reject and let fallback or retry happen
-      }
-    }
-    
-    // Check for generic filler content
-    if (type === 'reply' || type === 'disagreement' || type === 'continuation') {
-      if (checkIsGenericFiller(content)) {
-        console.log('[GROQ] Content is generic filler, rejecting');
-        return null; // Reject and let retry happen
       }
     }
     
@@ -14714,6 +14717,21 @@ function cleanAIContent(content) {
   
   // Remove common AI openers
   cleaned = cleaned.replace(/^(So,?\s+|Well,?\s+|Honestly,?\s+)/i, '');
+  
+  // Remove filler opener sentences (first sentence that's just meta-commentary)
+  const fillerOpeners = [
+    /^seen (variations|this|discussions?).*?\.\s*/i,
+    /^this (comes up|topic|discussion).*?\.\s*/i,
+    /^always (valuable|interesting|worth).*?\.\s*/i,
+    /^(interesting|good|great|nice|solid) (thread|post|take|point).*?\.\s*/i,
+    /^responding to @\w+:\s*/i,
+    /^i'?ve seen this.*?\.\s*/i,
+    /^common (topic|discussion|theme).*?\.\s*/i
+  ];
+  
+  for (const pattern of fillerOpeners) {
+    cleaned = cleaned.replace(pattern, '');
+  }
   
   // Remove ALL dashes/hyphens used as separators (keep compound words like "self-aware")
   cleaned = cleaned.replace(/\s*—\s*/g, '. ');  // em-dash to period
