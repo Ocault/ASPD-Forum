@@ -3585,13 +3585,21 @@
       }, true);
 
       function viewUser(userId) {
+        console.log('[VIEW USER] Called with userId:', userId);
         currentUserId = userId;
         AuthState.apiRequest('/api/admin/users/' + userId)
           .then(function(data) {
+            console.log('[VIEW USER] API Response:', data);
             if (data.success) {
               currentUserAlias = data.user.alias;
               var panel = document.getElementById('user-detail-panel');
+              console.log('[VIEW USER] Panel element:', panel);
+              if (!panel) {
+                console.error('[VIEW USER] Panel element not found!');
+                return;
+              }
               panel.classList.add('active');
+              console.log('[VIEW USER] Panel should now be visible');
               
               var userRole = data.user.role || (data.user.is_admin ? 'admin' : 'user');
               var roleBadge = '';
