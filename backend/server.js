@@ -3253,12 +3253,20 @@ app.get('/api/activity', authMiddleware, async (req, res) => {
   const userId = req.query.user_id ? parseInt(req.query.user_id) : null;
 
   try {
+    // Query that filters out deleted threads and entries
     let query = `
       SELECT af.id, af.action_type, af.target_type, af.target_id, af.target_title, af.details, af.created_at,
              u.alias, u.avatar_config
       FROM activity_feed af
       JOIN users u ON u.id = af.user_id
+      LEFT JOIN threads t ON af.target_type = 'thread' AND t.id = af.target_id
+      LEFT JOIN entries e ON af.target_type = 'entry' AND e.id = af.target_id
       WHERE u.is_banned = FALSE
+        AND (
+          (af.target_type = 'thread' AND t.id IS NOT NULL AND (t.is_deleted IS NULL OR t.is_deleted = FALSE))
+          OR (af.target_type = 'entry' AND e.id IS NOT NULL AND (e.is_deleted IS NULL OR e.is_deleted = FALSE))
+          OR (af.target_type NOT IN ('thread', 'entry'))
+        )
     `;
     let params = [];
     let paramIndex = 1;
@@ -3274,8 +3282,19 @@ app.get('/api/activity', authMiddleware, async (req, res) => {
 
     const result = await db.query(query, params);
 
-    // Get total count
-    let countQuery = `SELECT COUNT(*) FROM activity_feed af JOIN users u ON u.id = af.user_id WHERE u.is_banned = FALSE`;
+    // Get total count (also filtering deleted)
+    let countQuery = `
+      SELECT COUNT(*) FROM activity_feed af 
+      JOIN users u ON u.id = af.user_id
+      LEFT JOIN threads t ON af.target_type = 'thread' AND t.id = af.target_id
+      LEFT JOIN entries e ON af.target_type = 'entry' AND e.id = af.target_id
+      WHERE u.is_banned = FALSE
+        AND (
+          (af.target_type = 'thread' AND t.id IS NOT NULL AND (t.is_deleted IS NULL OR t.is_deleted = FALSE))
+          OR (af.target_type = 'entry' AND e.id IS NOT NULL AND (e.is_deleted IS NULL OR e.is_deleted = FALSE))
+          OR (af.target_type NOT IN ('thread', 'entry'))
+        )
+    `;
     let countParams = [];
     if (userId) {
       countQuery += ` AND af.user_id = $1`;
@@ -7493,6 +7512,7 @@ app.get('/api/my/feed', authMiddleware, async (req, res) => {
        JOIN rooms r ON r.id = t.room_id
        WHERE e.user_id IN (SELECT following_id FROM user_follows WHERE follower_id = $1)
          AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)
+         AND (t.is_deleted = FALSE OR t.is_deleted IS NULL)
        ORDER BY e.created_at DESC
        LIMIT $2 OFFSET $3`,
       [userId, limit, offset]
@@ -7500,8 +7520,10 @@ app.get('/api/my/feed', authMiddleware, async (req, res) => {
     
     const countResult = await db.query(
       `SELECT COUNT(*) FROM entries e
+       JOIN threads t ON t.id = e.thread_id
        WHERE e.user_id IN (SELECT following_id FROM user_follows WHERE follower_id = $1)
-         AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)`,
+         AND (e.is_deleted = FALSE OR e.is_deleted IS NULL)
+         AND (t.is_deleted = FALSE OR t.is_deleted IS NULL)`,
       [userId]
     );
     
