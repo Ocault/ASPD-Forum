@@ -10351,6 +10351,128 @@ Create a new thread post for this room. Write something that would spark discuss
 }
 
 // ==============================================
+// BOT RESPONSE DIVERSITY TRACKING
+// ==============================================
+// In-memory cache of recent bot responses to prevent repetition
+// Format: { odId: [{ content, timestamp }, ...] }
+const botResponseCache = new Map();
+const BOT_RESPONSE_CACHE_SIZE = 10; // Track last 10 responses per bot
+const BOT_RESPONSE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+// Add a response to the bot's cache
+function trackBotResponse(botUserId, content) {
+  if (!botUserId || !content) return;
+  
+  const key = String(botUserId);
+  const now = Date.now();
+  
+  if (!botResponseCache.has(key)) {
+    botResponseCache.set(key, []);
+  }
+  
+  const cache = botResponseCache.get(key);
+  
+  // Add new response
+  cache.unshift({ content, timestamp: now });
+  
+  // Trim to max size and remove old entries
+  const filtered = cache
+    .filter(entry => now - entry.timestamp < BOT_RESPONSE_CACHE_TTL)
+    .slice(0, BOT_RESPONSE_CACHE_SIZE);
+  
+  botResponseCache.set(key, filtered);
+}
+
+// Check if new content is too similar to bot's recent responses
+function checkBotResponseDiversity(botUserId, newContent) {
+  if (!botUserId || !newContent) return true; // Can't check, allow it
+  
+  const key = String(botUserId);
+  const cache = botResponseCache.get(key);
+  
+  if (!cache || cache.length === 0) return true; // No history, allow it
+  
+  const normalizeText = (text) => text.toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  const newNorm = normalizeText(newContent);
+  const newWords = newNorm.split(' ').filter(w => w.length > 3);
+  const newSet = new Set(newWords);
+  
+  for (const entry of cache) {
+    const oldNorm = normalizeText(entry.content);
+    const oldWords = oldNorm.split(' ').filter(w => w.length > 3);
+    const oldSet = new Set(oldWords);
+    
+    if (newSet.size === 0 || oldSet.size === 0) continue;
+    
+    // Check for 4+ consecutive word matches
+    for (let i = 0; i <= oldWords.length - 4; i++) {
+      const phrase = oldWords.slice(i, i + 4).join(' ');
+      if (phrase.length > 15 && newNorm.includes(phrase)) {
+        console.log('[DIVERSITY] Bot repeating phrase from recent response:', phrase);
+        return false;
+      }
+    }
+    
+    // Check word overlap
+    let overlapCount = 0;
+    for (const word of newSet) {
+      if (oldSet.has(word)) overlapCount++;
+    }
+    
+    const overlapRatio = overlapCount / Math.min(newSet.size, oldSet.size);
+    
+    // If more than 50% overlap with any recent response, reject
+    if (overlapRatio > 0.5) {
+      console.log('[DIVERSITY] Bot response too similar to recent response:', (overlapRatio * 100).toFixed(1) + '% overlap');
+      return false;
+    }
+  }
+  
+  return true; // Diverse enough
+}
+
+// Get bot's recent responses from database (for initialization or backup)
+async function getBotRecentResponses(botUserId, limit = 10) {
+  if (!botUserId) return [];
+  
+  try {
+    const result = await db.query(`
+      SELECT content, created_at 
+      FROM posts 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT $2
+    `, [botUserId, limit]);
+    
+    return result.rows.map(row => ({
+      content: row.content,
+      timestamp: new Date(row.created_at).getTime()
+    }));
+  } catch (err) {
+    console.error('[DIVERSITY] Error fetching bot responses:', err.message);
+    return [];
+  }
+}
+
+// Initialize bot response cache from database
+async function initBotResponseCache(botUserId) {
+  if (!botUserId) return;
+  
+  const key = String(botUserId);
+  if (botResponseCache.has(key)) return; // Already initialized
+  
+  const responses = await getBotRecentResponses(botUserId, BOT_RESPONSE_CACHE_SIZE);
+  if (responses.length > 0) {
+    botResponseCache.set(key, responses);
+    console.log(`[DIVERSITY] Initialized cache for bot ${botUserId} with ${responses.length} responses`);
+  }
+}
+
+// ==============================================
 // CONTENT SIMILARITY CHECK
 // ==============================================
 // Checks if generated content is too similar to original post
@@ -10407,6 +10529,79 @@ function checkContentSimilarity(original, generated) {
 // ==============================================
 // Ensures reply actually addresses content from the original post
 
+// Semantic topic clusters - words that relate to the same concept
+const SEMANTIC_CLUSTERS = {
+  // Mental health & diagnosis
+  diagnosis: ['diagnosed', 'diagnosis', 'dx', 'assessment', 'evaluated', 'clinical', 'psychiatrist', 'psychologist', 'dsm', 'criteria', 'symptoms', 'condition'],
+  therapy: ['therapy', 'therapist', 'counselor', 'counseling', 'treatment', 'session', 'psych', 'mental health', 'psychiatric', 'dbt', 'cbt'],
+  medication: ['meds', 'medication', 'pills', 'prescription', 'prescribed', 'antidepressant', 'ssri', 'dosage', 'side effects'],
+  
+  // Emotions & internal states
+  emotions: ['emotion', 'emotions', 'emotional', 'feel', 'feeling', 'feelings', 'felt', 'affect', 'mood', 'moods'],
+  empathy: ['empathy', 'empathetic', 'sympathy', 'compassion', 'caring', 'care', 'understand', 'understanding'],
+  boredom: ['bored', 'boring', 'boredom', 'understimulated', 'restless', 'unstimulated', 'monotony', 'tedious'],
+  anger: ['angry', 'anger', 'rage', 'furious', 'irritated', 'irritable', 'pissed', 'mad', 'frustrated', 'frustration'],
+  anxiety: ['anxious', 'anxiety', 'nervous', 'worried', 'worry', 'panic', 'stress', 'stressed'],
+  depression: ['depressed', 'depression', 'sad', 'empty', 'hopeless', 'numb', 'numbness', 'void'],
+  
+  // ASPD-specific concepts
+  masking: ['mask', 'masking', 'masked', 'facade', 'pretend', 'pretending', 'fake', 'faking', 'act', 'acting', 'performance', 'persona'],
+  manipulation: ['manipulate', 'manipulation', 'manipulative', 'manipulating', 'using', 'exploit', 'deceive', 'deceiving', 'con', 'scheme'],
+  impulsivity: ['impulsive', 'impulsivity', 'impulse', 'reckless', 'spontaneous', 'whim', 'snap decision'],
+  remorse: ['remorse', 'guilt', 'guilty', 'regret', 'sorry', 'apologize', 'conscience'],
+  callousness: ['callous', 'cold', 'heartless', 'uncaring', 'indifferent', 'detached', 'disconnected'],
+  
+  // Relationships
+  romantic: ['relationship', 'relationships', 'partner', 'girlfriend', 'boyfriend', 'wife', 'husband', 'spouse', 'dating', 'marriage', 'married', 'gf', 'bf', 'ex'],
+  family: ['family', 'parents', 'parent', 'mom', 'dad', 'mother', 'father', 'sibling', 'brother', 'sister', 'kids', 'children', 'child'],
+  friends: ['friend', 'friends', 'friendship', 'buddy', 'buddies', 'pal', 'acquaintance', 'social circle'],
+  coworkers: ['coworker', 'coworkers', 'colleague', 'colleagues', 'boss', 'manager', 'supervisor', 'team', 'workplace'],
+  
+  // Work & career
+  work: ['work', 'working', 'job', 'jobs', 'career', 'office', 'workplace', 'employment', 'employed', 'profession', 'corporate'],
+  money: ['money', 'cash', 'pay', 'paid', 'salary', 'wage', 'income', 'bills', 'rent', 'debt', 'broke', 'financial', 'afford', 'expense'],
+  
+  // Social perception
+  stigma: ['stigma', 'stigmatized', 'stereotype', 'stereotypes', 'judgment', 'judged', 'judging', 'label', 'labeled', 'perception', 'reputation', 'prejudice'],
+  normality: ['normal', 'normie', 'neurotypical', 'nt', 'nts', 'typical', 'average', 'ordinary', 'mainstream'],
+  
+  // Violence & danger themes
+  violence: ['violent', 'violence', 'aggressive', 'aggression', 'fight', 'fighting', 'hit', 'hurt', 'harm', 'damage', 'attack'],
+  danger: ['dangerous', 'danger', 'threat', 'threatening', 'scary', 'fear', 'afraid', 'risk', 'risky'],
+  crime: ['crime', 'criminal', 'illegal', 'law', 'police', 'court', 'jail', 'prison', 'arrest', 'charged', 'conviction'],
+  
+  // Communication & honesty
+  honesty: ['honest', 'honesty', 'truth', 'truthful', 'lie', 'lying', 'lies', 'lied', 'deceive', 'deception', 'sincere'],
+  communication: ['talk', 'talking', 'conversation', 'discuss', 'tell', 'told', 'said', 'saying', 'communicate', 'communication'],
+  
+  // Identity & self
+  identity: ['identity', 'self', 'who i am', 'personality', 'character', 'sense of self', 'authentic', 'real me'],
+  control: ['control', 'controlling', 'controlled', 'power', 'dominance', 'dominant', 'authority', 'influence'],
+  
+  // Time & life stages  
+  childhood: ['childhood', 'child', 'kid', 'growing up', 'young', 'younger', 'youth', 'teen', 'teenager', 'adolescent'],
+  future: ['future', 'plan', 'plans', 'planning', 'goal', 'goals', 'long term', 'ahead', 'someday'],
+  
+  // Activities & coping
+  substance: ['drink', 'drinking', 'drunk', 'alcohol', 'drugs', 'high', 'weed', 'smoking', 'substance', 'addiction', 'addict'],
+  entertainment: ['game', 'games', 'gaming', 'movie', 'movies', 'show', 'shows', 'music', 'hobby', 'hobbies', 'fun'],
+  
+  // Physical & health
+  sleep: ['sleep', 'sleeping', 'insomnia', 'tired', 'exhausted', 'fatigue', 'rest', 'awake', 'night'],
+  physical: ['body', 'physical', 'health', 'healthy', 'sick', 'pain', 'hurt', 'exercise', 'gym']
+};
+
+// Build reverse lookup: word -> cluster name
+const wordToCluster = new Map();
+for (const [clusterName, words] of Object.entries(SEMANTIC_CLUSTERS)) {
+  for (const word of words) {
+    if (!wordToCluster.has(word)) {
+      wordToCluster.set(word, []);
+    }
+    wordToCluster.get(word).push(clusterName);
+  }
+}
+
 function checkReplyEngagement(originalPost, reply) {
   if (!originalPost || !reply) return true; // Can't check, allow it
   
@@ -10414,17 +10609,22 @@ function checkReplyEngagement(originalPost, reply) {
   const replyLower = reply.toLowerCase();
   
   // Extract key topics/words from original post (4+ char words, not common words)
-  const commonWords = new Set(['this', 'that', 'with', 'have', 'from', 'they', 'been', 'were', 'said', 'each', 'what', 'their', 'will', 'would', 'could', 'should', 'about', 'when', 'your', 'which', 'some', 'them', 'then', 'than', 'into', 'just', 'only', 'come', 'over', 'such', 'take', 'also', 'back', 'after', 'most', 'made', 'being', 'like', 'really', 'people', 'going', 'through', 'everyone', 'else', 'person']);
+  const commonWords = new Set(['this', 'that', 'with', 'have', 'from', 'they', 'been', 'were', 'said', 'each', 'what', 'their', 'will', 'would', 'could', 'should', 'about', 'when', 'your', 'which', 'some', 'them', 'then', 'than', 'into', 'just', 'only', 'come', 'over', 'such', 'take', 'also', 'back', 'after', 'most', 'made', 'being', 'like', 'really', 'people', 'going', 'through', 'everyone', 'else', 'person', 'thing', 'things', 'know', 'think', 'dont', 'cant', 'didnt', 'doesnt', 'isnt', 'wasnt', 'wont', 'arent', 'havent', 'hadnt', 'yeah', 'okay', 'still', 'even', 'much', 'very', 'more', 'same', 'other', 'want', 'need', 'time', 'way']);
   
   const origWords = origLower
     .replace(/[^\w\s]/g, ' ')
     .split(/\s+/)
-    .filter(w => w.length >= 4 && !commonWords.has(w));
+    .filter(w => w.length >= 3 && !commonWords.has(w));
+  
+  const replyWords = replyLower
+    .replace(/[^\w\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 3);
   
   // Get unique significant words from original
   const origTopics = [...new Set(origWords)];
   
-  // Check if reply contains at least one topic word from original
+  // === CHECK 1: Direct word overlap ===
   let topicOverlap = 0;
   for (const topic of origTopics) {
     if (replyLower.includes(topic)) {
@@ -10439,187 +10639,1326 @@ function checkReplyEngagement(originalPost, reply) {
     return true; // Reply engages with original
   }
   
-  // Also check for semantic connections (reply might use synonyms)
-  // Check if reply mentions concepts related to original's themes
-  const themePatterns = [
-    { orig: /stigma|stereotype|judgment|judge/i, reply: /stigma|stereotype|label|judge|assume|perception|reputation/i },
-    { orig: /serial killer|murder|violent|dangerous/i, reply: /violent|danger|kill|crime|hurt|harm|scary/i },
-    { orig: /work|job|boss|coworker|office/i, reply: /work|job|boss|coworker|office|career|employ/i },
-    { orig: /bills|money|pay|rent|financial/i, reply: /bills|money|pay|rent|financ|broke|afford/i },
-    { orig: /honest|truth|lie|fake|mask/i, reply: /honest|truth|lie|fake|mask|pretend|act|real/i },
-    { orig: /therapy|therapist|diagnosis|diagnosed/i, reply: /therap|diagnos|psych|treat|counsel/i },
-    { orig: /emotion|feel|feeling|empathy/i, reply: /emotion|feel|empath|affect/i },
-    { orig: /relationship|partner|girlfriend|boyfriend|wife|husband/i, reply: /relation|partner|girlfriend|boyfriend|wife|husband|dating|marriage/i }
-  ];
-  
-  for (const theme of themePatterns) {
-    if (theme.orig.test(origLower) && theme.reply.test(replyLower)) {
-      return true; // Thematic connection found
+  // === CHECK 2: Semantic cluster overlap ===
+  // Find which semantic clusters the original post touches
+  const origClusters = new Set();
+  for (const word of origWords) {
+    const clusters = wordToCluster.get(word);
+    if (clusters) {
+      clusters.forEach(c => origClusters.add(c));
+    }
+    // Also check word stems/partial matches
+    for (const [clusterWord, clusterNames] of wordToCluster.entries()) {
+      if (word.startsWith(clusterWord) || clusterWord.startsWith(word)) {
+        clusterNames.forEach(c => origClusters.add(c));
+      }
     }
   }
   
-  console.log('[ENGAGEMENT] No topic overlap found. Original topics:', origTopics.slice(0, 10).join(', '));
+  // Find which semantic clusters the reply touches
+  const replyClusters = new Set();
+  for (const word of replyWords) {
+    const clusters = wordToCluster.get(word);
+    if (clusters) {
+      clusters.forEach(c => replyClusters.add(c));
+    }
+    // Also check word stems/partial matches
+    for (const [clusterWord, clusterNames] of wordToCluster.entries()) {
+      if (word.startsWith(clusterWord) || clusterWord.startsWith(word)) {
+        clusterNames.forEach(c => replyClusters.add(c));
+      }
+    }
+  }
+  
+  // Check for cluster overlap
+  let clusterOverlap = 0;
+  for (const cluster of origClusters) {
+    if (replyClusters.has(cluster)) {
+      clusterOverlap++;
+    }
+  }
+  
+  if (clusterOverlap >= 1) {
+    console.log('[ENGAGEMENT] Semantic cluster match found. Clusters:', [...origClusters].filter(c => replyClusters.has(c)).join(', '));
+    return true; // Semantic connection found
+  }
+  
+  // === CHECK 3: Contextual phrase patterns ===
+  // Check for common response patterns that indicate engagement
+  const engagementPatterns = [
+    // Quoting/referencing
+    /^>/,  // Quote block
+    /you (said|mentioned|talked about|brought up)/i,
+    /the part (about|where)/i,
+    /(that|this) (part|bit|thing) about/i,
+    
+    // Agreement/disagreement markers that reference content
+    /(agree|disagree) (with|about|on)/i,
+    /same (thing|experience|situation)/i,
+    /(happened|happens) to me/i,
+    /i (also|too) (have|had|do|did|feel|felt)/i,
+    
+    // Comparative responses
+    /for me.*(similar|different|same)/i,
+    /in my (case|experience|situation)/i,
+    /when i.*(this|that|it)/i,
+    
+    // Direct response markers
+    /(yeah|yep|nah|no) (but|and|so|because)/i,
+    /^(re|regarding|about):/i
+  ];
+  
+  for (const pattern of engagementPatterns) {
+    if (pattern.test(replyLower)) {
+      console.log('[ENGAGEMENT] Response pattern detected');
+      return true;
+    }
+  }
+  
+  console.log('[ENGAGEMENT] No topic overlap found. Original clusters:', [...origClusters].slice(0, 5).join(', '), '| Reply clusters:', [...replyClusters].slice(0, 5).join(', '));
   return false;
+}
+
+// ==============================================
+// TOKEN BUDGET MANAGEMENT
+// ==============================================
+// Efficiently manage context window for AI generation
+
+const TOKEN_BUDGETS = {
+  // Model limits (conservative estimates for safety margin)
+  maxContextTokens: 6000,      // Leave room for response
+  maxResponseTokens: 300,      // Max expected response
+  
+  // Budget allocation percentages
+  systemPrompt: 0.35,         // 35% for system prompt (~2100 tokens)
+  userPrompt: 0.45,           // 45% for user prompt + context (~2700 tokens)
+  examples: 0.15,             // 15% for examples (~900 tokens)
+  buffer: 0.05,               // 5% safety buffer (~300 tokens)
+  
+  // Per-item limits
+  maxPostLength: 400,         // Max chars per post in context
+  maxTitleLength: 100,        // Max chars for thread title
+  maxPersonalityLength: 200,  // Max chars for personality description
+  maxRecentPosts: 3,          // Max number of recent posts to include
+  maxOriginalPostLength: 300  // Max chars for OP content
+};
+
+// Estimate token count (rough: ~4 chars per token for English)
+function estimateTokens(text) {
+  if (!text) return 0;
+  return Math.ceil(text.length / 4);
+}
+
+// Truncate text to fit token budget while preserving meaning
+function truncateToTokenBudget(text, maxTokens, preserveEnding = false) {
+  if (!text) return '';
+  
+  const currentTokens = estimateTokens(text);
+  if (currentTokens <= maxTokens) return text;
+  
+  const maxChars = maxTokens * 4;
+  
+  if (preserveEnding) {
+    // Keep the ending (useful for recent conversation context)
+    return '...' + text.slice(-(maxChars - 3));
+  } else {
+    // Keep the beginning (useful for original post context)
+    return text.slice(0, maxChars - 3) + '...';
+  }
+}
+
+// Smart context summarization - extract key points
+function summarizeForContext(text, maxTokens) {
+  if (!text) return '';
+  
+  const currentTokens = estimateTokens(text);
+  if (currentTokens <= maxTokens) return text;
+  
+  // Split into sentences
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  
+  if (sentences.length <= 2) {
+    return truncateToTokenBudget(text, maxTokens);
+  }
+  
+  // Score sentences by importance (contains key words, position, length)
+  const scoredSentences = sentences.map((s, idx) => {
+    let score = 0;
+    const lower = s.toLowerCase();
+    
+    // First and last sentences often most important
+    if (idx === 0) score += 30;
+    if (idx === sentences.length - 1) score += 20;
+    
+    // Contains specific details
+    if (/\b(my|i|me)\b/i.test(s)) score += 10; // Personal experience
+    if (/\b\d+\b/.test(s)) score += 15; // Contains numbers (specifics)
+    if (/\b(because|since|when|after|before)\b/i.test(s)) score += 10; // Causal/temporal
+    if (/\b(but|however|although|though)\b/i.test(s)) score += 15; // Contrasts
+    if (/["']/.test(s)) score += 10; // Contains quotes
+    
+    // Penalize generic phrases
+    if (/\b(always|never|everyone|no one|people)\b/i.test(s)) score -= 10;
+    if (/\b(think|feel|believe|seems?)\b/i.test(s)) score -= 5;
+    
+    // Prefer medium-length sentences
+    const wordCount = s.split(/\s+/).length;
+    if (wordCount >= 8 && wordCount <= 20) score += 10;
+    
+    return { sentence: s.trim(), score, index: idx };
+  });
+  
+  // Sort by score and take top sentences
+  scoredSentences.sort((a, b) => b.score - a.score);
+  
+  // Build summary within budget
+  let summary = '';
+  let usedTokens = 0;
+  const usedIndices = [];
+  
+  for (const { sentence, index } of scoredSentences) {
+    const sentenceTokens = estimateTokens(sentence);
+    if (usedTokens + sentenceTokens > maxTokens) break;
+    usedIndices.push({ index, sentence });
+    usedTokens += sentenceTokens;
+  }
+  
+  // Restore original order
+  usedIndices.sort((a, b) => a.index - b.index);
+  summary = usedIndices.map(u => u.sentence).join('. ');
+  
+  return summary + (summary.endsWith('.') ? '' : '.');
+}
+
+// Build optimized context for AI generation
+function buildOptimizedContext(rawContext, type = 'reply') {
+  if (!rawContext) return null;
+  
+  const optimized = {
+    title: '',
+    room: '',
+    originalPost: null,
+    recentPosts: [],
+    totalPosts: rawContext.totalPosts || 0,
+    threadAgeDays: rawContext.threadAgeDays || 0,
+    isStale: rawContext.isStale || false,
+    _tokenUsage: { total: 0 }
+  };
+  
+  let remainingBudget = Math.floor(TOKEN_BUDGETS.maxContextTokens * TOKEN_BUDGETS.userPrompt);
+  
+  // 1. Title (high priority, low cost)
+  if (rawContext.title) {
+    optimized.title = truncateToTokenBudget(rawContext.title, 25); // ~100 chars
+    remainingBudget -= estimateTokens(optimized.title);
+  }
+  
+  // 2. Room (low cost)
+  if (rawContext.room) {
+    optimized.room = rawContext.room.substring(0, 50);
+    remainingBudget -= estimateTokens(optimized.room);
+  }
+  
+  // 3. Original Post (important for reply context)
+  if (rawContext.originalPost && type === 'reply') {
+    const opBudget = Math.min(75, Math.floor(remainingBudget * 0.25)); // 25% of remaining, max 75 tokens
+    const opContent = rawContext.originalPost.content || '';
+    
+    optimized.originalPost = {
+      content: summarizeForContext(opContent, opBudget),
+      alias: rawContext.originalPost.alias,
+      bot_persona: rawContext.originalPost.bot_persona
+    };
+    remainingBudget -= estimateTokens(optimized.originalPost.content);
+  }
+  
+  // 4. Recent Posts (most important for replies)
+  if (rawContext.recentPosts && rawContext.recentPosts.length > 0) {
+    const postsToInclude = Math.min(rawContext.recentPosts.length, TOKEN_BUDGETS.maxRecentPosts);
+    const perPostBudget = Math.floor(remainingBudget / postsToInclude);
+    
+    // Prioritize: most recent first, but also consider variety
+    const seenPersonas = new Set();
+    
+    for (let i = 0; i < rawContext.recentPosts.length && optimized.recentPosts.length < postsToInclude; i++) {
+      const post = rawContext.recentPosts[i];
+      if (!post.content) continue;
+      
+      // Prefer diverse personas if there are bot posts
+      if (post.bot_persona && seenPersonas.has(post.bot_persona) && optimized.recentPosts.length > 0) {
+        continue; // Skip duplicate persona unless it's the first post
+      }
+      
+      // Allocate more tokens to the most recent post
+      const postBudget = i === 0 
+        ? Math.min(100, perPostBudget * 1.5)  // 50% more for most recent
+        : Math.min(75, perPostBudget);
+      
+      optimized.recentPosts.push({
+        content: summarizeForContext(post.content, postBudget),
+        alias: post.alias,
+        bot_persona: post.bot_persona,
+        is_bot: post.is_bot
+      });
+      
+      if (post.bot_persona) seenPersonas.add(post.bot_persona);
+      remainingBudget -= estimateTokens(optimized.recentPosts[optimized.recentPosts.length - 1].content);
+    }
+  }
+  
+  // Track token usage for monitoring
+  optimized._tokenUsage = {
+    title: estimateTokens(optimized.title),
+    room: estimateTokens(optimized.room),
+    originalPost: optimized.originalPost ? estimateTokens(optimized.originalPost.content) : 0,
+    recentPosts: optimized.recentPosts.reduce((sum, p) => sum + estimateTokens(p.content), 0),
+    total: TOKEN_BUDGETS.maxContextTokens * TOKEN_BUDGETS.userPrompt - remainingBudget,
+    remaining: remainingBudget
+  };
+  
+  return optimized;
+}
+
+// Build the user prompt with token awareness
+function buildTokenAwarePrompt(sections, maxTokens) {
+  const result = [];
+  let usedTokens = 0;
+  
+  // Sections are ordered by priority
+  for (const section of sections) {
+    const tokens = estimateTokens(section.content);
+    
+    if (section.required) {
+      // Required sections always included
+      result.push(section.content);
+      usedTokens += tokens;
+    } else if (usedTokens + tokens <= maxTokens) {
+      // Optional sections included if budget allows
+      result.push(section.content);
+      usedTokens += tokens;
+    } else if (section.canTruncate && usedTokens < maxTokens) {
+      // Truncate to fit remaining budget
+      const remaining = maxTokens - usedTokens;
+      result.push(truncateToTokenBudget(section.content, remaining));
+      usedTokens = maxTokens;
+      break;
+    }
+    // Skip sections that don't fit
+  }
+  
+  return result.join('\n\n');
+}
+
+// Log token usage for monitoring/debugging
+function logTokenUsage(type, context, systemPrompt, userPrompt) {
+  const usage = {
+    type,
+    systemPromptTokens: estimateTokens(systemPrompt),
+    userPromptTokens: estimateTokens(userPrompt),
+    contextTokens: context?._tokenUsage?.total || 0,
+    totalTokens: 0
+  };
+  usage.totalTokens = usage.systemPromptTokens + usage.userPromptTokens;
+  
+  if (usage.totalTokens > TOKEN_BUDGETS.maxContextTokens * 0.9) {
+    console.warn(`[TOKENS] High usage for ${type}: ${usage.totalTokens} tokens (${Math.round(usage.totalTokens / TOKEN_BUDGETS.maxContextTokens * 100)}%)`);
+  }
+  
+  return usage;
 }
 
 // ==============================================
 // QUALITY CHECK FOR GENERIC/FILLER CONTENT
 // ==============================================
-// Detects and rejects lazy, generic, low-effort responses
+// Dynamic weighted scoring system for detecting low-effort responses
+
+// Weighted filler indicators - higher weight = more indicative of filler
+const FILLER_WEIGHTS = {
+  // === CRITICAL (instant fail if found) - weight 100 ===
+  critical: {
+    weight: 100,
+    phrases: [
+      'seen variations of this',
+      'seen this before',
+      'seen this discussion',
+      'always valuable though',
+      'always interesting to see',
+      'common discussion',
+      'common topic'
+    ]
+  },
+  
+  // === HIGH (strong indicator) - weight 40 ===
+  metaCommentary: {
+    weight: 40,
+    phrases: [
+      'this comes up',
+      'this topic comes up',
+      'over the years',
+      'through the years',
+      'as time goes on',
+      'as i get older'
+    ]
+  },
+  
+  lazyValidation: {
+    weight: 40,
+    phrases: [
+      'valid point',
+      'fair point',
+      'good point',
+      'interesting point',
+      'always valuable',
+      'always interesting',
+      'always worth'
+    ]
+  },
+  
+  emptyAcknowledgment: {
+    weight: 40,
+    phrases: [
+      'interesting thread',
+      'interesting post',
+      'interesting take',
+      'good thread',
+      'good post',
+      'great post',
+      'great thread',
+      'nice post',
+      'solid post',
+      'solid thread',
+      'thats real',
+      'thats true',
+      'thats valid',
+      'cant argue with that'
+    ]
+  },
+  
+  // === MEDIUM (moderate indicator) - weight 25 ===
+  vagueProcess: {
+    weight: 25,
+    phrases: [
+      'still working on it',
+      'working through it',
+      'working on that',
+      'figuring it out',
+      'taking it day by day',
+      'one day at a time'
+    ]
+  },
+  
+  lazyDismissal: {
+    weight: 25,
+    phrases: [
+      'you get the idea',
+      'if that makes sense',
+      'you know what i mean',
+      'hard to explain',
+      'cant put it into words',
+      'the nuance gets lost',
+      'its complicated',
+      'its complex'
+    ]
+  },
+  
+  copOut: {
+    weight: 25,
+    phrases: [
+      'depends on the situation',
+      'to each their own',
+      'whatever works',
+      'different for everyone',
+      'everyone is different',
+      'everyones different'
+    ]
+  },
+  
+  genericAgreement: {
+    weight: 25,
+    phrases: [
+      'this resonates',
+      'i relate to this',
+      'same here basically',
+      'been there',
+      'felt that',
+      'get that',
+      'i feel you',
+      'totally get it',
+      'completely get it'
+    ]
+  },
+  
+  // === LOW (mild indicator, needs multiple) - weight 15 ===
+  hedging: {
+    weight: 15,
+    phrases: [
+      'in a way',
+      'sort of',
+      'kind of',
+      'in some ways',
+      'i guess',
+      'i suppose',
+      'maybe its just me'
+    ]
+  },
+  
+  fillerEndings: {
+    weight: 15,
+    phrases: [
+      'but yeah',
+      'but anyway',
+      'so yeah',
+      'idk though',
+      'just my take',
+      'just my opinion',
+      'not that anyone asked'
+    ]
+  },
+  
+  // === ULTRA-LAZY patterns - weight 60 ===
+  ultraLazy: {
+    weight: 60,
+    phrases: [
+      'interesting fr',
+      'real fr',
+      'mood fr',
+      'felt fr',
+      'true fr',
+      'valid fr',
+      'facts fr',
+      'same fr',
+      'this fr'
+    ]
+  }
+};
+
+// Pattern-based scoring (regex patterns with weights)
+const FILLER_PATTERNS = [
+  { pattern: /^(yeah|yep|yup|true|same|this|mood|real|felt|facts?)\s*\.?\s*$/i, weight: 100, name: 'single-word-response' },
+  { pattern: /^(totally|completely|absolutely|exactly)\s+(agree|this|same)\.?\s*$/i, weight: 80, name: 'empty-agreement' },
+  { pattern: /^.{0,30}(interesting|good|great|nice|solid)\s+(thread|post|take|point)/i, weight: 70, name: 'generic-praise-opener' },
+  { pattern: /^responding to @\w+:\s*.{0,40}$/i, weight: 60, name: 'short-mention-response' },
+  { pattern: /^(lol|lmao|haha)\s+.{0,20}$/i, weight: 50, name: 'laugh-only-response' },
+  { pattern: /^\S+\s+\S+\s*\.?\s*$/i, weight: 40, name: 'two-word-response' }, // Only 2 words
+  { pattern: /^(ngl|tbh|imo|fr)\s+.{0,30}$/i, weight: 30, name: 'abbrev-short-response' }
+];
+
+// Positive indicators that reduce filler score
+const SPECIFICITY_BONUSES = [
+  { pattern: /\b(yesterday|today|last (week|month|night)|this (morning|afternoon|week))\b/i, bonus: -20, name: 'time-reference' },
+  { pattern: /\bmy (boss|therapist|gf|bf|wife|husband|coworker|friend|mom|dad|ex)\b/i, bonus: -25, name: 'person-reference' },
+  { pattern: /\b(at work|at home|at the|in the|at my)\b/i, bonus: -15, name: 'place-reference' },
+  { pattern: /\b\d+\s*(year|month|week|day|hour|minute|time)s?\b/i, bonus: -20, name: 'number-reference' },
+  { pattern: /\b(happened|said|told|asked|did|went|saw|heard|realized|noticed)\b/i, bonus: -10, name: 'action-verb' },
+  { pattern: /\b(because|since|after|before|when|while|during)\b/i, bonus: -10, name: 'causal-connector' },
+  { pattern: /\b(example|instance|situation|case|time when)\b/i, bonus: -15, name: 'example-marker' },
+  { pattern: /["'].{10,}["']/i, bonus: -20, name: 'quoted-speech' }, // Contains quoted dialogue
+  { pattern: /\b(specifically|exactly|literally|actually)\b/i, bonus: -10, name: 'precision-marker' }
+];
+
+// Length-based scoring
+function getLengthPenalty(wordCount) {
+  if (wordCount <= 3) return 50;  // Very short
+  if (wordCount <= 6) return 30;  // Short
+  if (wordCount <= 10) return 15; // Brief
+  if (wordCount <= 15) return 5;  // Acceptable
+  return 0; // Good length
+}
+
+// Sentence variety bonus
+function getSentenceVarietyBonus(content) {
+  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 5);
+  if (sentences.length >= 3) return -15;
+  if (sentences.length >= 2) return -5;
+  return 0;
+}
 
 function checkIsGenericFiller(content) {
   if (!content) return false;
   
   const lowerContent = content.toLowerCase();
-  
-  // List of banned filler phrases - any match = rejection
-  const bannedPhrases = [
-    // Meta-commentary about the discussion
-    'seen variations of this',
-    'seen this before',
-    'seen this discussion',
-    'this comes up',
-    'this topic comes up',
-    'common discussion',
-    'common topic',
-    'over the years',
-    'through the years',
-    
-    // Lazy validation
-    'always valuable',
-    'always interesting',
-    'always worth',
-    'valid point',
-    'fair point',
-    'good point',
-    'interesting point',
-    
-    // Vague process statements
-    'still working on it',
-    'working through it',
-    'working on that',
-    'figuring it out',
-    'taking it day by day',
-    
-    // Lazy dismissals
-    'you get the idea',
-    'if that makes sense',
-    'you know what i mean',
-    'hard to explain',
-    'cant put it into words',
-    'the nuance gets lost',
-    
-    // Time-based filler
-    'over the years',
-    'through the years',
-    'as time goes on',
-    'as i get older',
-    
-    // Generic agreement without substance
-    'this resonates',
-    'i relate to this',
-    'same here basically',
-    'been there',
-    'felt that',
-    'get that',
-    'i feel you',
-    'totally get it',
-    
-    // Cop-out phrases
-    'its complicated',
-    'its complex',
-    'depends on the situation',
-    'to each their own',
-    'whatever works',
-    'different for everyone',
-    'everyone is different',
-    
-    // Empty acknowledgments  
-    'thats real',
-    'thats true',
-    'thats valid',
-    'cant argue with that',
-    'interesting thread',
-    'interesting post',
-    'interesting take',
-    'interesting point',
-    'good thread',
-    'good post',
-    'great post',
-    'great thread',
-    'nice post',
-    'solid post',
-    'solid thread',
-    
-    // Non-committal hedging
-    'in a way',
-    'sort of',
-    'kind of',
-    'in some ways',
-    
-    // Ultra-lazy single word + "fr" or "tbh" responses
-    'interesting fr',
-    'real fr',
-    'mood fr',
-    'felt fr',
-    'true fr',
-    'valid fr',
-    'facts fr'
-  ];
-  
-  for (const phrase of bannedPhrases) {
-    if (lowerContent.includes(phrase)) {
-      console.log('[QUALITY] Rejected for banned filler phrase:', phrase);
-      return true;
-    }
-  }
-  
-  // Check if response is too short and lacks specificity
   const words = content.split(/\s+/).filter(w => w.length > 0);
-  if (words.length < 10) {
-    // Very short responses need to have SOME specific content
-    const hasSpecific = /\b(yesterday|today|last week|this morning|at work|my boss|my therapist|my gf|my bf|my wife|my husband|my coworker|[0-9]+ (year|month|week|day|hour|minute))/i.test(content);
-    if (!hasSpecific) {
-      console.log('[QUALITY] Rejected: too short with no specifics');
-      return true;
+  const wordCount = words.length;
+  
+  let score = 0;
+  const triggers = [];
+  
+  // === Check phrase-based filler ===
+  for (const [category, data] of Object.entries(FILLER_WEIGHTS)) {
+    for (const phrase of data.phrases) {
+      if (lowerContent.includes(phrase)) {
+        score += data.weight;
+        triggers.push({ category, phrase, weight: data.weight });
+        
+        // Critical phrases are instant fail
+        if (data.weight >= 100) {
+          console.log(`[QUALITY] CRITICAL filler detected: "${phrase}" (score: ${score})`);
+          return true;
+        }
+      }
     }
   }
   
-  // Check for patterns that indicate empty agreement
-  const emptyAgreementPatterns = [
-    /^(yeah|yep|yup|true|same|this|mood|real|felt|facts?)\s*\.?\s*$/i,
-    /^(totally|completely|absolutely|exactly)\s+(agree|this|same)\.?\s*$/i,
-    /^.{0,30}(interesting|good|great|nice|solid)\s+(thread|post|take|point)/i, // Catches "interesting thread fr"
-    /^responding to @\w+:\s*.{0,40}$/i // Catches very short "responding to @user: [filler]"
-  ];
-  
-  for (const pattern of emptyAgreementPatterns) {
+  // === Check pattern-based filler ===
+  for (const { pattern, weight, name } of FILLER_PATTERNS) {
     if (pattern.test(content.trim())) {
-      console.log('[QUALITY] Rejected: empty agreement pattern');
-      return true;
+      score += weight;
+      triggers.push({ category: 'pattern', phrase: name, weight });
     }
+  }
+  
+  // === Add length penalty ===
+  const lengthPenalty = getLengthPenalty(wordCount);
+  if (lengthPenalty > 0) {
+    score += lengthPenalty;
+    triggers.push({ category: 'length', phrase: `${wordCount} words`, weight: lengthPenalty });
+  }
+  
+  // === Apply specificity bonuses ===
+  for (const { pattern, bonus, name } of SPECIFICITY_BONUSES) {
+    if (pattern.test(content)) {
+      score += bonus; // bonus is negative, so this reduces score
+      triggers.push({ category: 'bonus', phrase: name, weight: bonus });
+    }
+  }
+  
+  // === Apply sentence variety bonus ===
+  const varietyBonus = getSentenceVarietyBonus(content);
+  if (varietyBonus < 0) {
+    score += varietyBonus;
+    triggers.push({ category: 'bonus', phrase: 'sentence-variety', weight: varietyBonus });
+  }
+  
+  // === Calculate unique word ratio (penalize repetitive content) ===
+  const uniqueWords = new Set(words.map(w => w.toLowerCase()));
+  const uniqueRatio = uniqueWords.size / wordCount;
+  if (uniqueRatio < 0.5 && wordCount > 5) {
+    const repetitionPenalty = Math.round((1 - uniqueRatio) * 30);
+    score += repetitionPenalty;
+    triggers.push({ category: 'repetition', phrase: `${Math.round(uniqueRatio * 100)}% unique`, weight: repetitionPenalty });
+  }
+  
+  // === Final threshold check ===
+  // Threshold: 50 = likely filler, needs rejection
+  const FILLER_THRESHOLD = 50;
+  
+  if (score >= FILLER_THRESHOLD) {
+    console.log(`[QUALITY] Filler score ${score} >= ${FILLER_THRESHOLD}. Triggers:`, 
+      triggers.filter(t => t.weight > 0).map(t => `${t.phrase}(+${t.weight})`).join(', '),
+      '| Bonuses:', triggers.filter(t => t.weight < 0).map(t => `${t.phrase}(${t.weight})`).join(', ') || 'none'
+    );
+    return true;
+  }
+  
+  // Log close calls for monitoring
+  if (score >= FILLER_THRESHOLD - 20) {
+    console.log(`[QUALITY] Close call - score ${score}. Triggers:`, triggers.map(t => `${t.phrase}(${t.weight > 0 ? '+' : ''}${t.weight})`).join(', '));
   }
   
   return false;
 }
 
 // ==============================================
-// UNIFIED AI CONTENT GENERATION
+// PERSONALITY CONSISTENCY SCORING
+// ==============================================
+// Ensures AI responses match the assigned persona
+
+// Persona linguistic markers - patterns that indicate persona alignment
+const PERSONA_MARKERS = {
+  analytical: {
+    positive: [
+      { pattern: /\b(pattern|patterns|data|analysis|observe|observed|noting|correlat|statistic|typically|tend to|logically|objectively)\b/i, weight: 15 },
+      { pattern: /\b(interesting|noted|noticed pattern|consistent with|based on)\b/i, weight: 10 },
+      { pattern: /\b(hypothesis|evidence|conclusion|factor|variable)\b/i, weight: 20 },
+      { pattern: /\d+\s*(percent|%|times|instances)/i, weight: 15 }, // Uses numbers/stats
+      { pattern: /\b(seems like|appears to be|observation)\b/i, weight: 10 }
+    ],
+    negative: [
+      { pattern: /\b(lmao|lol|haha|rofl)\b/i, weight: -15 }, // Too casual for analyst
+      { pattern: /!{2,}/i, weight: -10 }, // Too excitable
+      { pattern: /\b(fuck|shit|damn|hell)\b/i, weight: -5 } // Swearing less typical
+    ],
+    minLength: 30 // Analysts tend to write more
+  },
+  
+  cynical: {
+    positive: [
+      { pattern: /\b(sure|right|yeah right|of course|surprise surprise|shocker)\b/i, weight: 15 },
+      { pattern: /\b(doubt|doubtful|skeptical|unlikely|probably not)\b/i, weight: 15 },
+      { pattern: /\b(typical|predictable|expected|as usual|naturally)\b/i, weight: 10 },
+      { pattern: /\.{3}|…/i, weight: 5 }, // Trailing off sarcastically
+      { pattern: /\b(apparently|supposedly|so-called|allegedly)\b/i, weight: 15 }
+    ],
+    negative: [
+      { pattern: /\b(hope|hopeful|optimistic|excited|amazing|wonderful)\b/i, weight: -20 },
+      { pattern: /\b(definitely|absolutely|for sure|100%)\b/i, weight: -10 }
+    ],
+    minLength: 15
+  },
+  
+  pragmatic: {
+    positive: [
+      { pattern: /\b(works?|worked|working|effective|useful|practical|solution|solve|fix|try|tried)\b/i, weight: 15 },
+      { pattern: /\b(what (works|worked)|how to|step|approach|method|strategy)\b/i, weight: 20 },
+      { pattern: /\b(results?|outcome|benefit|advantage|efficient)\b/i, weight: 10 },
+      { pattern: /\b(dont waste|skip the|cut to|bottom line|point is)\b/i, weight: 15 },
+      { pattern: /\b(instead|rather than|better to|easier to)\b/i, weight: 10 }
+    ],
+    negative: [
+      { pattern: /\b(feel|feeling|emotional|emotions)\b/i, weight: -10 },
+      { pattern: /\b(philosophy|philosophical|theory|theoretically|abstract)\b/i, weight: -15 }
+    ],
+    minLength: 20
+  },
+  
+  observer: {
+    positive: [
+      { pattern: /\b(noticed|notice|watching|saw|seen|observe|quiet|interesting)\b/i, weight: 15 },
+      { pattern: /\b(pattern|people tend|others seem|most people|from what ive seen)\b/i, weight: 15 },
+      { pattern: /\b(subtle|nuance|detail|picked up on)\b/i, weight: 10 }
+    ],
+    negative: [
+      { pattern: /!{1,}/i, weight: -5 }, // Observers are calm
+      { pattern: /\b(personally i|in my opinion|i think everyone)\b/i, weight: -10 } // Too assertive
+    ],
+    minLength: 10,
+    maxLength: 150 // Observers are brief
+  },
+  
+  blunt: {
+    positive: [
+      { pattern: /\b(honestly|bluntly|straightforward|plain|simple)\b/i, weight: 10 },
+      { pattern: /\b(bullshit|bs|crap|stupid|dumb|pointless|waste)\b/i, weight: 15 },
+      { pattern: /\b(nah|nope|no|wrong|disagree|dont buy)\b/i, weight: 15 },
+      { pattern: /\b(just|literally|obviously|clearly)\b/i, weight: 10 },
+      { pattern: /\b(dont care|who cares|whatever|so what)\b/i, weight: 10 }
+    ],
+    negative: [
+      { pattern: /\b(perhaps|maybe|possibly|might|could be|im not sure)\b/i, weight: -15 }, // Too hedgy
+      { pattern: /\b(i understand|i see where|valid point)\b/i, weight: -10 } // Too diplomatic
+    ],
+    minLength: 10
+  },
+  
+  strategic: {
+    positive: [
+      { pattern: /\b(play|played|move|position|advantage|leverage|chess|game)\b/i, weight: 20 },
+      { pattern: /\b(long term|short term|calculated|plan|planning|strategy|strategic)\b/i, weight: 20 },
+      { pattern: /\b(angle|approach|option|outcome|scenario)\b/i, weight: 10 },
+      { pattern: /\b(cost|benefit|risk|reward|tradeoff|investment)\b/i, weight: 15 },
+      { pattern: /\b(manipulat|influence|control|power|dynamic)\b/i, weight: 10 }
+    ],
+    negative: [
+      { pattern: /\b(spontaneous|impulse|impulsive|random|whatever happens)\b/i, weight: -15 }
+    ],
+    minLength: 25
+  },
+  
+  nihilist: {
+    positive: [
+      { pattern: /\b(meaningless|pointless|doesnt matter|nothing matters|who cares)\b/i, weight: 20 },
+      { pattern: /\b(void|empty|hollow|nothing|nothingness)\b/i, weight: 15 },
+      { pattern: /\b(whatever|anyway|in the end|ultimately)\b/i, weight: 10 },
+      { pattern: /\b(existence|existential|purpose|meaning|absurd)\b/i, weight: 15 },
+      { pattern: /\b(accept|acceptance|inevitable|entropy)\b/i, weight: 10 }
+    ],
+    negative: [
+      { pattern: /\b(hope|hopeful|purpose|meaning|believe in)\b/i, weight: -20 },
+      { pattern: /\b(exciting|excited|amazing|wonderful|great)\b/i, weight: -15 }
+    ],
+    minLength: 15
+  },
+  
+  survivor: {
+    positive: [
+      { pattern: /\b(been through|survived|learned|hard way|years ago|back when)\b/i, weight: 20 },
+      { pattern: /\b(system|court|jail|prison|hospital|street|cops|lawyer)\b/i, weight: 20 },
+      { pattern: /\b(careful|watch out|trust|dont trust|learned to)\b/i, weight: 15 },
+      { pattern: /\b(tough|hard|rough|struggle|dealt with)\b/i, weight: 10 }
+    ],
+    negative: [
+      { pattern: /\b(theory|theoretical|hypothetically|research says)\b/i, weight: -15 }
+    ],
+    minLength: 20
+  },
+  
+  scientist: {
+    positive: [
+      { pattern: /\b(research|study|studies|paper|journal|literature)\b/i, weight: 25 },
+      { pattern: /\b(neurological|brain|prefrontal|amygdala|genetics|biological)\b/i, weight: 25 },
+      { pattern: /\b(data|evidence|findings|suggests|indicates|correlation)\b/i, weight: 20 },
+      { pattern: /\b(interesting|curious|fascina|wonder)\b/i, weight: 10 },
+      { pattern: /\d+\s*(percent|%|participants|subjects)/i, weight: 15 }
+    ],
+    negative: [
+      { pattern: /\b(lmao|lol|haha|fr fr|no cap)\b/i, weight: -15 },
+      { pattern: /\b(vibes|energy|feel like|gut feeling)\b/i, weight: -10 }
+    ],
+    minLength: 30
+  },
+  
+  newcomer: {
+    positive: [
+      { pattern: /\b(new to|just (found|learned|realized|started)|still (figuring|learning|processing))\b/i, weight: 20 },
+      { pattern: /\?$/i, weight: 15 }, // Asks questions
+      { pattern: /\b(anyone else|is this normal|does anyone|how do you)\b/i, weight: 20 },
+      { pattern: /\b(confused|unsure|not sure|wondering|weird)\b/i, weight: 15 }
+    ],
+    negative: [
+      { pattern: /\b(years of experience|back in my day|when i was younger|decades)\b/i, weight: -25 },
+      { pattern: /\b(always|never fails|every time|typical)\b/i, weight: -10 }
+    ],
+    minLength: 15
+  },
+  
+  veteran: {
+    positive: [
+      { pattern: /\b(years|decades|long time|back when|used to|over time)\b/i, weight: 20 },
+      { pattern: /\b(learned|realized|figured out|eventually|takes time)\b/i, weight: 15 },
+      { pattern: /\b(advice|suggest|recommend|what works|in my experience)\b/i, weight: 15 },
+      { pattern: /\b(patience|patient|give it time|youll see)\b/i, weight: 10 }
+    ],
+    negative: [
+      { pattern: /\b(new to this|just started|recently diagnosed|still figuring)\b/i, weight: -25 }
+    ],
+    minLength: 25
+  },
+  
+  dark_humor: {
+    positive: [
+      { pattern: /\b(lmao|lol|haha|lmfao|rofl|dying)\b/i, weight: 20 },
+      { pattern: /\b(joke|joking|kidding|humor|funny|hilarious)\b/i, weight: 15 },
+      { pattern: /\b(at least|bright side|silver lining|could be worse)\b/i, weight: 15 },
+      { pattern: /\b(😂|💀|🤣|😅)/i, weight: 10 },
+      { pattern: /\b(ironic|irony|absurd|ridiculous)\b/i, weight: 10 }
+    ],
+    negative: [
+      { pattern: /\b(serious|seriously|no joke|not joking|genuinely)\b/i, weight: -10 }
+    ],
+    minLength: 10
+  }
+};
+
+// Check if content matches the persona
+function checkPersonaConsistency(content, persona) {
+  if (!content || !persona) return { score: 50, pass: true }; // Neutral if can't check
+  
+  const markers = PERSONA_MARKERS[persona];
+  if (!markers) return { score: 50, pass: true }; // Unknown persona, allow
+  
+  let score = 50; // Start neutral
+  const matches = [];
+  const mismatches = [];
+  
+  // Check positive markers
+  if (markers.positive) {
+    for (const { pattern, weight } of markers.positive) {
+      if (pattern.test(content)) {
+        score += weight;
+        matches.push({ pattern: pattern.source.substring(0, 30), weight });
+      }
+    }
+  }
+  
+  // Check negative markers
+  if (markers.negative) {
+    for (const { pattern, weight } of markers.negative) {
+      if (pattern.test(content)) {
+        score += weight; // weight is already negative
+        mismatches.push({ pattern: pattern.source.substring(0, 30), weight });
+      }
+    }
+  }
+  
+  // Length checks
+  const contentLength = content.length;
+  if (markers.minLength && contentLength < markers.minLength) {
+    score -= 10;
+    mismatches.push({ pattern: 'too_short', weight: -10 });
+  }
+  if (markers.maxLength && contentLength > markers.maxLength) {
+    score -= 15;
+    mismatches.push({ pattern: 'too_long', weight: -15 });
+  }
+  
+  // Cap score between 0-100
+  score = Math.max(0, Math.min(100, score));
+  
+  // Pass threshold: 35 (allows some flexibility)
+  const pass = score >= 35;
+  
+  if (!pass) {
+    console.log(`[PERSONA] ${persona} consistency check FAILED. Score: ${score}/100`);
+    console.log(`[PERSONA] Matches:`, matches.map(m => `${m.pattern}(+${m.weight})`).join(', ') || 'none');
+    console.log(`[PERSONA] Mismatches:`, mismatches.map(m => `${m.pattern}(${m.weight})`).join(', ') || 'none');
+  }
+  
+  return { score, pass, matches, mismatches };
+}
+
+// Get persona consistency hints for adaptive retry
+function getPersonaHints(persona) {
+  const markers = PERSONA_MARKERS[persona];
+  if (!markers) return '';
+  
+  const hints = [];
+  
+  // Extract key positive patterns as writing guidance
+  if (markers.positive) {
+    const keyPatterns = markers.positive
+      .filter(p => p.weight >= 15)
+      .map(p => {
+        // Extract readable words from pattern
+        const match = p.pattern.source.match(/\b([a-z]+)/gi);
+        return match ? match.slice(0, 3).join(', ') : null;
+      })
+      .filter(Boolean)
+      .slice(0, 4);
+    
+    if (keyPatterns.length > 0) {
+      hints.push(`Consider using words like: ${keyPatterns.join('; ')}`);
+    }
+  }
+  
+  if (markers.minLength) {
+    hints.push(`Aim for at least ${markers.minLength} characters`);
+  }
+  if (markers.maxLength) {
+    hints.push(`Keep it under ${markers.maxLength} characters`);
+  }
+  
+  return hints.length > 0 ? hints.join('. ') + '.' : '';
+}
+
+// ==============================================
+// TWO-PASS GENERATION SYSTEM
+// ==============================================
+// First pass: Generate raw content
+// Second pass: AI critic reviews and refines output
+
+const TWO_PASS_CONFIG = {
+  enabled: true,
+  // Content types that benefit from refinement
+  enabledTypes: ['reply', 'thread', 'disagreement'],
+  // Skip refinement if first pass scores high enough
+  qualityThreshold: 85,
+  // Max tokens for critic response
+  criticMaxTokens: 300,
+  // Temperature for critic (lower = more precise corrections)
+  criticTemperature: 0.5
+};
+
+// Critic prompts for different issues
+const CRITIC_PROMPTS = {
+  system: `You are a quality editor for an ASPD forum. Your job is to review and refine posts to make them more authentic.
+
+EVALUATION CRITERIA:
+1. SPECIFICITY: Does it include concrete details (times, places, people, events)?
+2. AUTHENTICITY: Does it sound like a real person with ASPD wrote it?
+3. ENGAGEMENT: Does it actually respond to/engage with the context?
+4. PERSONA FIT: Does the writing style match the assigned persona?
+5. ORIGINALITY: Is it unique and not generic filler?
+
+COMMON ISSUES TO FIX:
+- Generic statements → Add specific personal examples
+- Filler phrases like "interesting point" → Remove or replace with substance
+- Validation-seeking endings → Change to statements
+- Too formal/AI-sounding → Make more casual/internet-style
+- Hyphens/dashes → Replace with periods or remove
+- Starting with "So," "Well," "Honestly," → Remove these openers
+
+OUTPUT FORMAT:
+If the content is GOOD (score 85+): Return exactly "PASS: [original content]"
+If the content needs REFINEMENT: Return exactly "REFINE: [improved version]"
+If the content is UNSALVAGEABLE: Return exactly "REJECT: [brief reason]"
+
+Be strict but fair. Most content should either pass or be refinable.`,
+
+  // User prompt template
+  review: (content, context) => `Review this forum post:
+
+ORIGINAL POST:
+"${content}"
+
+${context.originalPost ? `REPLYING TO: "${context.originalPost.substring(0, 200)}..."` : ''}
+${context.persona ? `ASSIGNED PERSONA: ${context.persona}` : ''}
+${context.type ? `CONTENT TYPE: ${context.type}` : ''}
+
+Evaluate and respond with PASS, REFINE, or REJECT as specified.`
+};
+
+// Run the critic pass on generated content
+async function runCriticPass(content, options = {}) {
+  const {
+    type = 'reply',
+    persona = null,
+    context = {},
+    originalPost = null
+  } = options;
+  
+  // Skip if disabled or not an enabled type
+  if (!TWO_PASS_CONFIG.enabled || !TWO_PASS_CONFIG.enabledTypes.includes(type)) {
+    return { action: 'pass', content, skipped: true };
+  }
+  
+  // Skip if Groq not configured
+  if (!GROQ_CONFIG.enabled || !GROQ_CONFIG.apiKey) {
+    return { action: 'pass', content, skipped: true };
+  }
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // Shorter timeout for critic
+    
+    const reviewContext = {
+      originalPost: originalPost || context.recentPosts?.[0]?.content || '',
+      persona: persona,
+      type: type
+    };
+    
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_CONFIG.apiKey}`
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: GROQ_CONFIG.model,
+        messages: [
+          { role: 'system', content: CRITIC_PROMPTS.system },
+          { role: 'user', content: CRITIC_PROMPTS.review(content, reviewContext) }
+        ],
+        temperature: TWO_PASS_CONFIG.criticTemperature,
+        max_tokens: TWO_PASS_CONFIG.criticMaxTokens
+      })
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.log('[CRITIC] API error, passing original content');
+      return { action: 'pass', content, skipped: true };
+    }
+    
+    const data = await response.json();
+    const criticResponse = data.choices?.[0]?.message?.content?.trim();
+    
+    if (!criticResponse) {
+      return { action: 'pass', content, skipped: true };
+    }
+    
+    // Parse critic response
+    if (criticResponse.startsWith('PASS:')) {
+      const passedContent = criticResponse.substring(5).trim();
+      console.log('[CRITIC] Content approved');
+      return { action: 'pass', content: passedContent || content, skipped: false };
+    }
+    
+    if (criticResponse.startsWith('REFINE:')) {
+      const refinedContent = criticResponse.substring(7).trim();
+      if (refinedContent && refinedContent.length >= 10) {
+        console.log('[CRITIC] Content refined');
+        console.log('[CRITIC] Original:', content.substring(0, 50) + '...');
+        console.log('[CRITIC] Refined:', refinedContent.substring(0, 50) + '...');
+        return { action: 'refine', content: refinedContent, skipped: false };
+      }
+    }
+    
+    if (criticResponse.startsWith('REJECT:')) {
+      const reason = criticResponse.substring(7).trim();
+      console.log('[CRITIC] Content rejected:', reason);
+      return { action: 'reject', content: null, reason, skipped: false };
+    }
+    
+    // Couldn't parse response, pass original
+    console.log('[CRITIC] Unparseable response, passing original');
+    return { action: 'pass', content, skipped: true };
+    
+  } catch (err) {
+    console.log('[CRITIC] Error:', err.message, '- passing original');
+    return { action: 'pass', content, skipped: true };
+  }
+}
+
+// Pre-check content quality score (quick heuristic to skip critic if clearly good)
+function quickQualityScore(content, persona) {
+  let score = 50;
+  
+  // Length bonus
+  const words = content.split(/\s+/).length;
+  if (words >= 15 && words <= 60) score += 10;
+  if (words >= 20 && words <= 50) score += 5;
+  
+  // Specificity indicators
+  if (/\b(yesterday|today|last (week|month|night)|this (morning|week))\b/i.test(content)) score += 10;
+  if (/\b(my (boss|therapist|gf|bf|coworker|friend))\b/i.test(content)) score += 10;
+  if (/\b\d+\s*(year|month|week|day|hour|minute)/i.test(content)) score += 8;
+  if (/\b(at work|at home|in the)\b/i.test(content)) score += 5;
+  
+  // Authenticity markers
+  if (/\b(tbh|idk|ngl|imo|lol|lmao)\b/i.test(content)) score += 5;
+  if (/\b(shit|damn|fuck|hell)\b/i.test(content)) score += 3;
+  
+  // Sentence variety
+  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 5);
+  if (sentences.length >= 2) score += 5;
+  if (sentences.length >= 3) score += 5;
+  
+  // Persona-specific bonuses (simplified)
+  if (persona) {
+    const personaCheck = checkPersonaConsistency(content, persona);
+    if (personaCheck.score >= 60) score += 10;
+    if (personaCheck.score >= 75) score += 5;
+  }
+  
+  // Penalties
+  if (/^(so,|well,|honestly,)/i.test(content)) score -= 10;
+  if (/[\u2014]|--/.test(content)) score -= 5; // Dashes
+  if (/\?$/.test(content.trim())) score -= 5; // Ends with question
+  if (/\.\.\.$/.test(content.trim())) score -= 5; // Trailing ellipsis
+  
+  return Math.max(0, Math.min(100, score));
+}
+
+// Wrapper function for two-pass generation
+async function generateWithCriticReview(rawContent, options = {}) {
+  const { type, persona, context } = options;
+  
+  // Quick quality check - skip critic if content is clearly good
+  const quickScore = quickQualityScore(rawContent, persona);
+  
+  if (quickScore >= TWO_PASS_CONFIG.qualityThreshold) {
+    console.log(`[TWO-PASS] Quick score ${quickScore} >= ${TWO_PASS_CONFIG.qualityThreshold}, skipping critic`);
+    return { content: rawContent, refined: false, score: quickScore };
+  }
+  
+  console.log(`[TWO-PASS] Quick score ${quickScore} < ${TWO_PASS_CONFIG.qualityThreshold}, running critic`);
+  
+  // Run critic pass
+  const criticResult = await runCriticPass(rawContent, {
+    type,
+    persona,
+    context,
+    originalPost: context?.recentPosts?.[0]?.content
+  });
+  
+  if (criticResult.action === 'reject') {
+    return { content: null, refined: false, rejected: true, reason: criticResult.reason };
+  }
+  
+  if (criticResult.action === 'refine' && criticResult.content) {
+    // Validate refined content passes basic checks
+    if (!checkIsGenericFiller(criticResult.content)) {
+      return { content: criticResult.content, refined: true, score: quickScore };
+    }
+    // Refined content failed checks, use original
+    console.log('[TWO-PASS] Refined content failed quality check, using original');
+  }
+  
+  return { content: rawContent, refined: false, score: quickScore };
+}
+
+// ==============================================
+// ADAPTIVE RETRY SYSTEM
+// ==============================================
+// Smart retry logic that adjusts strategy based on failure reasons
+
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelay: 100,        // ms between retries
+  maxDelay: 500,
+  
+  // Temperature adjustments per retry
+  temperatureAdjustments: [0, 0.15, 0.25], // Increase creativity on retries
+  
+  // Strategy shifts
+  strategies: {
+    default: { replyStyle: null, forceQuote: false, simplifyPrompt: false },
+    retry1: { replyStyle: 'share', forceQuote: false, simplifyPrompt: false },
+    retry2: { replyStyle: 'react', forceQuote: true, simplifyPrompt: true },
+    retry3: { replyStyle: 'pushback', forceQuote: false, simplifyPrompt: true }
+  }
+};
+
+// Track failure reasons for adaptive behavior
+const failureReasons = {
+  FILLER: 'filler',
+  ENGAGEMENT: 'engagement', 
+  SIMILARITY: 'similarity',
+  DIVERSITY: 'diversity',
+  LENGTH: 'length',
+  PERSONA: 'persona',
+  API_ERROR: 'api_error',
+  UNKNOWN: 'unknown'
+};
+
+// Failure tracking for learning (in-memory, resets on restart)
+const failureStats = {
+  total: 0,
+  byReason: {},
+  byType: {},
+  recentFailures: [] // Last 100 failures with timestamps
+};
+
+function trackFailure(reason, type, details = {}) {
+  failureStats.total++;
+  failureStats.byReason[reason] = (failureStats.byReason[reason] || 0) + 1;
+  failureStats.byType[type] = (failureStats.byType[type] || 0) + 1;
+  
+  failureStats.recentFailures.push({
+    reason,
+    type,
+    details,
+    timestamp: Date.now()
+  });
+  
+  // Keep only last 100
+  if (failureStats.recentFailures.length > 100) {
+    failureStats.recentFailures.shift();
+  }
+}
+
+// Get adaptive hints based on recent failures
+function getAdaptiveHints(type) {
+  const recentSameType = failureStats.recentFailures
+    .filter(f => f.type === type && Date.now() - f.timestamp < 300000) // Last 5 min
+    .slice(-10);
+  
+  if (recentSameType.length === 0) return null;
+  
+  // Analyze patterns
+  const reasonCounts = {};
+  recentSameType.forEach(f => {
+    reasonCounts[f.reason] = (reasonCounts[f.reason] || 0) + 1;
+  });
+  
+  const hints = [];
+  
+  if (reasonCounts[failureReasons.FILLER] >= 3) {
+    hints.push('EXTRA IMPORTANT: Include a SPECIFIC personal detail - time, place, or person. Generic responses are being rejected.');
+  }
+  
+  if (reasonCounts[failureReasons.ENGAGEMENT] >= 3) {
+    hints.push('CRITICAL: You MUST reference something specific from the post you are replying to. Quote a phrase or respond to their exact example.');
+  }
+  
+  if (reasonCounts[failureReasons.SIMILARITY] >= 3) {
+    hints.push('WARNING: Your response must be COMPLETELY DIFFERENT from the original post. Do not paraphrase - share YOUR OWN unique experience.');
+  }
+  
+  if (reasonCounts[failureReasons.DIVERSITY] >= 3) {
+    hints.push('NOTE: Vary your response style. If you usually agree, try pushing back. If you usually share experiences, try asking a follow-up.');
+  }
+  
+  if (reasonCounts[failureReasons.PERSONA] >= 2) {
+    hints.push('PERSONA MISMATCH: Stay in character! Your writing style must match your assigned persona.');
+  }
+  
+  return hints.length > 0 ? hints.join('\n') : null;
+}
+
+// Adaptive retry wrapper for generateAIContent
+async function generateAIContentWithRetry(options = {}) {
+  const {
+    maxRetries = RETRY_CONFIG.maxRetries,
+    ...baseOptions
+  } = options;
+  
+  let lastFailureReason = null;
+  let attempts = [];
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const isRetry = attempt > 0;
+    const strategy = RETRY_CONFIG.strategies[`retry${attempt}`] || RETRY_CONFIG.strategies.default;
+    
+    // Build adaptive options
+    const adaptiveOptions = { ...baseOptions };
+    
+    // Adjust temperature on retries
+    if (isRetry && RETRY_CONFIG.temperatureAdjustments[attempt]) {
+      adaptiveOptions.temperature = (baseOptions.temperature || 0.9) + RETRY_CONFIG.temperatureAdjustments[attempt];
+      adaptiveOptions.temperature = Math.min(adaptiveOptions.temperature, 1.2); // Cap at 1.2
+    }
+    
+    // Apply strategy shifts
+    if (isRetry) {
+      adaptiveOptions._retryStrategy = strategy;
+      adaptiveOptions._attemptNumber = attempt;
+      adaptiveOptions._lastFailureReason = lastFailureReason;
+      
+      // Get adaptive hints based on recent failures
+      const adaptiveHints = getAdaptiveHints(baseOptions.type);
+      if (adaptiveHints) {
+        adaptiveOptions._adaptiveHints = adaptiveHints;
+      }
+    }
+    
+    // Add delay between retries (exponential backoff)
+    if (isRetry) {
+      const delay = Math.min(
+        RETRY_CONFIG.baseDelay * Math.pow(2, attempt - 1),
+        RETRY_CONFIG.maxDelay
+      );
+      await new Promise(resolve => setTimeout(resolve, delay));
+      console.log(`[RETRY] Attempt ${attempt + 1}/${maxRetries + 1} for ${baseOptions.type} (reason: ${lastFailureReason}, temp: ${adaptiveOptions.temperature?.toFixed(2)})`);
+    }
+    
+    // Try generation
+    const result = await generateAIContentInternal(adaptiveOptions);
+    
+    if (result.success) {
+      if (isRetry) {
+        console.log(`[RETRY] Success on attempt ${attempt + 1} for ${baseOptions.type}`);
+      }
+      return result.content;
+    }
+    
+    // Track failure
+    lastFailureReason = result.failureReason;
+    attempts.push({
+      attempt,
+      reason: result.failureReason,
+      details: result.failureDetails
+    });
+    
+    trackFailure(result.failureReason, baseOptions.type, result.failureDetails);
+  }
+  
+  // All retries exhausted
+  console.log(`[RETRY] All ${maxRetries + 1} attempts failed for ${baseOptions.type}. Reasons:`, 
+    attempts.map(a => a.reason).join(' -> '));
+  
+  return null;
+}
+
+// ==============================================
+// UNIFIED AI CONTENT GENERATION (Internal)
 // ==============================================
 // This function handles ALL bot content types via Groq
 
-async function generateAIContent(options = {}) {
+async function generateAIContentInternal(options = {}) {
   const {
     persona = 'analytical',
     type = 'reply', // 'reply', 'thread', 'intro', 'disagreement', 'continuation'
-    context = {},
+    context: rawContext = {},
     temperature = 0.9, // Increased for more variety
-    botAccount = null  // Pass the full bot account for personality traits
+    botAccount = null,  // Pass the full bot account for personality traits
+    // Adaptive retry options
+    _retryStrategy = null,
+    _attemptNumber = 0,
+    _lastFailureReason = null,
+    _adaptiveHints = null
   } = options;
   
   if (!GROQ_CONFIG.enabled || !GROQ_CONFIG.apiKey) {
-    return null;
+    return { success: false, content: null, failureReason: failureReasons.API_ERROR, failureDetails: { error: 'groq_disabled' } };
   }
+  
+  // Optimize context for token budget
+  const context = ['reply', 'disagreement', 'continuation'].includes(type) 
+    ? buildOptimizedContext(rawContext, type)
+    : rawContext;
   
   const p = BOT_PERSONAS[persona] || BOT_PERSONAS.analytical;
   const seasonalContext = getSeasonalContext();
@@ -10762,14 +12101,24 @@ FORMATTING:
 - 2-4 sentences for replies, 3-6 for threads
 - All lowercase, casual internet style
 - End with a statement, not a question
-- Sound bored, direct, unbothered${seasonalHint}${personalityHints}${uniquePersonality}`;
+- Sound bored, direct, unbothered${seasonalHint}${personalityHints}${uniquePersonality}${_adaptiveHints ? `
+
+═══════════════════════════════════════
+⚠️ ADAPTIVE GUIDANCE (based on recent rejections):
+═══════════════════════════════════════
+${_adaptiveHints}` : ''}`;
 
   let userPrompt = '';
   let maxTokens = 280;
   
-  // Randomize reply style for variety
+  // Randomize reply style for variety - but use strategy override on retries
   const replyStyles = ['react', 'share', 'pushback', 'add'];
-  const selectedReplyStyle = replyStyles[Math.floor(Math.random() * replyStyles.length)];
+  let selectedReplyStyle = replyStyles[Math.floor(Math.random() * replyStyles.length)];
+  
+  // Apply retry strategy overrides
+  if (_retryStrategy?.replyStyle) {
+    selectedReplyStyle = _retryStrategy.replyStyle;
+  }
   
   // Generate prompt based on content type
   switch (type) {
@@ -10781,7 +12130,8 @@ FORMATTING:
       const originalPost = context.originalPost;
       const opContent = originalPost?.content?.substring(0, 200) || '';
       const opAlias = originalPost?.alias || 'OP';
-      const shouldQuote = Math.random() < 0.35;
+      // Force quote on certain retries, otherwise random
+      const shouldQuote = _retryStrategy?.forceQuote || Math.random() < 0.35;
       
       const replyStyleHint = {
         'react': 'React to something specific they said with your honest take',
@@ -11164,6 +12514,9 @@ Write ONLY the personality description, nothing else.`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), GROQ_CONFIG.timeout);
     
+    // Log token usage for monitoring
+    const tokenUsage = logTokenUsage(type, context, baseSystemPrompt, userPrompt);
+    
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 
@@ -11187,27 +12540,55 @@ Write ONLY the personality description, nothing else.`;
     
     if (!response.ok) {
       console.error('[GROQ] Bad response:', response.status);
-      return null;
+      return { success: false, content: null, failureReason: failureReasons.API_ERROR, failureDetails: { status: response.status } };
     }
     
     const data = await response.json();
     let content = data.choices?.[0]?.message?.content?.trim();
     
-    if (!content) return null;
+    if (!content) {
+      return { success: false, content: null, failureReason: failureReasons.API_ERROR, failureDetails: { error: 'empty_response' } };
+    }
+    
+    // ========== TWO-PASS GENERATION SYSTEM ==========
+    // Run critic review for content types that benefit from it
+    if (TWO_PASS_CONFIG.enabled && TWO_PASS_CONFIG.enabledTypes.includes(type)) {
+      const criticResult = await generateWithCriticReview(content, {
+        type,
+        persona,
+        context
+      });
+      
+      if (criticResult.rejected) {
+        console.log('[TWO-PASS] Critic rejected content:', criticResult.reason);
+        return { 
+          success: false, 
+          content: null, 
+          failureReason: failureReasons.FILLER, 
+          failureDetails: { preview: content.substring(0, 100), criticReason: criticResult.reason } 
+        };
+      }
+      
+      if (criticResult.refined) {
+        console.log('[TWO-PASS] Using refined content');
+        content = criticResult.content;
+      }
+    }
+    // ================================================
     
     // Check for generic filler content BEFORE cleaning (so we catch it even if we'd strip it)
     // This ensures truly lazy responses get rejected outright
     if (type === 'reply' || type === 'disagreement' || type === 'continuation') {
       if (checkIsGenericFiller(content)) {
         console.log('[GROQ] Content is generic filler, rejecting');
-        return null; // Reject and let retry happen
+        return { success: false, content: null, failureReason: failureReasons.FILLER, failureDetails: { preview: content.substring(0, 100) } };
       }
       
       // Check if reply actually engages with the original post
       const originalContent = context.recentPosts?.[0]?.content || '';
       if (originalContent && !checkReplyEngagement(originalContent, content)) {
         console.log('[GROQ] Reply does not engage with original post, rejecting');
-        return null;
+        return { success: false, content: null, failureReason: failureReasons.ENGAGEMENT, failureDetails: { preview: content.substring(0, 100) } };
       }
     }
     
@@ -11236,7 +12617,7 @@ Write ONLY the personality description, nothing else.`;
     // Validate content length
     if (type !== 'title' && (content.length < 10 || content.length > 2000)) {
       console.error('[GROQ] Content length invalid:', content.length);
-      return null;
+      return { success: false, content: null, failureReason: failureReasons.LENGTH, failureDetails: { length: content.length } };
     }
     
     // Check for duplicate/similar content in replies
@@ -11244,17 +12625,67 @@ Write ONLY the personality description, nothing else.`;
       const originalContent = context.recentPosts?.[0]?.content || context.targetContent || '';
       if (checkContentSimilarity(originalContent, content)) {
         console.log('[GROQ] Content too similar to original, rejecting');
-        return null; // Reject and let fallback or retry happen
+        return { success: false, content: null, failureReason: failureReasons.SIMILARITY, failureDetails: { preview: content.substring(0, 100) } };
+      }
+    }
+    
+    // Check diversity against bot's recent responses (for all content types except titles/usernames/bios)
+    if (['reply', 'disagreement', 'thread', 'continuation'].includes(type)) {
+      const botUserId = botAccount?.user_id || botAccount?.id;
+      if (botUserId) {
+        // Initialize cache from DB if needed (first time this bot generates)
+        await initBotResponseCache(botUserId);
+        
+        if (!checkBotResponseDiversity(botUserId, content)) {
+          console.log('[GROQ] Content too similar to bot\'s recent responses, rejecting');
+          return { success: false, content: null, failureReason: failureReasons.DIVERSITY, failureDetails: { preview: content.substring(0, 100) } };
+        }
+        
+        // Track this response for future diversity checks
+        trackBotResponse(botUserId, content);
+      }
+      
+      // Check persona consistency (soft check - only reject on very low scores)
+      const personaCheck = checkPersonaConsistency(content, persona);
+      if (!personaCheck.pass) {
+        console.log(`[GROQ] Content doesn't match ${persona} persona (score: ${personaCheck.score}), rejecting`);
+        return { 
+          success: false, 
+          content: null, 
+          failureReason: failureReasons.PERSONA, 
+          failureDetails: { 
+            persona, 
+            score: personaCheck.score, 
+            preview: content.substring(0, 100),
+            hint: getPersonaHints(persona)
+          } 
+        };
       }
     }
     
     console.log(`[GROQ] Generated ${type}:`, content.substring(0, 60) + '...');
-    return content;
+    return { success: true, content, failureReason: null, failureDetails: null };
     
   } catch (err) {
     console.error('[GROQ] Error:', err.message);
-    return null;
+    return { success: false, content: null, failureReason: failureReasons.API_ERROR, failureDetails: { error: err.message } };
   }
+}
+
+// Public wrapper - uses adaptive retry for most content types
+async function generateAIContent(options = {}) {
+  const { type = 'reply' } = options;
+  
+  // Use retry wrapper for content types that benefit from it
+  const retryableTypes = ['reply', 'thread', 'disagreement', 'continuation'];
+  
+  if (retryableTypes.includes(type)) {
+    return generateAIContentWithRetry(options);
+  }
+  
+  // For simple types (title, username, bio, personality), use direct call
+  const result = await generateAIContentInternal(options);
+  return result.success ? result.content : null;
 }
 
 // Generate thread title using Groq
