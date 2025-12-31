@@ -909,8 +909,12 @@ function sanitizeContent(content) {
 // Middleware
 const allowedOrigins = [
   'https://www.aspdforum.com',
-  'https://aspdforum.com'
-];
+  'https://aspdforum.com',
+  'http://www.aspdforum.com',
+  'http://aspdforum.com',
+  process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null,
+  process.env.CORS_ORIGIN
+].filter(Boolean);
 
 app.use(cors({
   origin: function(origin, callback) {
@@ -919,6 +923,7 @@ app.use(cors({
     if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
+    console.log('[CORS] Blocked origin:', origin, '| Allowed:', allowedOrigins);
     return callback(new Error('CORS not allowed'), false);
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
@@ -951,6 +956,9 @@ app.use((req, res, next) => {
 const ALLOWED_ORIGINS = [
   'https://www.aspdforum.com',
   'https://aspdforum.com',
+  'http://www.aspdforum.com',
+  'http://aspdforum.com',
+  process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null,
   process.env.CORS_ORIGIN
 ].filter(Boolean);
 
