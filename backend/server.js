@@ -819,6 +819,38 @@ function broadcastToThread(threadId, message, excludeUserId = null) {
   });
 }
 
+// Notify followers of a new post (for live feed updates)
+async function notifyFollowersOfNewPost(userId, postData) {
+  if (!wss) return;
+  
+  try {
+    // Get all users who follow this user
+    const followersResult = await db.query(
+      'SELECT follower_id FROM follows WHERE followed_id = $1',
+      [userId]
+    );
+    
+    if (followersResult.rows.length === 0) return;
+    
+    const followerIds = followersResult.rows.map(r => r.follower_id);
+    const message = JSON.stringify({
+      type: 'feedUpdate',
+      post: postData
+    });
+    
+    // Send to all connected followers
+    wss.clients.forEach((ws) => {
+      if (ws.readyState === WebSocket.OPEN && 
+          ws.userId && 
+          followerIds.includes(ws.userId)) {
+        ws.send(message);
+      }
+    });
+  } catch (err) {
+    console.error('[WS] Failed to notify followers:', err.message);
+  }
+}
+
 // Broadcast online status change
 function broadcastOnlineStatus(userId, alias, isOnline) {
   broadcast({
@@ -4261,6 +4293,16 @@ app.post('/api/entries', authMiddleware, ipBanMiddleware, userBanMiddleware, ent
       created_at: insertResult.rows[0].created_at,
       is_ghost: useGhostMode
     });
+
+    // Notify followers for live feed updates (non-blocking)
+    notifyFollowersOfNewPost(userId, {
+      id: entryId,
+      alias: displayAlias,
+      content: content.substring(0, 300),
+      threadId: threadDbId,
+      threadTitle: (await db.query('SELECT title FROM threads WHERE id = $1', [threadDbId])).rows[0]?.title || 'Thread',
+      createdAt: insertResult.rows[0].created_at
+    }).catch(() => {});
 
     // Check for badge achievements (async, non-blocking)
     checkAndAwardBadges(userId).catch(() => {});

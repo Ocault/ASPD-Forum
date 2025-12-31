@@ -5776,6 +5776,40 @@ ul {
   border-color: var(--border-hover);
 }
 
+/* Live feed update highlighting */
+.post-history-item.new-post-highlight {
+  animation: newPostPulse 0.5s ease-out;
+  border-color: var(--accent-color);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(140, 140, 100, 0.1) 100%);
+}
+
+@keyframes newPostPulse {
+  0% {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.live-badge {
+  font-size: 0.5rem;
+  padding: 2px 6px;
+  background: var(--accent-color);
+  color: var(--bg-primary);
+  border-radius: 3px;
+  font-weight: bold;
+  margin-left: 8px;
+  animation: livePulse 1s infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .post-history-header {
   display: flex;
   justify-content: space-between;

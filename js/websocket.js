@@ -118,6 +118,11 @@
         emit('newPost', message);
         break;
 
+      case 'feedUpdate':
+        // New post from someone user follows (for feed page)
+        emit('feedUpdate', message);
+        break;
+
       case 'typing':
         // Someone is typing
         emit('typing', message);

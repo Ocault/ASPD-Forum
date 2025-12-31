@@ -172,6 +172,53 @@
       // Theme toggle initialization
       Utils.initTheme();
 
+      // Create a new post element for live updates
+      function createPostElement(post) {
+        var content = escapeHtml(post.content);
+        if (content.length > 500) {
+          content = content.substring(0, 500) + '...';
+        }
+        
+        var div = document.createElement('div');
+        div.className = 'post-history-item new-post-highlight';
+        div.innerHTML = 
+          '<div class="post-history-header">' +
+            '<a href="profile.html?alias=' + encodeURIComponent(post.alias) + '" class="post-author-link">' + escapeHtml(post.alias) + '</a>' +
+            '<span class="post-separator">→</span>' +
+            '<a href="thread.html?id=' + post.threadId + '" class="post-history-thread">' + escapeHtml(post.threadTitle) + '</a>' +
+            '<span class="live-badge">LIVE</span>' +
+          '</div>' +
+          '<div class="post-history-content">' + content + '</div>' +
+          '<div class="post-history-time">' + formatDate(post.createdAt) + '</div>';
+        
+        return div;
+      }
+
+      // Listen for live feed updates via WebSocket
+      function setupLiveFeed() {
+        if (typeof ForumWS !== 'undefined') {
+          ForumWS.on('feedUpdate', function(data) {
+            if (data && data.post) {
+              // Add new post at the top of the feed
+              var emptyState = feedList.querySelector('.empty-state');
+              if (emptyState) {
+                feedList.innerHTML = '';
+              }
+              
+              var newPost = createPostElement(data.post);
+              feedList.insertBefore(newPost, feedList.firstChild);
+              
+              // Remove highlight after animation
+              setTimeout(function() {
+                newPost.classList.remove('new-post-highlight');
+                var liveBadge = newPost.querySelector('.live-badge');
+                if (liveBadge) liveBadge.remove();
+              }, 5000);
+            }
+          });
+        }
+      }
+
       // Initialize
       AuthState.init(function() {
         if (!AuthState.hasToken()) {
@@ -180,6 +227,7 @@
         }
         loadFollowing();
         loadFeed(currentPage);
+        setupLiveFeed();
       });
     })();
   </script>
