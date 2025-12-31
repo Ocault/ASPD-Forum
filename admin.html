@@ -2677,7 +2677,7 @@
       
       // Load rooms into custom topic dropdown
       function loadCustomTopicRooms() {
-        AuthState.apiRequest('/api/admin/bot/targets')
+        AuthState.apiRequest('/api/rooms')
           .then(function(data) {
             if (!data.success || !data.rooms) return;
             
@@ -2694,6 +2694,8 @@
           })
           .catch(function(err) {
             console.error('Failed to load rooms for custom topic:', err);
+            var roomSelect = document.getElementById('custom-topic-room');
+            if (roomSelect) roomSelect.innerHTML = '<option value="">Error loading rooms</option>';
           });
       }
       
