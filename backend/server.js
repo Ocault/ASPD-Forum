@@ -10477,12 +10477,32 @@ function checkIsGenericFiller(content) {
     'thats true',
     'thats valid',
     'cant argue with that',
+    'interesting thread',
+    'interesting post',
+    'interesting take',
+    'interesting point',
+    'good thread',
+    'good post',
+    'great post',
+    'great thread',
+    'nice post',
+    'solid post',
+    'solid thread',
     
     // Non-committal hedging
     'in a way',
     'sort of',
     'kind of',
-    'in some ways'
+    'in some ways',
+    
+    // Ultra-lazy single word + "fr" or "tbh" responses
+    'interesting fr',
+    'real fr',
+    'mood fr',
+    'felt fr',
+    'true fr',
+    'valid fr',
+    'facts fr'
   ];
   
   for (const phrase of bannedPhrases) {
@@ -10506,7 +10526,9 @@ function checkIsGenericFiller(content) {
   // Check for patterns that indicate empty agreement
   const emptyAgreementPatterns = [
     /^(yeah|yep|yup|true|same|this|mood|real|felt|facts?)\s*\.?\s*$/i,
-    /^(totally|completely|absolutely|exactly)\s+(agree|this|same)\.?\s*$/i
+    /^(totally|completely|absolutely|exactly)\s+(agree|this|same)\.?\s*$/i,
+    /^.{0,30}(interesting|good|great|nice|solid)\s+(thread|post|take|point)/i, // Catches "interesting thread fr"
+    /^responding to @\w+:\s*.{0,40}$/i // Catches very short "responding to @user: [filler]"
   ];
   
   for (const pattern of emptyAgreementPatterns) {
@@ -10634,7 +10656,7 @@ AUTHENTICITY MARKERS (use 2-3):
 ABSOLUTE BANS - NEVER DO THESE:
 ═══════════════════════════════════════
 ❌ Starting with "So," or "Well," or "Honestly,"
-❌ Em-dashes (—) or double hyphens (--)
+❌ ANY HYPHENS OR DASHES - no em-dashes (—), no double hyphens (--), no single hyphens (-) as separators
 ❌ Ending with "wondering if anyone else..." or "is it just me" or "thoughts?" or "..."
 ❌ Words: "genuinely", "essentially", "particularly", "honestly"
 ❌ Phrases: "I find myself", "I've come to realize", "in parentheses"
@@ -14693,8 +14715,10 @@ function cleanAIContent(content) {
   // Remove common AI openers
   cleaned = cleaned.replace(/^(So,?\s+|Well,?\s+|Honestly,?\s+)/i, '');
   
-  // Remove em-dashes (AI favorite)
-  cleaned = cleaned.replace(/\s*—\s*/g, ' - ');
+  // Remove ALL dashes/hyphens used as separators (keep compound words like "self-aware")
+  cleaned = cleaned.replace(/\s*—\s*/g, '. ');  // em-dash to period
+  cleaned = cleaned.replace(/\s*--\s*/g, '. '); // double hyphen to period
+  cleaned = cleaned.replace(/\s+-\s+/g, '. ');  // spaced hyphen to period (separator usage)
   
   // Fix AI literally writing "in parentheses" when we wanted actual parentheses
   cleaned = cleaned.replace(/\(in parentheses,?\s*/gi, '(');
@@ -14914,7 +14938,7 @@ AUTHENTICITY MARKERS (include 2-3):
 ABSOLUTE BANS:
 ═══════════════════════════════════════
 ❌ Starting with "So," or "Well,"
-❌ Em-dashes (—)
+❌ ANY hyphens or dashes (—, --, or - as separators)
 ❌ Ending with "wondering if anyone else..." or "is it just me" or "thoughts?" or "..."
 ❌ Words: "genuinely", "essentially", "particularly"
 ❌ Phrases: "I find myself", "I've come to realize", "in parentheses"
@@ -15160,7 +15184,7 @@ AUTHENTICITY MARKERS (include 2-3):
 ABSOLUTE BANS:
 ═══════════════════════════════════════
 ❌ Starting with "So," or "Well,"
-❌ Em-dashes (—)
+❌ ANY hyphens or dashes (—, --, or - as separators)
 ❌ Ending with "wondering if anyone else..." or "is it just me" or "thoughts?" or "..."
 ❌ Words: "genuinely", "essentially", "particularly"
 ❌ Phrases: "I find myself", "I've come to realize", "in parentheses"
