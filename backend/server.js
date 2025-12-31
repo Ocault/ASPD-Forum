@@ -10343,6 +10343,58 @@ Create a new thread post for this room. Write something that would spark discuss
 }
 
 // ==============================================
+// CONTENT SIMILARITY CHECK
+// ==============================================
+// Checks if generated content is too similar to original post
+
+function checkContentSimilarity(original, generated) {
+  if (!original || !generated) return false;
+  
+  // Normalize both strings
+  const normalizeText = (text) => text.toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  const origNorm = normalizeText(original);
+  const genNorm = normalizeText(generated);
+  
+  // Check for exact substring matches (excluding short common phrases)
+  const origWords = origNorm.split(' ');
+  const genWords = genNorm.split(' ');
+  
+  // Check for long phrase duplication (5+ consecutive words)
+  for (let i = 0; i <= origWords.length - 5; i++) {
+    const phrase = origWords.slice(i, i + 5).join(' ');
+    if (phrase.length > 20 && genNorm.includes(phrase)) {
+      console.log('[SIMILARITY] Found duplicate phrase:', phrase);
+      return true;
+    }
+  }
+  
+  // Check word overlap percentage
+  const origSet = new Set(origWords.filter(w => w.length > 3));
+  const genSet = new Set(genWords.filter(w => w.length > 3));
+  
+  if (origSet.size === 0 || genSet.size === 0) return false;
+  
+  let overlapCount = 0;
+  for (const word of genSet) {
+    if (origSet.has(word)) overlapCount++;
+  }
+  
+  const overlapRatio = overlapCount / Math.min(origSet.size, genSet.size);
+  
+  // If more than 60% of significant words overlap, it's too similar
+  if (overlapRatio > 0.6) {
+    console.log('[SIMILARITY] High word overlap:', (overlapRatio * 100).toFixed(1) + '%');
+    return true;
+  }
+  
+  return false;
+}
+
+// ==============================================
 // UNIFIED AI CONTENT GENERATION
 // ==============================================
 // This function handles ALL bot content types via Groq
@@ -10466,6 +10518,17 @@ ABSOLUTE BANS - NEVER DO THESE:
 ❌ Greetings like "hey everyone" or sign-offs
 ❌ Being inspirational, uplifting, or trying to sound impressive
 ❌ Self-deprecating "I'm such a monster" humor
+❌ COPYING OR PARAPHRASING THE ORIGINAL POST - your response must be your OWN experience/thoughts
+❌ Repeating phrases from the post you're replying to
+❌ Saying the same thing they said but with different words
+
+═══════════════════════════════════════
+ORIGINALITY REQUIREMENT - CRITICAL:
+═══════════════════════════════════════
+Your reply MUST add NEW information, perspective, or experience.
+DO NOT restate what they said. DO NOT paraphrase their points back.
+Share YOUR OWN different experience or push back with a different viewpoint.
+If they said "my boss is boring" - don't say "yeah bosses are boring" - say something NEW about YOUR situation.
 
 ═══════════════════════════════════════
 FORMATTING:
@@ -10551,13 +10614,24 @@ RULES:
 - Start with the > quote block, then your response
 - 2-3 sentences max
 - Respond to THEIR specific point, not generic ASPD talk
-- End with statement not question`;
+- End with statement not question
+- YOUR response must be COMPLETELY DIFFERENT from what they said
+- Share YOUR OWN unique experience, don't mirror theirs
+- If you quote them, your reply must CONTRAST or ADD something new, never agree by restating`;
       } else {
         userPrompt = `${replyContext}
 
 THEIR POST: "${recentContent.substring(0, 300)}"
 
 YOUR TASK: ${replyStyleHint}
+
+═══════════════════════════════════════
+CRITICAL - AVOID DUPLICATION:
+═══════════════════════════════════════
+DO NOT paraphrase or restate what they said.
+Share a DIFFERENT experience or perspective.
+If they talk about their boss, talk about YOUR different situation.
+Your reply should add NEW information to the conversation.
 
 ═══════════════════════════════════════
 REAL REPLY EXAMPLES FROM r/aspd:
@@ -10582,7 +10656,10 @@ RULES:
 - 2-3 sentences that ACTUALLY respond to their specific points
 - No generic "as someone with ASPD" statements
 - Pick up on a specific detail from their post
-- End with statement not question`;
+- End with statement not question
+- NEVER copy their phrasing - use completely different words
+- Share YOUR experience, not a reworded version of theirs
+- Add something NEW to the conversation, don't just validate`;
       }
       break;
       
@@ -10890,6 +10967,15 @@ Write ONLY the personality description, nothing else.`;
     if (type !== 'title' && (content.length < 10 || content.length > 2000)) {
       console.error('[GROQ] Content length invalid:', content.length);
       return null;
+    }
+    
+    // Check for duplicate/similar content in replies
+    if (type === 'reply' || type === 'disagreement') {
+      const originalContent = context.recentPosts?.[0]?.content || context.targetContent || '';
+      if (checkContentSimilarity(originalContent, content)) {
+        console.log('[GROQ] Content too similar to original, rejecting');
+        return null; // Reject and let fallback or retry happen
+      }
     }
     
     console.log(`[GROQ] Generated ${type}:`, content.substring(0, 60) + '...');
