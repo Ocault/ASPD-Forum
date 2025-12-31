@@ -930,6 +930,7 @@
                     0/0 online
                   </span>
                   <div style="display: flex; gap: 4px;">
+                    <button class="admin-btn admin-btn-secondary" id="refresh-bot-status" style="font-size: 0.3125rem; padding: 4px 6px;" title="Force refresh bot online/offline statuses">🔄</button>
                     <button class="admin-btn" id="create-bot-account" style="font-size: 0.3125rem; padding: 4px 8px;">+ NEW</button>
                     <button class="admin-btn admin-btn-secondary" id="regen-personalities" style="font-size: 0.3125rem; padding: 4px 6px;" title="Generate AI personalities (Shift+click to regenerate ALL)">🧠</button>
                     <button class="admin-btn admin-btn-secondary" id="refresh-bot-profiles" style="font-size: 0.3125rem; padding: 4px 6px;">↻</button>
@@ -2443,6 +2444,32 @@
       // Refresh bot profiles
       document.getElementById('refresh-bot-profiles')?.addEventListener('click', function() {
         loadBotProfiles();
+      });
+      
+      // Force refresh bot online statuses
+      document.getElementById('refresh-bot-status')?.addEventListener('click', function() {
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = '...';
+        logBot('🔄 Forcing bot status refresh...', 'info');
+        
+        AuthState.apiRequest('/api/admin/bot/refresh-status', { method: 'POST' })
+          .then(function(data) {
+            if (data.success) {
+              logBot('✓ Refreshed ' + data.updated + ' bots. ' + data.onlineNow + ' now online', 'success');
+              loadBotProfiles(); // Reload the list
+              loadActivityHeatmap(); // Reload the heatmap
+            } else {
+              logBot('✗ Refresh failed: ' + data.error, 'error');
+            }
+          })
+          .catch(function(err) {
+            logBot('✗ Error: ' + err.message, 'error');
+          })
+          .finally(function() {
+            btn.disabled = false;
+            btn.textContent = '🔄';
+          });
       });
       
       // Load profiles on page load

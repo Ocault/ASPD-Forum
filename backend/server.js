@@ -14479,6 +14479,31 @@ app.get('/api/admin/bot/profiles', authMiddleware, ownerMiddleware, async (req, 
   }
 });
 
+// API: Force refresh bot online statuses
+app.post('/api/admin/bot/refresh-status', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    // Force all bots to re-evaluate their online status now
+    await db.query(`UPDATE bot_accounts SET next_status_change = NOW() - INTERVAL '1 minute'`);
+    
+    // Run the status update
+    const result = await updateBotOnlineStatuses();
+    
+    // Get current online count
+    const countResult = await db.query(`SELECT COUNT(*) as online FROM bot_accounts WHERE is_online = TRUE`);
+    const onlineNow = parseInt(countResult.rows[0].online) || 0;
+    
+    res.json({
+      success: true,
+      message: 'Bot online statuses refreshed',
+      updated: result.updated,
+      onlineNow
+    });
+  } catch (err) {
+    console.error('[BOT STATUS REFRESH ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Regenerate personality for a specific bot or all bots without one
 app.post('/api/admin/bot/regenerate-personality', authMiddleware, ownerMiddleware, async (req, res) => {
   try {
@@ -15145,6 +15170,19 @@ migrate().then(() => {
     setTimeout(() => {
       if (BOT_SCHEDULER.enabled) {
         startBotScheduler();
+      } else {
+        // Even if scheduler is disabled, still update bot online statuses
+        console.log('[BOT ONLINE] Starting bot online status updates (scheduler disabled)');
+        updateBotOnlineStatuses().catch(err => console.error('[BOT ONLINE]', err.message));
+        
+        // Run status updates every 45 seconds for realistic online/offline cycling
+        setInterval(async () => {
+          try {
+            await updateBotOnlineStatuses();
+          } catch (err) {
+            // Silent fail
+          }
+        }, 45000);
       }
     }, 30000); // Start 30 seconds after boot
   });
