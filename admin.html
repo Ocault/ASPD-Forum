@@ -933,6 +933,7 @@
                     <button class="admin-btn admin-btn-secondary" id="refresh-bot-status" style="font-size: 0.3125rem; padding: 4px 6px;" title="Force refresh bot online/offline statuses">🔄</button>
                     <button class="admin-btn" id="create-bot-account" style="font-size: 0.3125rem; padding: 4px 8px;">+ NEW</button>
                     <button class="admin-btn admin-btn-secondary" id="regen-personalities" style="font-size: 0.3125rem; padding: 4px 6px;" title="Generate AI personalities (Shift+click to regenerate ALL)">🧠</button>
+                    <button class="admin-btn admin-btn-secondary" id="sync-bot-badges" style="font-size: 0.3125rem; padding: 4px 6px;" title="Sync badges for all bots">🏅</button>
                     <button class="admin-btn admin-btn-secondary" id="refresh-bot-profiles" style="font-size: 0.3125rem; padding: 4px 6px;">↻</button>
                   </div>
                 </div>
@@ -2439,6 +2440,33 @@
         }).catch(function(err) {
           logBot('✗ Error: ' + err.message, 'error');
         });
+      });
+      
+      // Sync badges for all bots
+      document.getElementById('sync-bot-badges')?.addEventListener('click', function() {
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = '...';
+        logBot('🏅 Syncing badges for all bots...', 'info');
+        
+        AuthState.apiRequest('/api/admin/bot/sync-badges', { method: 'POST' })
+          .then(function(data) {
+            btn.disabled = false;
+            btn.textContent = '🏅';
+            if (data.success) {
+              if (data.badgesAwarded > 0) {
+                logBot('✓ Synced badges: ' + data.botsUpdated + '/' + data.botsProcessed + ' bots updated, ' + data.badgesAwarded + ' badges awarded', 'success');
+              } else {
+                logBot('✓ All ' + data.botsProcessed + ' bots already have correct badges', 'info');
+              }
+            } else {
+              logBot('✗ Sync failed: ' + (data.error || 'Unknown error'), 'error');
+            }
+          }).catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = '🏅';
+            logBot('✗ Error: ' + err.message, 'error');
+          });
       });
       
       // Refresh bot profiles

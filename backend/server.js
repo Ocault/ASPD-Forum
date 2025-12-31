@@ -10740,29 +10740,32 @@ async function simulateNewUserJoin() {
       ON CONFLICT (alias) DO NOTHING
     `, [alias, avatar, `bot-${botAccountId}@system.local`]);
     
+    // Get the bot's user ID
+    const userCheck = await db.query(`SELECT id FROM users WHERE alias = $1`, [alias]);
+    const botUserId = userCheck.rows.length > 0 ? userCheck.rows[0].id : 1;
+    
     // Create the intro thread
     const threadResult = await db.query(`
       INSERT INTO threads (room_id, title, user_id, is_bot, bot_persona, bot_account_id)
-      VALUES ($1, $2, 1, TRUE, $3, $4)
+      VALUES ($1, $2, $3, TRUE, $4, $5)
       RETURNING id
-    `, [roomId, title, selectedPersona, botAccountId]);
+    `, [roomId, title, botUserId, selectedPersona, botAccountId]);
     
     const threadId = threadResult.rows[0].id;
     
     // Create the intro post
     await db.query(`
       INSERT INTO entries (thread_id, user_id, content, alias, avatar_config, is_bot, bot_persona, bot_account_id)
-      VALUES ($1, 1, $2, $3, $4, TRUE, $5, $6)
-    `, [threadId, content, alias, avatar, selectedPersona, botAccountId]);
+      VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7)
+    `, [threadId, botUserId, content, alias, avatar, selectedPersona, botAccountId]);
     
     // Update stats
     await updateBotAccountActivity(botAccountId);
     await db.query('UPDATE bot_accounts SET thread_count = thread_count + 1 WHERE id = $1', [botAccountId]);
     
-    // Get the user id for badge checking
-    const userCheck = await db.query(`SELECT id FROM users WHERE alias = $1`, [alias]);
-    if (userCheck.rows.length > 0) {
-      checkAndAwardBadges(userCheck.rows[0].id).catch(() => {});
+    // Award badges for bot user
+    if (botUserId !== 1) {
+      checkAndAwardBadges(botUserId).catch(() => {});
     }
     
     BOT_SCHEDULER.newUsersToday++;
@@ -15114,6 +15117,64 @@ app.post('/api/admin/bot/thread', authMiddleware, ownerMiddleware, async (req, r
     res.json(result);
   } catch (err) {
     console.error('[BOT THREAD ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API: Sync badges for all bot users
+app.post('/api/admin/bot/sync-badges', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    // Get all bot users that have posts or threads
+    const botUsers = await db.query(`
+      SELECT DISTINCT u.id, u.alias
+      FROM users u
+      WHERE u.is_bot = TRUE
+      AND (
+        EXISTS (SELECT 1 FROM entries WHERE user_id = u.id)
+        OR EXISTS (SELECT 1 FROM threads WHERE user_id = u.id)
+      )
+    `);
+    
+    let updated = 0;
+    let badgesAwarded = 0;
+    
+    for (const bot of botUsers.rows) {
+      try {
+        // Get stats before
+        const beforeBadges = await db.query(
+          'SELECT COUNT(*) as count FROM user_badges WHERE user_id = $1',
+          [bot.id]
+        );
+        const beforeCount = parseInt(beforeBadges.rows[0].count) || 0;
+        
+        // Award badges
+        await checkAndAwardBadges(bot.id);
+        
+        // Get stats after
+        const afterBadges = await db.query(
+          'SELECT COUNT(*) as count FROM user_badges WHERE user_id = $1',
+          [bot.id]
+        );
+        const afterCount = parseInt(afterBadges.rows[0].count) || 0;
+        
+        if (afterCount > beforeCount) {
+          updated++;
+          badgesAwarded += (afterCount - beforeCount);
+          console.log(`[BOT SYNC] ${bot.alias}: awarded ${afterCount - beforeCount} new badges`);
+        }
+      } catch (err) {
+        console.error(`[BOT SYNC] Failed for ${bot.alias}:`, err.message);
+      }
+    }
+    
+    res.json({
+      success: true,
+      botsProcessed: botUsers.rows.length,
+      botsUpdated: updated,
+      badgesAwarded
+    });
+  } catch (err) {
+    console.error('[BOT SYNC BADGES ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
