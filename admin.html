@@ -1712,20 +1712,20 @@
               
               // Top stats
               document.getElementById('health-uptime').textContent = h.uptime.formatted;
-              document.getElementById('health-memory').textContent = h.memory.heapUsedMB + ' MB';
-              document.getElementById('health-connections').textContent = h.connections.websocket;
+              document.getElementById('health-memory').textContent = h.memory.heapUsed + ' MB';
+              document.getElementById('health-connections').textContent = h.websocket.connections;
               document.getElementById('health-db-size').textContent = h.database.size || '--';
               
               // Memory details
-              document.getElementById('health-heap-used').textContent = h.memory.heapUsedMB + ' MB';
-              document.getElementById('health-heap-total').textContent = h.memory.heapTotalMB + ' MB';
-              document.getElementById('health-rss').textContent = h.memory.rssMB + ' MB';
-              document.getElementById('health-external').textContent = h.memory.externalMB + ' MB';
+              document.getElementById('health-heap-used').textContent = h.memory.heapUsed + ' MB';
+              document.getElementById('health-heap-total').textContent = h.memory.heapTotal + ' MB';
+              document.getElementById('health-rss').textContent = h.memory.rss + ' MB';
+              document.getElementById('health-external').textContent = h.memory.external + ' MB';
               
               // Database details
               document.getElementById('health-db-size-detail').textContent = h.database.size || '--';
               document.getElementById('health-db-connections').textContent = 
-                (h.connections.database.total - h.connections.database.idle) + '/' + h.connections.database.idle;
+                (h.database.connections.total - h.database.connections.idle) + '/' + h.database.connections.idle;
               
               // Table counts
               var tableCountsEl = document.getElementById('health-table-counts');
@@ -1741,8 +1741,8 @@
               // System info
               document.getElementById('health-node-version').textContent = h.node.version;
               document.getElementById('health-platform').textContent = h.node.platform;
-              document.getElementById('health-cpu-user').textContent = (h.cpu.user / 1000).toFixed(0) + ' ms';
-              document.getElementById('health-cpu-system').textContent = (h.cpu.system / 1000).toFixed(0) + ' ms';
+              document.getElementById('health-cpu-user').textContent = h.cpu.user + ' ms';
+              document.getElementById('health-cpu-system').textContent = h.cpu.system + ' ms';
               
               // Status
               document.getElementById('health-status').textContent = 'HEALTHY';
