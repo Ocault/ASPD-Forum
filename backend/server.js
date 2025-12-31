@@ -13762,21 +13762,32 @@ async function generateCustomTopicPreview(roomId, topic, persona, roomTitle) {
     }
   }
   
+  // ASPD terminology guide for AI understanding
+  const aspdTerminology = `
+IMPORTANT ASPD TERMINOLOGY (understand what these mean):
+- "exception person" = someone with ASPD genuinely cares about (rare), doesn't manipulate, actually feels protective of
+- "mask" / "masking" = hiding true self, pretending to be normal/empathetic in social situations
+- "supply" = people used for validation, attention, resources
+- "grey rock" = technique to become boring/unresponsive to a manipulator
+- "splitting" = seeing people as all good or all bad
+- "FP" / "favorite person" = one person they're intensely attached to`;
+  
   // Generate title about the topic
   const titlePrompt = `You are someone with ASPD posting on a forum in the "${roomTitle}" section.
+${aspdTerminology}
 
 Generate a thread title about: "${topic}"
 
 Rules:
 - Lowercase, casual style
 - No dashes or hyphens
-- Should relate the topic to ASPD perspective naturally
+- DIRECTLY address what the topic is actually about (use terminology guide above)
 - Brief and direct
 - Just the title, nothing else
 
-Examples for different topics:
+Examples:
+- "exception person" → "do you have someone you actually give a shit about"
 - "american psycho" → "anyone else find bateman relatable or is that just me"
-- "workplace manipulation" → "got promoted by making my boss think firing me was his idea"
 - "therapy" → "therapist figured me out today. time to find a new one"`;
 
   let title = null;
@@ -13815,6 +13826,14 @@ Examples for different topics:
   
   // Generate content about the topic with ASPD perspective
   const contentPrompt = `You are roleplaying as a real person with ASPD posting on an online forum.
+
+IMPORTANT ASPD TERMINOLOGY (understand what user means):
+- "exception person" = someone with ASPD genuinely cares about (rare), doesn't manipulate, actually feels protective of
+- "mask" / "masking" = hiding true self, pretending to be normal/empathetic
+- "supply" = people used for validation, attention, resources
+- "grey rock" = technique to become boring/unresponsive to manipulator
+- "splitting" = seeing people as all good or all bad
+- "FP" / "favorite person" = one person they're intensely attached to
 
 Your persona: ${personaData.name}
 Writing style: ${personaData.style}
@@ -13952,21 +13971,32 @@ async function createCustomTopicThread(roomId, topic, persona, roomTitle) {
     }
   }
   
+  // ASPD terminology guide for AI understanding
+  const aspdTerminology = `
+IMPORTANT ASPD TERMINOLOGY (understand what these mean):
+- "exception person" = someone with ASPD genuinely cares about (rare), doesn't manipulate, actually feels protective of
+- "mask" / "masking" = hiding true self, pretending to be normal/empathetic in social situations
+- "supply" = people used for validation, attention, resources
+- "grey rock" = technique to become boring/unresponsive to a manipulator
+- "splitting" = seeing people as all good or all bad
+- "FP" / "favorite person" = one person they're intensely attached to`;
+  
   // Generate title about the topic
   const titlePrompt = `You are someone with ASPD posting on a forum in the "${roomTitle}" section.
+${aspdTerminology}
 
 Generate a thread title about: "${topic}"
 
 Rules:
 - Lowercase, casual style
 - No dashes or hyphens
-- Should relate the topic to ASPD perspective naturally
+- DIRECTLY address what the topic is actually about (use terminology guide above)
 - Brief and direct
 - Just the title, nothing else
 
-Examples for different topics:
+Examples:
+- "exception person" → "do you have someone you actually give a shit about"
 - "american psycho" → "anyone else find bateman relatable or is that just me"
-- "workplace manipulation" → "got promoted by making my boss think firing me was his idea"
 - "therapy" → "therapist figured me out today. time to find a new one"`;
 
   let title = null;
@@ -14006,6 +14036,14 @@ Examples for different topics:
   
   // Generate content about the topic with ASPD perspective
   const contentPrompt = `You are roleplaying as a real person with ASPD posting on an online forum.
+
+IMPORTANT ASPD TERMINOLOGY (understand what user means):
+- "exception person" = someone with ASPD genuinely cares about (rare), doesn't manipulate, actually feels protective of
+- "mask" / "masking" = hiding true self, pretending to be normal/empathetic
+- "supply" = people used for validation, attention, resources
+- "grey rock" = technique to become boring/unresponsive to manipulator
+- "splitting" = seeing people as all good or all bad
+- "FP" / "favorite person" = one person they're intensely attached to
 
 Your persona: ${personaData.name}
 Writing style: ${personaData.style}
