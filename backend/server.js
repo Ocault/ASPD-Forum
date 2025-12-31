@@ -9700,11 +9700,19 @@ async function updateBotOnlineStatuses() {
   const now = new Date();
   
   try {
+    // First, ensure all bots have next_status_change set
+    // If it's NULL, set it to past so they get updated now
+    await db.query(`
+      UPDATE bot_accounts 
+      SET next_status_change = NOW() - INTERVAL '1 minute'
+      WHERE next_status_change IS NULL
+    `);
+    
     // Get bots whose status should change
     const botsToUpdate = await db.query(`
       SELECT id, alias, is_online, activity_level, avg_session_minutes, peak_hours
       FROM bot_accounts 
-      WHERE next_status_change IS NULL OR next_status_change <= $1
+      WHERE next_status_change <= $1
     `, [now]);
     
     for (const bot of botsToUpdate.rows) {
@@ -14797,6 +14805,14 @@ app.get('/api/admin/bot/quality/:botId/engagement', authMiddleware, ownerMiddlew
 // Get activity heatmap data (shows when bots are "active")
 app.get('/api/admin/bot/activity-heatmap', authMiddleware, ownerMiddleware, async (req, res) => {
   try {
+    // Force update bot online statuses before returning data
+    // This ensures the count is fresh every time
+    try {
+      await updateBotOnlineStatuses();
+    } catch (e) {
+      // Continue even if update fails
+    }
+    
     // Activity weights by UTC hour (matches isGoodTimeForActivity patterns)
     const activityWeights = {
       0: 0.9,  1: 0.8,  2: 0.6,  3: 0.4,  4: 0.3,  5: 0.2,
