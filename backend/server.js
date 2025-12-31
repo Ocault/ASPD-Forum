@@ -4362,7 +4362,7 @@ app.put('/api/entries/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Delete entry (owner or admin, but only owner can delete owner posts)
+// Delete entry (only owner, admin, or mod can delete - regular users cannot delete anything)
 app.delete('/api/entries/:id', authMiddleware, async (req, res) => {
   const entryId = parseInt(req.params.id);
   const userId = req.user.userId;
@@ -4388,23 +4388,22 @@ app.delete('/api/entries/:id', authMiddleware, async (req, res) => {
     const userResult = await db.query('SELECT is_admin, role FROM users WHERE id = $1', [userId]);
     const isAdmin = userResult.rows[0]?.is_admin || false;
     const userRole = userResult.rows[0]?.role || 'user';
+    const isMod = userRole === 'moderator' || userRole === 'admin' || userRole === 'owner';
 
-    // Check if user is the post owner
-    const isPostOwner = entry.user_id === userId;
+    // Only owner, admin, or moderator can delete posts
+    // Regular users CANNOT delete anything, not even their own posts
+    if (!isMod && !isAdmin) {
+      return res.status(403).json({ success: false, error: 'not_authorized', message: 'Only moderators and above can delete posts' });
+    }
 
     // Role hierarchy check: only owner can delete owner's posts
     if (authorRole === 'owner' && userRole !== 'owner') {
       return res.status(403).json({ success: false, error: 'cannot_delete_owner_posts', message: 'Only the owner can delete owner posts' });
     }
     
-    // Admin posts can only be deleted by owner or the admin themselves
-    if (authorRole === 'admin' && userRole !== 'owner' && !isPostOwner) {
-      return res.status(403).json({ success: false, error: 'cannot_delete_admin_posts', message: 'Only owner or the admin can delete admin posts' });
-    }
-
-    // Regular permission check: must be post owner or admin/mod
-    if (!isPostOwner && !isAdmin) {
-      return res.status(403).json({ success: false, error: 'not_authorized' });
+    // Admin posts can only be deleted by owner or admins
+    if (authorRole === 'admin' && userRole !== 'owner' && userRole !== 'admin') {
+      return res.status(403).json({ success: false, error: 'cannot_delete_admin_posts', message: 'Only owner or admins can delete admin posts' });
     }
 
     // Soft delete - mark as deleted instead of removing
@@ -4414,7 +4413,7 @@ app.delete('/api/entries/:id', authMiddleware, async (req, res) => {
     );
 
     // Audit log
-    await logAudit('delete_entry', 'entry', entryId, userId, { reason: isPostOwner ? 'owner_delete' : 'admin_delete', author_role: authorRole });
+    await logAudit('delete_entry', 'entry', entryId, userId, { reason: 'mod_delete', author_role: authorRole, deleter_role: userRole });
 
     res.json({ success: true });
   } catch (err) {

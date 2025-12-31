@@ -268,9 +268,10 @@ const UIComponents = (function() {
     // Check if current user owns this entry (for edit/delete buttons)
     const isOwner = currentUserId && userId && currentUserId === userId;
     
-    // Check if current user is admin/mod (can delete others' posts)
+    // Check if current user is admin/mod (can delete any posts)
+    // Only admins/mods can delete - regular users CANNOT delete anything
     const currentUserIsAdmin = window.AuthState?.isAdmin?.() || false;
-    const canDelete = isOwner || currentUserIsAdmin;
+    const canDelete = currentUserIsAdmin; // Only admins/mods can delete, not regular users
     
     // Check if within 15-minute edit window
     const canEdit = isOwner && createdAt && ((new Date() - createdAt) / (1000 * 60) < 15);
