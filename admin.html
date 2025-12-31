@@ -860,18 +860,57 @@
               </div>
               
               <!-- Generate Button -->
-              <div style="display: flex; gap: var(--spacing-xs); align-items: center;">
+              <div id="custom-topic-generate-section" style="display: flex; gap: var(--spacing-xs); align-items: center;">
                 <button class="admin-btn" id="custom-topic-generate" style="flex: 1; padding: 12px; font-size: 0.5rem; background: #3a3a6a; border-color: #5a5a9a;">
-                  ✨ GENERATE THREAD
+                  ✨ GENERATE PREVIEW
                 </button>
               </div>
               
-              <!-- Result Preview -->
-              <div id="custom-topic-result" style="display: none; margin-top: var(--spacing-sm); background: #1a1a2a; padding: var(--spacing-sm); border-radius: 4px; border: 1px solid #3a3a6a;">
-                <div style="font-size: 0.375rem; color: #6a6a9a; margin-bottom: 4px;">GENERATED:</div>
-                <div id="custom-topic-title" style="font-size: 0.4375rem; font-weight: 600; color: #9a9afa; margin-bottom: 4px;"></div>
-                <div id="custom-topic-content" style="font-size: 0.375rem; color: var(--text-primary); line-height: 1.5;"></div>
-                <div id="custom-topic-meta" style="font-size: 0.3125rem; color: #5a5a8a; margin-top: 6px;"></div>
+              <!-- Preview Section (hidden until generated) -->
+              <div id="custom-topic-preview" style="display: none; margin-top: var(--spacing-sm); background: #1a1a2a; padding: var(--spacing-sm); border-radius: 4px; border: 2px solid #5a5a9a;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-sm);">
+                  <div style="font-size: 0.4375rem; font-weight: 600; color: #9a9afa;">📋 PREVIEW</div>
+                  <div style="font-size: 0.3125rem; color: #6a6a9a;">Review before posting</div>
+                </div>
+                
+                <!-- Title Preview -->
+                <div style="margin-bottom: var(--spacing-sm);">
+                  <div style="font-size: 0.3125rem; color: #6a6a9a; margin-bottom: 2px;">TITLE:</div>
+                  <div id="custom-topic-title" style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary); background: #0a0a1a; padding: 8px; border-radius: 3px; border: 1px solid #3a3a6a;"></div>
+                </div>
+                
+                <!-- Content Preview -->
+                <div style="margin-bottom: var(--spacing-sm);">
+                  <div style="font-size: 0.3125rem; color: #6a6a9a; margin-bottom: 2px;">CONTENT:</div>
+                  <div id="custom-topic-content" style="font-size: 0.375rem; color: var(--text-primary); background: #0a0a1a; padding: 10px; border-radius: 3px; border: 1px solid #3a3a6a; line-height: 1.6; white-space: pre-wrap;"></div>
+                </div>
+                
+                <!-- Meta Info -->
+                <div id="custom-topic-meta" style="font-size: 0.3125rem; color: #5a5a8a; margin-bottom: var(--spacing-sm); display: flex; gap: 12px;">
+                  <span>👤 <span id="custom-topic-bot"></span></span>
+                  <span>🎭 <span id="custom-topic-persona-display"></span></span>
+                  <span>📁 <span id="custom-topic-room-display"></span></span>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: var(--spacing-xs);">
+                  <button class="admin-btn" id="custom-topic-confirm" style="flex: 2; padding: 10px; font-size: 0.4375rem; background: #2a4a2a; border-color: #4a7a4a;">
+                    ✓ POST THREAD
+                  </button>
+                  <button class="admin-btn admin-btn-secondary" id="custom-topic-regenerate" style="flex: 1; padding: 10px; font-size: 0.4375rem; background: #3a3a5a; border-color: #5a5a8a;">
+                    🔄 REGENERATE
+                  </button>
+                  <button class="admin-btn admin-btn-secondary" id="custom-topic-cancel" style="flex: 1; padding: 10px; font-size: 0.4375rem; background: #4a3a3a; border-color: #7a4a4a;">
+                    ✕ CANCEL
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Success Result (shown after posting) -->
+              <div id="custom-topic-result" style="display: none; margin-top: var(--spacing-sm); background: #1a2a1a; padding: var(--spacing-sm); border-radius: 4px; border: 1px solid #3a6a3a;">
+                <div style="font-size: 0.375rem; color: #6a9a6a; margin-bottom: 4px;">✓ POSTED:</div>
+                <div id="custom-topic-result-title" style="font-size: 0.4375rem; font-weight: 600; color: #8aba8a; margin-bottom: 4px;"></div>
+                <div id="custom-topic-result-link" style="font-size: 0.3125rem; color: #5a8a5a;"></div>
               </div>
             </div>
             
@@ -2661,13 +2700,17 @@
       // Initialize custom topic rooms on page load
       setTimeout(loadCustomTopicRooms, 600);
       
-      // Custom topic generate button
+      // Store pending custom topic data
+      var pendingCustomTopic = null;
+      
+      // Custom topic generate button - generates preview only
       document.getElementById('custom-topic-generate')?.addEventListener('click', function() {
         if (!isOwner) return;
         
         var topic = document.getElementById('custom-topic-input')?.value?.trim();
         var roomId = document.getElementById('custom-topic-room')?.value;
         var persona = document.getElementById('custom-topic-persona')?.value;
+        var roomText = document.getElementById('custom-topic-room')?.options[document.getElementById('custom-topic-room').selectedIndex]?.text || '';
         
         if (!topic) {
           logBot('✗ Please enter a topic', 'error');
@@ -2683,12 +2726,13 @@
         btn.disabled = true;
         btn.textContent = '⏳ GENERATING...';
         
-        var resultDiv = document.getElementById('custom-topic-result');
-        resultDiv.style.display = 'none';
+        // Hide any previous preview/result
+        document.getElementById('custom-topic-preview').style.display = 'none';
+        document.getElementById('custom-topic-result').style.display = 'none';
         
-        logBot('🎯 Generating custom topic thread: "' + topic + '"...', 'info');
+        logBot('🎯 Generating preview for: "' + topic + '"...', 'info');
         
-        AuthState.apiRequest('/api/admin/bot/custom-topic', {
+        AuthState.apiRequest('/api/admin/bot/custom-topic/preview', {
           method: 'POST',
           body: JSON.stringify({ 
             roomId: parseInt(roomId),
@@ -2697,32 +2741,95 @@
           })
         }).then(function(data) {
           btn.disabled = false;
-          btn.textContent = '✨ GENERATE THREAD';
+          btn.textContent = '✨ GENERATE PREVIEW';
           
           if (data.success) {
-            var aiNote = data.usedAI ? ' 🤖AI' : '';
-            var threadLink = '<a href="thread.html?id=' + data.threadId + '" target="_blank" style="color: #9a9afa; text-decoration: underline;">"' + escapeHtml(data.title) + '"</a>';
-            var profileLink = '<a href="profile.html?alias=' + encodeURIComponent(data.botAlias) + '" target="_blank" style="color: #7a7aba;">' + data.botAlias + '</a>';
-            logBotHTML('✓ ' + profileLink + aiNote + ' created: ' + threadLink, 'success');
+            logBot('✓ Preview ready - review and confirm', 'success');
             
-            // Show result preview
-            resultDiv.style.display = 'block';
+            // Store pending data for confirmation
+            pendingCustomTopic = {
+              roomId: parseInt(roomId),
+              topic: topic,
+              title: data.title,
+              content: data.content,
+              botAlias: data.botAlias,
+              botAccountId: data.botAccountId,
+              persona: data.persona,
+              userId: data.userId
+            };
+            
+            // Show preview
+            document.getElementById('custom-topic-preview').style.display = 'block';
             document.getElementById('custom-topic-title').textContent = data.title;
-            document.getElementById('custom-topic-content').textContent = data.content || '(content generated)';
-            document.getElementById('custom-topic-meta').textContent = 'by ' + data.botAlias + ' [' + data.persona + '] in thread #' + data.threadId;
+            document.getElementById('custom-topic-content').textContent = data.content;
+            document.getElementById('custom-topic-bot').textContent = data.botAlias;
+            document.getElementById('custom-topic-persona-display').textContent = data.persona;
+            document.getElementById('custom-topic-room-display').textContent = roomText;
             
-            // Clear the input
-            document.getElementById('custom-topic-input').value = '';
-            
-            loadBotTargets();
           } else {
-            logBot('✗ ' + (data.error || 'Failed to generate'), 'error');
+            logBot('✗ ' + (data.error || 'Failed to generate preview'), 'error');
           }
         }).catch(function(err) {
           btn.disabled = false;
-          btn.textContent = '✨ GENERATE THREAD';
+          btn.textContent = '✨ GENERATE PREVIEW';
           logBot('✗ ' + err.message, 'error');
         });
+      });
+      
+      // Confirm and post the thread
+      document.getElementById('custom-topic-confirm')?.addEventListener('click', function() {
+        if (!isOwner || !pendingCustomTopic) return;
+        
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = '⏳ POSTING...';
+        
+        logBot('📤 Posting thread...', 'info');
+        
+        AuthState.apiRequest('/api/admin/bot/custom-topic/confirm', {
+          method: 'POST',
+          body: JSON.stringify(pendingCustomTopic)
+        }).then(function(data) {
+          btn.disabled = false;
+          btn.textContent = '✓ POST THREAD';
+          
+          if (data.success) {
+            var threadLink = '<a href="thread.html?id=' + data.threadId + '" target="_blank" style="color: #8aba8a; text-decoration: underline;">"' + escapeHtml(data.title) + '"</a>';
+            var profileLink = '<a href="profile.html?alias=' + encodeURIComponent(data.botAlias) + '" target="_blank" style="color: #7a9a7a;">' + data.botAlias + '</a>';
+            logBotHTML('✓ ' + profileLink + ' 🤖AI created: ' + threadLink, 'success');
+            
+            // Hide preview, show result
+            document.getElementById('custom-topic-preview').style.display = 'none';
+            document.getElementById('custom-topic-result').style.display = 'block';
+            document.getElementById('custom-topic-result-title').textContent = data.title;
+            document.getElementById('custom-topic-result-link').innerHTML = 'by ' + data.botAlias + ' • <a href="thread.html?id=' + data.threadId + '" target="_blank" style="color: #6a9a6a;">View Thread →</a>';
+            
+            // Clear input and pending data
+            document.getElementById('custom-topic-input').value = '';
+            pendingCustomTopic = null;
+            
+            loadBotTargets();
+          } else {
+            logBot('✗ ' + (data.error || 'Failed to post'), 'error');
+          }
+        }).catch(function(err) {
+          btn.disabled = false;
+          btn.textContent = '✓ POST THREAD';
+          logBot('✗ ' + err.message, 'error');
+        });
+      });
+      
+      // Regenerate preview
+      document.getElementById('custom-topic-regenerate')?.addEventListener('click', function() {
+        // Just trigger the generate button again
+        document.getElementById('custom-topic-generate')?.click();
+      });
+      
+      // Cancel preview
+      document.getElementById('custom-topic-cancel')?.addEventListener('click', function() {
+        document.getElementById('custom-topic-preview').style.display = 'none';
+        pendingCustomTopic = null;
+        logBot('Cancelled', 'info');
       });
 
       // Generate single reply (advanced)
