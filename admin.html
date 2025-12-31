@@ -816,6 +816,65 @@
               <div style="display: none;" id="scheduler-next-run"></div>
             </div>
             
+            <!-- ===== CUSTOM TOPIC THREAD ===== -->
+            <div style="background: linear-gradient(135deg, #2a2a4a 0%, #1a1a3a 100%); border: 2px solid #4a4a8a; border-radius: 6px; padding: var(--spacing-md); margin-bottom: var(--spacing-md);">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--spacing-sm);">
+                <span style="font-size: 1rem;">🎯</span>
+                <div>
+                  <div style="font-size: 0.5rem; font-weight: 600; color: #9a9afa;">CUSTOM TOPIC THREAD</div>
+                  <div style="font-size: 0.3125rem; color: #6a6a9a;">AI researches your topic and generates an ASPD-style discussion</div>
+                </div>
+              </div>
+              
+              <!-- Room Selection -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm);">
+                <div>
+                  <label style="font-size: 0.375rem; color: #6a6a9a; display: block; margin-bottom: 4px;">TARGET ROOM</label>
+                  <select class="admin-select" id="custom-topic-room" style="font-size: 0.4375rem; padding: 8px; width: 100%; background: #1a1a2a; border-color: #4a4a7a;">
+                    <option value="">Loading rooms...</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size: 0.375rem; color: #6a6a9a; display: block; margin-bottom: 4px;">BOT PERSONA</label>
+                  <select class="admin-select" id="custom-topic-persona" style="font-size: 0.4375rem; padding: 8px; width: 100%; background: #1a1a2a; border-color: #4a4a7a;">
+                    <option value="random">🎲 Random</option>
+                    <option value="analytical">🔬 Analyst</option>
+                    <option value="cynical">😏 Cynic</option>
+                    <option value="pragmatic">🎯 Pragmatist</option>
+                    <option value="observer">👁️ Observer</option>
+                    <option value="blunt">💢 Blunt</option>
+                    <option value="strategic">♟️ Strategist</option>
+                    <option value="nihilist">🌑 Nihilist</option>
+                    <option value="dark_humor">🃏 Dark Humor</option>
+                  </select>
+                </div>
+              </div>
+              
+              <!-- Topic Input -->
+              <div style="margin-bottom: var(--spacing-sm);">
+                <label style="font-size: 0.375rem; color: #6a6a9a; display: block; margin-bottom: 4px;">TOPIC / SUBJECT</label>
+                <input type="text" class="admin-input" id="custom-topic-input" placeholder="e.g., American Psycho, workplace manipulation, dealing with therapists..." style="font-size: 0.4375rem; padding: 10px; width: 100%; background: #1a1a2a; border-color: #4a4a7a;">
+                <div style="font-size: 0.3125rem; color: #5a5a8a; margin-top: 4px;">
+                  AI will research this topic and relate it to ASPD experiences naturally
+                </div>
+              </div>
+              
+              <!-- Generate Button -->
+              <div style="display: flex; gap: var(--spacing-xs); align-items: center;">
+                <button class="admin-btn" id="custom-topic-generate" style="flex: 1; padding: 12px; font-size: 0.5rem; background: #3a3a6a; border-color: #5a5a9a;">
+                  ✨ GENERATE THREAD
+                </button>
+              </div>
+              
+              <!-- Result Preview -->
+              <div id="custom-topic-result" style="display: none; margin-top: var(--spacing-sm); background: #1a1a2a; padding: var(--spacing-sm); border-radius: 4px; border: 1px solid #3a3a6a;">
+                <div style="font-size: 0.375rem; color: #6a6a9a; margin-bottom: 4px;">GENERATED:</div>
+                <div id="custom-topic-title" style="font-size: 0.4375rem; font-weight: 600; color: #9a9afa; margin-bottom: 4px;"></div>
+                <div id="custom-topic-content" style="font-size: 0.375rem; color: var(--text-primary); line-height: 1.5;"></div>
+                <div id="custom-topic-meta" style="font-size: 0.3125rem; color: #5a5a8a; margin-top: 6px;"></div>
+              </div>
+            </div>
+            
             <!-- ===== STEP 3: BOT PROFILES ===== -->
             <div style="background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 6px; padding: var(--spacing-sm); margin-bottom: var(--spacing-md);">
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-sm);">
@@ -2569,6 +2628,99 @@
             logBot('✗ ' + (data.error || 'Failed'), 'error');
           }
         }).catch(function(err) {
+          logBot('✗ ' + err.message, 'error');
+        });
+      });
+
+      // ============================================
+      // CUSTOM TOPIC THREAD GENERATION
+      // ============================================
+      
+      // Load rooms into custom topic dropdown
+      function loadCustomTopicRooms() {
+        AuthState.apiRequest('/api/admin/bot/targets')
+          .then(function(data) {
+            if (!data.success || !data.rooms) return;
+            
+            var roomSelect = document.getElementById('custom-topic-room');
+            if (!roomSelect) return;
+            
+            roomSelect.innerHTML = '';
+            data.rooms.forEach(function(room) {
+              var opt = document.createElement('option');
+              opt.value = room.id;
+              opt.textContent = room.title;
+              roomSelect.appendChild(opt);
+            });
+          })
+          .catch(function(err) {
+            console.error('Failed to load rooms for custom topic:', err);
+          });
+      }
+      
+      // Initialize custom topic rooms on page load
+      setTimeout(loadCustomTopicRooms, 600);
+      
+      // Custom topic generate button
+      document.getElementById('custom-topic-generate')?.addEventListener('click', function() {
+        if (!isOwner) return;
+        
+        var topic = document.getElementById('custom-topic-input')?.value?.trim();
+        var roomId = document.getElementById('custom-topic-room')?.value;
+        var persona = document.getElementById('custom-topic-persona')?.value;
+        
+        if (!topic) {
+          logBot('✗ Please enter a topic', 'error');
+          return;
+        }
+        
+        if (!roomId) {
+          logBot('✗ Please select a room', 'error');
+          return;
+        }
+        
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = '⏳ GENERATING...';
+        
+        var resultDiv = document.getElementById('custom-topic-result');
+        resultDiv.style.display = 'none';
+        
+        logBot('🎯 Generating custom topic thread: "' + topic + '"...', 'info');
+        
+        AuthState.apiRequest('/api/admin/bot/custom-topic', {
+          method: 'POST',
+          body: JSON.stringify({ 
+            roomId: parseInt(roomId),
+            topic: topic,
+            persona: persona === 'random' ? null : persona
+          })
+        }).then(function(data) {
+          btn.disabled = false;
+          btn.textContent = '✨ GENERATE THREAD';
+          
+          if (data.success) {
+            var aiNote = data.usedAI ? ' 🤖AI' : '';
+            var threadLink = '<a href="thread.html?id=' + data.threadId + '" target="_blank" style="color: #9a9afa; text-decoration: underline;">"' + escapeHtml(data.title) + '"</a>';
+            var profileLink = '<a href="profile.html?alias=' + encodeURIComponent(data.botAlias) + '" target="_blank" style="color: #7a7aba;">' + data.botAlias + '</a>';
+            logBotHTML('✓ ' + profileLink + aiNote + ' created: ' + threadLink, 'success');
+            
+            // Show result preview
+            resultDiv.style.display = 'block';
+            document.getElementById('custom-topic-title').textContent = data.title;
+            document.getElementById('custom-topic-content').textContent = data.content || '(content generated)';
+            document.getElementById('custom-topic-meta').textContent = 'by ' + data.botAlias + ' [' + data.persona + '] in thread #' + data.threadId;
+            
+            // Clear the input
+            document.getElementById('custom-topic-input').value = '';
+            
+            loadBotTargets();
+          } else {
+            logBot('✗ ' + (data.error || 'Failed to generate'), 'error');
+          }
+        }).catch(function(err) {
+          btn.disabled = false;
+          btn.textContent = '✨ GENERATE THREAD';
           logBot('✗ ' + err.message, 'error');
         });
       });

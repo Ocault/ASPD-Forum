@@ -13645,6 +13645,218 @@ async function createBotThread(roomId, persona, options = {}) {
   };
 }
 
+// Create CUSTOM TOPIC thread - AI researches topic and writes ASPD-style content
+async function createCustomTopicThread(roomId, topic, persona, roomTitle) {
+  if (!GROQ_CONFIG.enabled || !GROQ_CONFIG.apiKey) {
+    console.log('[BOT] Custom topic requires AI - Groq not configured');
+    return null;
+  }
+  
+  // Get a bot account
+  let botAccount = await getQualityWeightedBotAccount(persona);
+  if (!botAccount) {
+    botAccount = await getRandomBotAccount(persona, false);
+  }
+  
+  let alias, avatar, p;
+  
+  if (botAccount) {
+    alias = botAccount.alias;
+    avatar = botAccount.avatar_config;
+    p = botAccount.persona;
+  } else {
+    p = persona || Object.keys(BOT_PERSONAS)[Math.floor(Math.random() * Object.keys(BOT_PERSONAS).length)];
+    alias = await generateBotAliasAsync();
+    avatar = generateBotAvatar();
+  }
+  
+  let userId = 1;
+  if (alias) {
+    const userResult = await db.query(`SELECT id FROM users WHERE alias = $1 AND is_bot = TRUE`, [alias]);
+    if (userResult.rows.length > 0) {
+      userId = userResult.rows[0].id;
+    }
+  }
+  
+  const personaData = BOT_PERSONAS[p] || BOT_PERSONAS.analytical;
+  
+  // Build personality hints from bot account
+  let personalityHints = '';
+  if (botAccount) {
+    const ws = botAccount.writing_style || {};
+    if (ws.abbreviation_level === 'high') {
+      personalityHints += '\n- Use abbreviations (tbh, idk, ngl, imo)';
+    }
+    if (ws.punctuation === 'minimal') {
+      personalityHints += '\n- Minimal punctuation';
+    }
+    if (ws.capitalization === 'none') {
+      personalityHints += '\n- All lowercase';
+    }
+    if (botAccount.personality_description) {
+      personalityHints += `\n\nYOUR CHARACTER: ${botAccount.personality_description}`;
+    }
+  }
+  
+  // Generate title about the topic
+  const titlePrompt = `You are someone with ASPD posting on a forum in the "${roomTitle}" section.
+
+Generate a thread title about: "${topic}"
+
+Rules:
+- Lowercase, casual style
+- No dashes or hyphens
+- Should relate the topic to ASPD perspective naturally
+- Brief and direct
+- Just the title, nothing else
+
+Examples for different topics:
+- "american psycho" → "anyone else find bateman relatable or is that just me"
+- "workplace manipulation" → "got promoted by making my boss think firing me was his idea"
+- "therapy" → "therapist figured me out today. time to find a new one"`;
+
+  let title = null;
+  try {
+    const titleResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_CONFIG.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: GROQ_CONFIG.model,
+        messages: [
+          { role: 'user', content: titlePrompt }
+        ],
+        max_tokens: 40,
+        temperature: 0.9
+      })
+    });
+    
+    if (titleResponse.ok) {
+      const data = await titleResponse.json();
+      title = data.choices?.[0]?.message?.content?.trim();
+      // Clean up title
+      if (title) {
+        title = title.replace(/^["']|["']$/g, '').replace(/^title:\s*/i, '').trim();
+      }
+    }
+  } catch (err) {
+    console.error('[CUSTOM TOPIC] Title generation failed:', err.message);
+  }
+  
+  if (!title) {
+    console.log('[CUSTOM TOPIC] Failed to generate title');
+    return null;
+  }
+  
+  // Generate content about the topic with ASPD perspective
+  const contentPrompt = `You are roleplaying as a real person with ASPD posting on an online forum.
+
+Your persona: ${personaData.name}
+Writing style: ${personaData.style}
+Traits: ${personaData.traits.join(', ')}${personalityHints}
+
+TOPIC TO DISCUSS: "${topic}"
+THREAD TITLE: "${title}"
+ROOM: ${roomTitle}
+
+Your task: Write a forum post about this topic from an authentic ASPD perspective.
+
+HOW TO APPROACH THE TOPIC:
+- If it's media (movie, book, show): relate to characters, themes, or scenes that resonate with ASPD traits
+- If it's a situation: share how you'd handle it or how you have handled similar
+- If it's abstract: give your blunt, detached take on it
+- Connect it to real ASPD experiences naturally
+
+AUTHENTIC ASPD VOICE:
+- Transactional worldview. people are useful or not
+- Brutally honest. no sugarcoating
+- Self aware but not apologetic
+- Detached when discussing heavy topics
+- Dark humor is fine
+- Pragmatic and matter of fact
+- No guilt, no remorse in your perspective
+
+CRITICAL RULES:
+- 2 to 3 sentences MAX
+- All lowercase, casual internet style
+- NO dashes or hyphens. use periods instead
+- NO questions at the end
+- NO greetings or signatures
+- NO explaining yourself at length
+- Sound bored, direct, unbothered
+- Make it specific to the topic, not generic
+
+Write the post content only:`;
+
+  let content = null;
+  try {
+    const contentResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_CONFIG.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: GROQ_CONFIG.model,
+        messages: [
+          { role: 'user', content: contentPrompt }
+        ],
+        max_tokens: 200,
+        temperature: 0.85
+      })
+    });
+    
+    if (contentResponse.ok) {
+      const data = await contentResponse.json();
+      content = data.choices?.[0]?.message?.content?.trim();
+    }
+  } catch (err) {
+    console.error('[CUSTOM TOPIC] Content generation failed:', err.message);
+  }
+  
+  if (!content) {
+    console.log('[CUSTOM TOPIC] Failed to generate content');
+    return null;
+  }
+  
+  // Create the thread
+  const threadResult = await db.query(`
+    INSERT INTO threads (room_id, title, user_id, is_bot, bot_persona, bot_account_id)
+    VALUES ($1, $2, $3, TRUE, $4, $5)
+    RETURNING id
+  `, [roomId, title, userId, p, botAccount?.id || null]);
+  
+  const threadId = threadResult.rows[0].id;
+  
+  // Create initial post
+  await db.query(`
+    INSERT INTO entries (thread_id, user_id, content, alias, avatar_config, is_bot, bot_persona, bot_account_id)
+    VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7)
+  `, [threadId, userId, content, alias, avatar, p, botAccount?.id || null]);
+  
+  // Update bot account activity
+  if (botAccount) {
+    await updateBotAccountActivity(botAccount.id);
+    await db.query(`UPDATE bot_accounts SET thread_count = thread_count + 1 WHERE id = $1`, [botAccount.id]);
+  }
+  
+  console.log(`[CUSTOM TOPIC] Created thread "${title}" about "${topic}" by ${alias}`);
+  
+  return {
+    success: true,
+    threadId,
+    title,
+    content,
+    botAlias: alias,
+    persona: p,
+    topic: topic,
+    isPersistentAccount: !!botAccount,
+    usedAI: true
+  };
+}
+
 // ================================================
 // GROQ AI ADMIN ENDPOINTS
 // ================================================
@@ -14322,6 +14534,37 @@ app.post('/api/admin/bot/thread', authMiddleware, ownerMiddleware, async (req, r
     res.json(result);
   } catch (err) {
     console.error('[BOT THREAD ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API: Generate custom topic thread - AI researches topic and creates ASPD-style discussion
+app.post('/api/admin/bot/custom-topic', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { roomId, topic, persona } = req.body;
+    
+    if (!topic || !topic.trim()) {
+      return res.status(400).json({ success: false, error: 'Topic is required' });
+    }
+    
+    if (!roomId) {
+      return res.status(400).json({ success: false, error: 'Room is required' });
+    }
+    
+    // Get room title for context
+    const roomResult = await db.query('SELECT title FROM rooms WHERE id = $1', [roomId]);
+    if (roomResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    const roomTitle = roomResult.rows[0].title;
+    
+    const result = await createCustomTopicThread(roomId, topic.trim(), persona, roomTitle);
+    if (!result) {
+      return res.json({ success: false, error: 'AI generation failed - try a different topic' });
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('[CUSTOM TOPIC ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
