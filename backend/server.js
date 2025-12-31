@@ -13787,31 +13787,38 @@ async function generateCustomTopicPreview(roomId, topic, persona, roomTitle) {
   
   // ASPD terminology guide for AI understanding
   const aspdTerminology = `
-IMPORTANT ASPD TERMINOLOGY (understand what these mean):
-- "exception person" = someone with ASPD genuinely cares about (rare), doesn't manipulate, actually feels protective of
-- "mask" / "masking" = hiding true self, pretending to be normal/empathetic in social situations
-- "supply" = people used for validation, attention, resources
-- "grey rock" = technique to become boring/unresponsive to a manipulator
-- "splitting" = seeing people as all good or all bad
-- "FP" / "favorite person" = one person they're intensely attached to`;
+ASPD TERMINOLOGY:
+- "exception person" = someone you genuinely care about and dont play games with
+- "masking" = pretending to be normal around people
+- "mirroring" = copying someones vibe to blend in
+- "bored" = that empty feeling that makes you do dumb shit for stimulation`;
   
   // Generate title about the topic
-  const titlePrompt = `You are someone with ASPD posting on a forum in the "${roomTitle}" section.
-${aspdTerminology}
+  const titlePrompt = `You're posting on an ASPD forum in the "${roomTitle}" section about: "${topic}"
 
-Generate a thread title about: "${topic}"
+Generate ONE thread title.
 
 Rules:
-- Lowercase, casual style
-- No dashes or hyphens
-- DIRECTLY address what the topic is actually about (use terminology guide above)
-- Brief and direct
-- Just the title, nothing else
+- all lowercase
+- no quotes or punctuation at end
+- specific and interesting, makes people want to click
+- sounds like a real person not a therapist
 
-Examples:
-- "exception person" → "do you have someone you actually give a shit about"
-- "american psycho" → "anyone else find bateman relatable or is that just me"
-- "therapy" → "therapist figured me out today. time to find a new one"`;
+Good examples:
+"got promoted by making my boss think it was his idea"
+"anyone else have zero memory of childhood"  
+"therapist figured me out. time to find a new one"
+"best lie youve told to get out of something"
+"coworker thinks were friends and idk how to act"
+"told my partner the truth and she didnt leave"
+
+Bad examples (dont do these):
+"feeling weird about something"
+"idk whats wrong with me"
+"anyone relate"
+"just thinking"
+
+Title:`;
 
   let title = null;
   try {
@@ -13827,7 +13834,7 @@ Examples:
           { role: 'user', content: titlePrompt }
         ],
         max_tokens: 40,
-        temperature: 0.9
+        temperature: 0.85
       })
     });
     
@@ -13848,74 +13855,60 @@ Examples:
   }
   
   // Generate content about the topic with ASPD perspective
-  const contentPrompt = `You ARE a real person posting on a forum. Not roleplaying. Not pretending. You're just typing a quick post about something on your mind.
-
-Your vibe: ${personaData.name} - ${personaData.style}${personalityHints}
-
-TOPIC: "${topic}"
-TITLE: "${title}"
+  const contentPrompt = `You're ${personaData.name} posting on a forum. Write a post about "${topic}" with title "${title}".
+${personalityHints}
 
 ═══════════════════════════════════════
-AI TELLS (things that make it obvious its a bot):
+WHAT MAKES A GOOD FORUM POST:
 ═══════════════════════════════════════
-NEVER DO THESE:
-- Complete, well-formed sentences
-- Perfect grammar and punctuation
-- Balanced/structured thoughts
-- Using "I" at the start of sentences (say "honestly" "like" "idk" "ngl" instead)
-- Concluding thoughts neatly
-- Any word over 3 syllables
-- Sounding thoughtful or articulate
-- Proper apostrophes (dont not don't, cant not can't, im not I'm)
-- Psychology words: supply, mask, manipulate, transactional, empathy, ASPD, antisocial, narcissistic
-- Self-analysis or explaining WHY you feel something
+1. HAS A POINT - shares an experience, asks a real question, or discusses a strategy
+2. SPECIFIC DETAILS - mentions actual situations, people, places, times
+3. INVITES DISCUSSION - other people can respond with their own takes
+4. DIRECT - says what it means without hedging
 
 ═══════════════════════════════════════
-HUMAN TELLS (things real people do):
+POST TYPES (pick one that fits):
 ═══════════════════════════════════════
-DO THESE:
-- Start mid-thought like you just sat down and started typing
-- Interrupt yourself ("wait no thats not-- anyway")  
-- Trail off with ... when you lose your thought
-- Use "like" as filler ("like idk its just weird")
-- Skip words when typing fast ("she came over and was like wtf")
-- Repeat words for emphasis ("its just. its so weird")
-- Use lowercase i always
-- Smash words together sometimes (dont, wanna, gonna, kinda, sorta)
-- Short choppy sentences. Like this. Just vibes.
-- Rhetorical questions to yourself ("why do i even care??")
-- Specific random details (days, places, times)
-- Mild typos occasionally (tho, rn, bc, thru, ur)
+SHARING EXPERIENCE:
+"so yesterday i was at this work thing and realized i was copying my managers personality the whole time. like word for word mirroring how he talks. been doing it for months and only just noticed"
+
+"got into it with my roommate bc she said i dont care about her feelings. tried to explain thats not how i work but she just kept crying. gave up and left"
+
+ASKING FOR ADVICE/INPUT:
+"how do you guys handle the boredom at like 3am when you cant sleep and your brain just wants to do something stupid. asking for myself obviously"
+
+"anyone figured out how to actually enjoy things? like actually feel it not just go thru the motions. serious question"
+
+DISCUSSING A STRATEGY:
+"found out if you just agree with everything in therapy they leave you alone faster. nod along say the right words collect your paperwork"
+
+"pro tip for work stuff. let people think theyre smarter than you. they help you more and expect less. been coasting for 2 years"
+
+MAKING AN OBSERVATION:
+"weird thing i noticed. i can read people perfectly when its for me but when someone actually needs help i got nothing. zero. brain just goes blank"
+
+"people really do believe anything if you say it confident enough. tested this at a party last week. told someone i was a pilot and they bought it completely"
 
 ═══════════════════════════════════════
-REAL POST EXAMPLES (study these closely):
+NEVER DO:
 ═══════════════════════════════════════
-- "ok so. theres this person and i genuinely just like hanging out with them?? no angle no nothing i just. want to be around them. wtf is that about"
-- "cant stop thinking about this. she came over tuesday and we just talked for like 4 hours and i didnt get bored once. thats never happened before"
-- "idk man. most people feel like npcs to me but hes different somehow. hate that i cant explain it better"
-- "realized i actually give a shit if something happens to her and now im sitting here like. oh. ok. cool cool cool"
-- "3am thoughts but does anyone else have that one person you just... dont play games with? everyone else is whatever but with her i just wanna be normal"
+- "whats wrong with me??" self pity
+- asking for validation/reassurance
+- vague rambling with no point
+- psychology jargon (supply, transactional, narcissistic)
+- perfectly structured sentences
+- starting with "I"
+- ending thoughts neatly
 
 ═══════════════════════════════════════
-VARY YOUR ENERGY (pick one):
+STYLE:
 ═══════════════════════════════════════
-- confused/processing: "idk man its just... different with them"
-- annoyed at yourself: "caught myself caring and now im pissed about it lol"
-- lowkey freaked: "this isnt supposed to happen?? what is this"
-- deadpan acceptance: "so apparently i have feelings now. cool"
-- rambling stream of thought: "ok wait let me explain. so like. she..."
+- 2-4 sentences with actual content
+- all lowercase, casual punctuation
+- specific not vague
+- sounds like youre telling a friend not writing an essay
 
-═══════════════════════════════════════
-FORMAT:
-═══════════════════════════════════════
-- 1-4 sentences. shorter is more human
-- ALL lowercase. always
-- no hyphens ever
-- can have typos
-- messy punctuation (... and ?? and multiple periods..)
-- dont wrap up the thought cleanly. just stop typing
-
-Write ONLY the post, nothing else:`;
+Write the post:`;
 
   let content = null;
   try {
@@ -14018,31 +14011,38 @@ async function createCustomTopicThread(roomId, topic, persona, roomTitle) {
   
   // ASPD terminology guide for AI understanding
   const aspdTerminology = `
-IMPORTANT ASPD TERMINOLOGY (understand what these mean):
-- "exception person" = someone with ASPD genuinely cares about (rare), doesn't manipulate, actually feels protective of
-- "mask" / "masking" = hiding true self, pretending to be normal/empathetic in social situations
-- "supply" = people used for validation, attention, resources
-- "grey rock" = technique to become boring/unresponsive to a manipulator
-- "splitting" = seeing people as all good or all bad
-- "FP" / "favorite person" = one person they're intensely attached to`;
+ASPD TERMINOLOGY:
+- "exception person" = someone you genuinely care about and dont play games with
+- "masking" = pretending to be normal around people
+- "mirroring" = copying someones vibe to blend in
+- "bored" = that empty feeling that makes you do dumb shit for stimulation`;
   
   // Generate title about the topic
-  const titlePrompt = `You are someone with ASPD posting on a forum in the "${roomTitle}" section.
-${aspdTerminology}
+  const titlePrompt = `You're posting on an ASPD forum in the "${roomTitle}" section about: "${topic}"
 
-Generate a thread title about: "${topic}"
+Generate ONE thread title.
 
 Rules:
-- Lowercase, casual style
-- No dashes or hyphens
-- DIRECTLY address what the topic is actually about (use terminology guide above)
-- Brief and direct
-- Just the title, nothing else
+- all lowercase
+- no quotes or punctuation at end
+- specific and interesting, makes people want to click
+- sounds like a real person not a therapist
 
-Examples:
-- "exception person" → "do you have someone you actually give a shit about"
-- "american psycho" → "anyone else find bateman relatable or is that just me"
-- "therapy" → "therapist figured me out today. time to find a new one"`;
+Good examples:
+"got promoted by making my boss think it was his idea"
+"anyone else have zero memory of childhood"  
+"therapist figured me out. time to find a new one"
+"best lie youve told to get out of something"
+"coworker thinks were friends and idk how to act"
+"told my partner the truth and she didnt leave"
+
+Bad examples (dont do these):
+"feeling weird about something"
+"idk whats wrong with me"
+"anyone relate"
+"just thinking"
+
+Title:`;
 
   let title = null;
   try {
@@ -14058,7 +14058,7 @@ Examples:
           { role: 'user', content: titlePrompt }
         ],
         max_tokens: 40,
-        temperature: 0.9
+        temperature: 0.85
       })
     });
     
@@ -14080,74 +14080,60 @@ Examples:
   }
   
   // Generate content about the topic with ASPD perspective
-  const contentPrompt = `You ARE a real person posting on a forum. Not roleplaying. Not pretending. You're just typing a quick post about something on your mind.
-
-Your vibe: ${personaData.name} - ${personaData.style}${personalityHints}
-
-TOPIC: "${topic}"
-TITLE: "${title}"
+  const contentPrompt = `You're ${personaData.name} posting on a forum. Write a post about "${topic}" with title "${title}".
+${personalityHints}
 
 ═══════════════════════════════════════
-AI TELLS (things that make it obvious its a bot):
+WHAT MAKES A GOOD FORUM POST:
 ═══════════════════════════════════════
-NEVER DO THESE:
-- Complete, well-formed sentences
-- Perfect grammar and punctuation
-- Balanced/structured thoughts
-- Using "I" at the start of sentences (say "honestly" "like" "idk" "ngl" instead)
-- Concluding thoughts neatly
-- Any word over 3 syllables
-- Sounding thoughtful or articulate
-- Proper apostrophes (dont not don't, cant not can't, im not I'm)
-- Psychology words: supply, mask, manipulate, transactional, empathy, ASPD, antisocial, narcissistic
-- Self-analysis or explaining WHY you feel something
+1. HAS A POINT - shares an experience, asks a real question, or discusses a strategy
+2. SPECIFIC DETAILS - mentions actual situations, people, places, times
+3. INVITES DISCUSSION - other people can respond with their own takes
+4. DIRECT - says what it means without hedging
 
 ═══════════════════════════════════════
-HUMAN TELLS (things real people do):
+POST TYPES (pick one that fits):
 ═══════════════════════════════════════
-DO THESE:
-- Start mid-thought like you just sat down and started typing
-- Interrupt yourself ("wait no thats not-- anyway")  
-- Trail off with ... when you lose your thought
-- Use "like" as filler ("like idk its just weird")
-- Skip words when typing fast ("she came over and was like wtf")
-- Repeat words for emphasis ("its just. its so weird")
-- Use lowercase i always
-- Smash words together sometimes (dont, wanna, gonna, kinda, sorta)
-- Short choppy sentences. Like this. Just vibes.
-- Rhetorical questions to yourself ("why do i even care??")
-- Specific random details (days, places, times)
-- Mild typos occasionally (tho, rn, bc, thru, ur)
+SHARING EXPERIENCE:
+"so yesterday i was at this work thing and realized i was copying my managers personality the whole time. like word for word mirroring how he talks. been doing it for months and only just noticed"
+
+"got into it with my roommate bc she said i dont care about her feelings. tried to explain thats not how i work but she just kept crying. gave up and left"
+
+ASKING FOR ADVICE/INPUT:
+"how do you guys handle the boredom at like 3am when you cant sleep and your brain just wants to do something stupid. asking for myself obviously"
+
+"anyone figured out how to actually enjoy things? like actually feel it not just go thru the motions. serious question"
+
+DISCUSSING A STRATEGY:
+"found out if you just agree with everything in therapy they leave you alone faster. nod along say the right words collect your paperwork"
+
+"pro tip for work stuff. let people think theyre smarter than you. they help you more and expect less. been coasting for 2 years"
+
+MAKING AN OBSERVATION:
+"weird thing i noticed. i can read people perfectly when its for me but when someone actually needs help i got nothing. zero. brain just goes blank"
+
+"people really do believe anything if you say it confident enough. tested this at a party last week. told someone i was a pilot and they bought it completely"
 
 ═══════════════════════════════════════
-REAL POST EXAMPLES (study these closely):
+NEVER DO:
 ═══════════════════════════════════════
-- "ok so. theres this person and i genuinely just like hanging out with them?? no angle no nothing i just. want to be around them. wtf is that about"
-- "cant stop thinking about this. she came over tuesday and we just talked for like 4 hours and i didnt get bored once. thats never happened before"
-- "idk man. most people feel like npcs to me but hes different somehow. hate that i cant explain it better"
-- "realized i actually give a shit if something happens to her and now im sitting here like. oh. ok. cool cool cool"
-- "3am thoughts but does anyone else have that one person you just... dont play games with? everyone else is whatever but with her i just wanna be normal"
+- "whats wrong with me??" self pity
+- asking for validation/reassurance
+- vague rambling with no point
+- psychology jargon (supply, transactional, narcissistic)
+- perfectly structured sentences
+- starting with "I"
+- ending thoughts neatly
 
 ═══════════════════════════════════════
-VARY YOUR ENERGY (pick one):
+STYLE:
 ═══════════════════════════════════════
-- confused/processing: "idk man its just... different with them"
-- annoyed at yourself: "caught myself caring and now im pissed about it lol"
-- lowkey freaked: "this isnt supposed to happen?? what is this"
-- deadpan acceptance: "so apparently i have feelings now. cool"
-- rambling stream of thought: "ok wait let me explain. so like. she..."
+- 2-4 sentences with actual content
+- all lowercase, casual punctuation
+- specific not vague
+- sounds like youre telling a friend not writing an essay
 
-═══════════════════════════════════════
-FORMAT:
-═══════════════════════════════════════
-- 1-4 sentences. shorter is more human
-- ALL lowercase. always
-- no hyphens ever
-- can have typos
-- messy punctuation (... and ?? and multiple periods..)
-- dont wrap up the thought cleanly. just stop typing
-
-Write ONLY the post, nothing else:`;
+Write the post:`;
 
   let content = null;
   try {
@@ -14163,7 +14149,7 @@ Write ONLY the post, nothing else:`;
           { role: 'user', content: contentPrompt }
         ],
         max_tokens: 200,
-        temperature: 0.98
+        temperature: 0.9
       })
     });
     
