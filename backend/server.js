@@ -9655,40 +9655,40 @@ async function updateBotOnlineStatuses() {
       if (bot.is_online) {
         // Currently online - should they go offline?
         // More likely to stay online during peak hours
-        const stayOnlineChance = isInPeakHours ? 0.7 : 0.3;
+        const stayOnlineChance = isInPeakHours ? 0.5 : 0.2;
         newOnlineStatus = Math.random() < stayOnlineChance;
         
-        // If going offline, short break. If staying online, extend session
+        // If going offline, short break. If staying online, extend session briefly
         if (newOnlineStatus) {
-          sessionDuration = 5 + Math.random() * 30; // 5-35 more minutes
+          sessionDuration = 2 + Math.random() * 8; // 2-10 more minutes (shorter sessions)
         } else {
-          sessionDuration = 15 + Math.random() * 180; // 15 min to 3 hours offline
+          sessionDuration = 20 + Math.random() * 120; // 20 min to 2 hours offline
         }
       } else {
         // Currently offline - should they come online?
         // Base chance modified by activity level and time
-        let comeOnlineChance = 0.15; // Base 15%
+        let comeOnlineChance = 0.12; // Base 12%
         
-        if (bot.activity_level === 'very_active') comeOnlineChance = 0.4;
-        else if (bot.activity_level === 'active') comeOnlineChance = 0.3;
-        else if (bot.activity_level === 'normal') comeOnlineChance = 0.2;
-        else if (bot.activity_level === 'lurker') comeOnlineChance = 0.08;
+        if (bot.activity_level === 'very_active') comeOnlineChance = 0.35;
+        else if (bot.activity_level === 'active') comeOnlineChance = 0.25;
+        else if (bot.activity_level === 'normal') comeOnlineChance = 0.15;
+        else if (bot.activity_level === 'lurker') comeOnlineChance = 0.05;
         
         // Peak hours boost
-        if (isInPeakHours) comeOnlineChance *= 2;
+        if (isInPeakHours) comeOnlineChance *= 1.8;
         
         // Late night reduction (2am-7am UTC)
-        if (currentHour >= 2 && currentHour <= 7) comeOnlineChance *= 0.3;
+        if (currentHour >= 2 && currentHour <= 7) comeOnlineChance *= 0.25;
         
         newOnlineStatus = Math.random() < comeOnlineChance;
         
         if (newOnlineStatus) {
-          // Coming online - session length based on their average
-          const avgSession = bot.avg_session_minutes || 45;
-          sessionDuration = avgSession * (0.5 + Math.random()); // 50%-150% of avg
+          // Coming online - shorter, more realistic sessions (3-15 minutes)
+          const avgSession = bot.avg_session_minutes || 15;
+          sessionDuration = Math.min(avgSession * (0.3 + Math.random() * 0.5), 20); // 30%-80% of avg, max 20 min
         } else {
           // Staying offline - check again soon or later
-          sessionDuration = 10 + Math.random() * 60; // 10-70 minutes
+          sessionDuration = 15 + Math.random() * 45; // 15-60 minutes
         }
       }
       
@@ -9726,7 +9726,7 @@ async function getOnlineBotCount() {
 
 // Force a specific bot online/offline
 async function setBotOnlineStatus(botId, isOnline, durationMinutes = null) {
-  const duration = durationMinutes || (isOnline ? 30 + Math.random() * 60 : 60 + Math.random() * 120);
+  const duration = durationMinutes || (isOnline ? 5 + Math.random() * 15 : 30 + Math.random() * 90);
   const nextChange = new Date(Date.now() + duration * 60000);
   
   await db.query(`
