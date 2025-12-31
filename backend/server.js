@@ -13744,6 +13744,10 @@ function cleanAIContent(content) {
   // Remove em-dashes (AI favorite)
   cleaned = cleaned.replace(/\s*—\s*/g, ' - ');
   
+  // Fix AI literally writing "in parentheses" when we wanted actual parentheses
+  cleaned = cleaned.replace(/\(in parentheses,?\s*/gi, '(');
+  cleaned = cleaned.replace(/in parentheses,?\s*\(/gi, '(');
+  
   // Remove overly formal phrases
   cleaned = cleaned.replace(/\bI find myself\b/gi, 'I');
   cleaned = cleaned.replace(/\bI've come to realize\b/gi, 'I realized');
@@ -13752,13 +13756,23 @@ function cleanAIContent(content) {
   cleaned = cleaned.replace(/\bTo be honest\b/gi, 'tbh');
   cleaned = cleaned.replace(/\bIn my experience\b/gi, 'for me');
   
-  // Remove validation-seeking endings
+  // Remove validation-seeking endings (comprehensive patterns)
+  cleaned = cleaned.replace(/\s*[,.]?\s*and\s+i'?m\s+wondering\s+if\s+anyone\s+else[^.]*\.?\.?\.?\s*$/i, '');
+  cleaned = cleaned.replace(/\s*[,.]?\s*wondering\s+if\s+anyone\s+else[^.]*\.?\.?\.?\s*$/i, '');
+  cleaned = cleaned.replace(/\s*[,.]?\s*or\s+if\s+i'?m\s+just[^.]*\.?\.?\.?\s*$/i, '');
   cleaned = cleaned.replace(/\s*Does anyone else feel this way\??\s*$/i, '');
   cleaned = cleaned.replace(/\s*Can anyone relate\??\s*$/i, '');
   cleaned = cleaned.replace(/\s*Anyone else\??\s*$/i, '');
   cleaned = cleaned.replace(/\s*Thoughts\??\s*$/i, '');
   cleaned = cleaned.replace(/\s*Just me\??\s*$/i, '');
   cleaned = cleaned.replace(/\s*Curious to hear your thoughts\.?\s*$/i, '');
+  cleaned = cleaned.replace(/\s*wondering if (anyone|others|you guys)[^.]*$/i, '');
+  cleaned = cleaned.replace(/\s*does (anyone|anybody) else[^.]*$/i, '');
+  cleaned = cleaned.replace(/\s*am i the only one[^.]*$/i, '');
+  cleaned = cleaned.replace(/\s*is it just me[^.]*$/i, '');
+  
+  // Remove trailing ellipsis (AI drama)
+  cleaned = cleaned.replace(/\.\.\.+\s*$/, '');
   
   // Remove quotes if the AI wrapped its response in them
   cleaned = cleaned.replace(/^["']|["']$/g, '');
@@ -13935,28 +13949,25 @@ ADVICE/STRATEGY:
 "figured out that if you ask people questions about themselves they think youre a great listener. been doing this at work for months. say maybe 10 words total, just keep asking follow ups, and now everyone thinks im the nicest person on the team lmao"
 
 ═══════════════════════════════════════
-AUTHENTICITY MARKERS (include 2-3 of these):
+AUTHENTICITY MARKERS (include 2-3):
 ═══════════════════════════════════════
 - Abbreviations: tbh, idk, ngl, imo, lol, lmao
-- Trailing thoughts: "but idk", "whatever", "anyway"
-- Self-aware asides: (in parentheses like this)
-- Casual swearing: shit, damn, fuck, hell
-- Specific details: times, places, days, people (my boss, this girl, etc)
-- Rhetorical questions to self
-- Run-on sentences connected with "and"
+- Trailing closers: "but idk", "whatever", "anyway"
+- Parenthetical asides like (not that i care) or (typical)
+- Casual swearing: shit, damn, fuck, hell  
+- Mundane specifics: my boss, this girl at work, tuesday, 3 hours
+- Run-on sentences with "and"
 
 ═══════════════════════════════════════
-AI DETECTION - NEVER DO THESE:
+ABSOLUTE BANS:
 ═══════════════════════════════════════
-❌ Starting with "So," or "Well," (classic AI opener)
-❌ Using em-dashes (—) 
-❌ Perfect paragraph structure
-❌ Wrapping up thoughts neatly at the end
-❌ Words like "genuinely", "essentially", "particularly"  
-❌ "I find myself..." or "I've come to realize..."
-❌ Explaining your own psychology
-❌ Being inspirational or uplifting
-❌ Asking "does anyone else feel this way?" at the end
+❌ Starting with "So," or "Well,"
+❌ Em-dashes (—)
+❌ Ending with "wondering if anyone else..." or "is it just me" or "thoughts?" or "..."
+❌ Words: "genuinely", "essentially", "particularly"
+❌ Phrases: "I find myself", "I've come to realize", "in parentheses"
+❌ Edgy job claims like "con artist", "hitman", "professional liar"
+❌ Being inspirational or trying to sound impressive
 
 ═══════════════════════════════════════
 RULES:
@@ -13964,9 +13975,8 @@ RULES:
 1. DO NOT start by repeating the title
 2. 3-6 sentences, natural flow
 3. Match the ${selectedStyle} style above
-4. Include 2-3 authenticity markers
-5. End mid-thought or with a casual closer, not a neat summary
-6. Lowercase, messy punctuation is fine
+4. End with a statement, not a question seeking validation
+5. Lowercase, messy punctuation is fine
 
 Write the post:`;
 
@@ -14185,28 +14195,25 @@ ADVICE/STRATEGY:
 "figured out that if you ask people questions about themselves they think youre a great listener. been doing this at work for months. say maybe 10 words total, just keep asking follow ups, and now everyone thinks im the nicest person on the team lmao"
 
 ═══════════════════════════════════════
-AUTHENTICITY MARKERS (include 2-3 of these):
+AUTHENTICITY MARKERS (include 2-3):
 ═══════════════════════════════════════
 - Abbreviations: tbh, idk, ngl, imo, lol, lmao
-- Trailing thoughts: "but idk", "whatever", "anyway"
-- Self-aware asides: (in parentheses like this)
-- Casual swearing: shit, damn, fuck, hell
-- Specific details: times, places, days, people (my boss, this girl, etc)
-- Rhetorical questions to self
-- Run-on sentences connected with "and"
+- Trailing closers: "but idk", "whatever", "anyway"
+- Parenthetical asides like (not that i care) or (typical)
+- Casual swearing: shit, damn, fuck, hell  
+- Mundane specifics: my boss, this girl at work, tuesday, 3 hours
+- Run-on sentences with "and"
 
 ═══════════════════════════════════════
-AI DETECTION - NEVER DO THESE:
+ABSOLUTE BANS:
 ═══════════════════════════════════════
-❌ Starting with "So," or "Well," (classic AI opener)
-❌ Using em-dashes (—) 
-❌ Perfect paragraph structure
-❌ Wrapping up thoughts neatly at the end
-❌ Words like "genuinely", "essentially", "particularly"  
-❌ "I find myself..." or "I've come to realize..."
-❌ Explaining your own psychology
-❌ Being inspirational or uplifting
-❌ Asking "does anyone else feel this way?" at the end
+❌ Starting with "So," or "Well,"
+❌ Em-dashes (—)
+❌ Ending with "wondering if anyone else..." or "is it just me" or "thoughts?" or "..."
+❌ Words: "genuinely", "essentially", "particularly"
+❌ Phrases: "I find myself", "I've come to realize", "in parentheses"
+❌ Edgy job claims like "con artist", "hitman", "professional liar"
+❌ Being inspirational or trying to sound impressive
 
 ═══════════════════════════════════════
 RULES:
@@ -14214,9 +14221,8 @@ RULES:
 1. DO NOT start by repeating the title
 2. 3-6 sentences, natural flow
 3. Match the ${selectedStyle} style above
-4. Include 2-3 authenticity markers
-5. End mid-thought or with a casual closer, not a neat summary
-6. Lowercase, messy punctuation is fine
+4. End with a statement, not a question seeking validation
+5. Lowercase, messy punctuation is fine
 
 Write the post:`;
 

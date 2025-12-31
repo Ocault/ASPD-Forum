@@ -869,20 +869,20 @@
               <!-- Preview Section (hidden until generated) -->
               <div id="custom-topic-preview" style="display: none; margin-top: var(--spacing-sm); background: #1a1a2a; padding: var(--spacing-sm); border-radius: 4px; border: 2px solid #5a5a9a;">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-sm);">
-                  <div style="font-size: 0.4375rem; font-weight: 600; color: #9a9afa;">📋 PREVIEW</div>
-                  <div style="font-size: 0.3125rem; color: #6a6a9a;">Review before posting</div>
+                  <div style="font-size: 0.4375rem; font-weight: 600; color: #9a9afa;">📋 PREVIEW (Click to Edit)</div>
+                  <div style="font-size: 0.3125rem; color: #6a6a9a;">Review and modify before posting</div>
                 </div>
                 
-                <!-- Title Preview -->
+                <!-- Title Preview - Now Editable -->
                 <div style="margin-bottom: var(--spacing-sm);">
-                  <div style="font-size: 0.3125rem; color: #6a6a9a; margin-bottom: 2px;">TITLE:</div>
-                  <div id="custom-topic-title" style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary); background: #0a0a1a; padding: 8px; border-radius: 3px; border: 1px solid #3a3a6a;"></div>
+                  <div style="font-size: 0.3125rem; color: #6a6a9a; margin-bottom: 2px;">TITLE: <span style="color: #7a7aaa;">(click to edit)</span></div>
+                  <input type="text" id="custom-topic-title" style="font-size: 0.4375rem; font-weight: 600; color: var(--text-primary); background: #0a0a1a; padding: 8px; border-radius: 3px; border: 1px solid #3a3a6a; width: 100%; box-sizing: border-box;">
                 </div>
                 
-                <!-- Content Preview -->
+                <!-- Content Preview - Now Editable -->
                 <div style="margin-bottom: var(--spacing-sm);">
-                  <div style="font-size: 0.3125rem; color: #6a6a9a; margin-bottom: 2px;">CONTENT:</div>
-                  <div id="custom-topic-content" style="font-size: 0.375rem; color: var(--text-primary); background: #0a0a1a; padding: 10px; border-radius: 3px; border: 1px solid #3a3a6a; line-height: 1.6; white-space: pre-wrap;"></div>
+                  <div style="font-size: 0.3125rem; color: #6a6a9a; margin-bottom: 2px;">CONTENT: <span style="color: #7a7aaa;">(click to edit)</span></div>
+                  <textarea id="custom-topic-content" style="font-size: 0.375rem; color: var(--text-primary); background: #0a0a1a; padding: 10px; border-radius: 3px; border: 1px solid #3a3a6a; line-height: 1.6; width: 100%; box-sizing: border-box; min-height: 100px; resize: vertical;"></textarea>
                 </div>
                 
                 <!-- Meta Info -->
@@ -2789,8 +2789,8 @@
             
             // Show preview
             document.getElementById('custom-topic-preview').style.display = 'block';
-            document.getElementById('custom-topic-title').textContent = data.title;
-            document.getElementById('custom-topic-content').textContent = data.content;
+            document.getElementById('custom-topic-title').value = data.title;
+            document.getElementById('custom-topic-content').value = data.content;
             document.getElementById('custom-topic-bot').textContent = data.botAlias;
             document.getElementById('custom-topic-persona-display').textContent = data.persona;
             document.getElementById('custom-topic-room-display').textContent = roomText;
@@ -2808,6 +2808,19 @@
       // Confirm and post the thread
       document.getElementById('custom-topic-confirm')?.addEventListener('click', function() {
         if (!isOwner || !pendingCustomTopic) return;
+        
+        // Get edited values from the input fields
+        var editedTitle = document.getElementById('custom-topic-title').value.trim();
+        var editedContent = document.getElementById('custom-topic-content').value.trim();
+        
+        if (!editedTitle || !editedContent) {
+          logBot('✗ Title and content cannot be empty', 'error');
+          return;
+        }
+        
+        // Update pending data with edited values
+        pendingCustomTopic.title = editedTitle;
+        pendingCustomTopic.content = editedContent;
         
         var btn = this;
         btn.disabled = true;
