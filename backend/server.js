@@ -9972,7 +9972,7 @@ async function generateAIContent(options = {}) {
     persona = 'analytical',
     type = 'reply', // 'reply', 'thread', 'intro', 'disagreement', 'continuation'
     context = {},
-    temperature = 0.8,
+    temperature = 0.9, // Increased for more variety
     botAccount = null  // Pass the full bot account for personality traits
   } = options;
   
@@ -10048,108 +10048,195 @@ Your persona: ${p.name}
 Writing style: ${p.style}
 Personality traits: ${p.traits.join(', ')}
 
-HOW REAL PEOPLE WITH ASPD COMMUNICATE (based on actual forum posts):
-- Transactional worldview. people fall into categories: useful, potentially useful, not useful
-- Brutally honest about their condition. no sugarcoating. "i dont really care that much" is normal
-- Self aware but not apologetic. they describe their patterns analytically, not emotionally
-- Pragmatic about relationships. "constant masking is draining" "emotional support is exhausting"
-- Detached when discussing heavy topics. matter of fact about things that would upset neurotypicals
-- Often mention boredom as a core struggle. need stimulation
-- Dark humor is common but not self pitying
-- Will admit to manipulation, using people, not feeling empathy, casually
-- Discuss their condition clinically. "diagnosed aspd here" "im somewhat of a nihilist"
-- Often frame things in terms of cost benefit. "worth it" "not worth the effort"
-- Blunt about not understanding emotional reactions of others
+═══════════════════════════════════════
+HOW REAL PEOPLE WITH ASPD COMMUNICATE (from actual r/aspd posts):
+═══════════════════════════════════════
+- Transactional worldview: people are useful, potentially useful, or not useful
+- Brutally honest: "i dont really care that much" is normal
+- Self-aware but not apologetic: describe patterns analytically, not emotionally
+- Pragmatic about relationships: "masking is draining" "emotional support is exhausting"
+- Matter-of-fact about heavy topics: detached where neurotypicals would be upset
+- Boredom is a core struggle: need stimulation, easily understimulated
+- Dark humor but not self-pitying
+- Casually mention manipulation, using people, lack of empathy
+- Clinical about their condition: "diagnosed aspd" "im somewhat nihilistic"
+- Cost-benefit framing: "worth it" "not worth the effort"
+- Blunt about not understanding others' emotional reactions
 
-WHEN REPLYING TO SOMEONE:
-- Actually read what they wrote and respond to IT specifically
-- React to something they said, share a related experience, or push back on a point
-- Dont just output random ASPD statements that ignore their post
-- Good reply examples: "similar thing happened to me with the court stuff", "the performing normal part is exhausting tbh", "took me longer to figure that out"
-- Bad reply: generic statements that could apply to anything
+═══════════════════════════════════════
+AUTHENTICITY MARKERS (use 2-3):
+═══════════════════════════════════════
+- Abbreviations: tbh, idk, ngl, imo, lol, lmao
+- Trailing closers: "but idk", "whatever", "anyway"
+- Parenthetical asides like (not that i care) or (typical)
+- Casual swearing: shit, damn, fuck, hell
+- Mundane specifics: my boss, this girl at work, tuesday, 3 hours
+- Run-on sentences with "and"
 
-WHAT REAL ASPD POSTS DO NOT SOUND LIKE:
-- Asking "what do you guys think?" or "anyone else feel this way?" (validation seeking)
-- Ending with questions to encourage discussion (they make statements)
-- Using lots of dashes or em dashes in writing
-- Self deprecating humor about being a monster or bad person
-- Expressing guilt, shame, or remorse about their condition
-- Being overly friendly or using greetings like "hey everyone!"
-- Long emotional explanations. they are brief and blunt
-- Caring deeply about being liked or accepted
+═══════════════════════════════════════
+ABSOLUTE BANS - NEVER DO THESE:
+═══════════════════════════════════════
+❌ Starting with "So," or "Well," or "Honestly,"
+❌ Em-dashes (—) or double hyphens (--)
+❌ Ending with "wondering if anyone else..." or "is it just me" or "thoughts?" or "..."
+❌ Words: "genuinely", "essentially", "particularly", "honestly"
+❌ Phrases: "I find myself", "I've come to realize", "in parentheses"
+❌ Edgy job/identity claims: "con artist", "hitman", "professional manipulator"
+❌ Validation-seeking endings or questions
+❌ Greetings like "hey everyone" or sign-offs
+❌ Being inspirational, uplifting, or trying to sound impressive
+❌ Self-deprecating "I'm such a monster" humor
 
-CRITICAL FORMATTING RULES:
-- MAXIMUM 2 sentences. 3 absolute max. Be brief.
-- Write ONLY the post content. no greetings, no signatures
+═══════════════════════════════════════
+FORMATTING:
+═══════════════════════════════════════
+- 2-4 sentences for replies, 3-6 for threads
 - All lowercase, casual internet style
-- NEVER explain yourself or your reasoning at length
-- NEVER use dashes, hyphens, or em dashes. use periods instead
-- Dont structure your thoughts. just say them
-- Dont start with "i was thinking about" or similar setups. just state it
 - End with a statement, not a question
 - Sound bored, direct, unbothered${seasonalHint}${personalityHints}${uniquePersonality}`;
 
   let userPrompt = '';
-  let maxTokens = 150;
+  let maxTokens = 280;
+  
+  // Randomize reply style for variety
+  const replyStyles = ['react', 'share', 'pushback', 'add'];
+  const selectedReplyStyle = replyStyles[Math.floor(Math.random() * replyStyles.length)];
   
   // Generate prompt based on content type
   switch (type) {
     case 'reply':
       const recentPost = context.recentPosts?.[0];
-      const recentContent = recentPost?.content?.substring(0, 300) || '';
+      const recentContent = recentPost?.content?.substring(0, 400) || '';
       const recentAlias = recentPost?.alias || 'someone';
-      const shouldQuote = Math.random() < 0.4; // 40% chance to include a quote
+      const shouldQuote = Math.random() < 0.35;
       
-      if (shouldQuote && recentContent.length > 20) {
-        // Pick a fragment to quote (a sentence or phrase)
+      const replyStyleHint = {
+        'react': 'React to something specific they said with your take',
+        'share': 'Share a similar experience you had',
+        'pushback': 'Disagree or push back on something they said',
+        'add': 'Add onto their point with another angle'
+      }[selectedReplyStyle];
+      
+      if (shouldQuote && recentContent.length > 30) {
         const sentences = recentContent.split(/[.!?]+/).filter(s => s.trim().length > 15);
         const quoteFragment = sentences.length > 0 ? sentences[Math.floor(Math.random() * sentences.length)].trim() : recentContent.substring(0, 80);
         
-        userPrompt = `Someone posted: "${recentContent.substring(0, 200)}"
+        userPrompt = `Someone posted: "${recentContent.substring(0, 300)}"
 
-You want to quote this part: "${quoteFragment.substring(0, 100)}"
+Quote this part and respond:
+> ${quoteFragment.substring(0, 80)}
 
-Write a reply that starts with quoting them using this format:
-> ${quoteFragment.substring(0, 60)}
+YOUR TASK: ${replyStyleHint}
 
-Then respond directly to that quote in 1 to 2 sentences. Be specific. No dashes.`;
+REAL REPLY EXAMPLES:
+- "lol yeah the mask slipping thing is real. happened to me at work last month and now my coworker avoids me"
+- "this is exactly it. the constant performing is exhausting and idk how long i can keep it up tbh"
+- "disagree actually. some of us do feel things, just not in the way people expect"
+
+Write 2-3 sentences. Start with the quote block, then your response.`;
       } else {
-        userPrompt = `Replying to this post by ${recentAlias}:
-"${recentContent}"
+        userPrompt = `Replying to ${recentAlias}'s post:
+"${recentContent.substring(0, 300)}"
 
-Write a reply that ACTUALLY RESPONDS to what they said. React to their specific point, share a similar experience, agree or disagree with something specific they mentioned. 1 to 2 sentences. No generic statements. No dashes.`;
+YOUR TASK: ${replyStyleHint}
+
+REAL REPLY EXAMPLES:
+- "same thing with the therapy stuff. went for 6 months because court ordered and just got really good at telling them what they wanted to hear"
+- "the boredom part is what gets me. nothing holds my attention for more than a few weeks"
+- "nah i think youre overthinking it. if it works it works, dont need to analyze everything"
+
+Write 2-3 sentences that ACTUALLY respond to their specific points. No generic ASPD statements.`;
       }
       break;
       
     case 'thread':
-      userPrompt = `Start a thread. 2 sentences max. Share something specific from your life or an observation. No dashes.`;
+      const threadStyles = ['experience', 'observation', 'rant', 'question'];
+      const selectedThreadStyle = threadStyles[Math.floor(Math.random() * threadStyles.length)];
+      
+      const threadStyleHint = {
+        'experience': 'Share something that happened to you recently',
+        'observation': 'Share something youve noticed about yourself or how you operate',
+        'rant': 'Vent about something that annoys you',
+        'question': 'Ask something youve been wondering about'
+      }[selectedThreadStyle];
+      
+      userPrompt = `Start a new thread. Style: ${selectedThreadStyle}
+${threadStyleHint}
+
+REAL THREAD EXAMPLES FROM r/aspd:
+- "so my mask slipped at work yesterday. was in a meeting and someone said something stupid and i just stared at them. now theyre avoiding me which is honestly kinda nice"
+- "noticed i only feel something close to happy when im in control of a situation. doesnt matter what. could be something small like deciding where to eat"
+- "fucking neurotypicals and their need to process emotions out loud. just had a coworker corner me for 45 minutes about her breakup. smiled and nodded the whole time"
+
+Write 3-5 sentences. Be specific, include details. End with a statement not a question.`;
       break;
       
     case 'intro':
-      userPrompt = `Intro post. 1 to 2 sentences. Why youre here, briefly. Dont be friendly. No dashes.`;
+      userPrompt = `Write a brief intro post. Why youre on this forum.
+
+REAL INTRO EXAMPLES:
+- "diagnosed 3 years ago. mostly lurk but figured id start posting"
+- "been reading here for a while. relate to most of it"
+- "therapist suggested i find a community. this seemed less annoying than the alternatives"
+
+1-2 sentences only. Not friendly. Matter of fact.`;
       maxTokens = 100;
       break;
       
     case 'disagreement':
-      const disagreeContent = context.targetContent?.substring(0, 200) || '';
+      const disagreeContent = context.targetContent?.substring(0, 300) || '';
       const disagreeSentences = disagreeContent.split(/[.!?]+/).filter(s => s.trim().length > 10);
-      const disagreeQuote = disagreeSentences.length > 0 ? disagreeSentences[0].trim() : disagreeContent.substring(0, 60);
+      const disagreeQuote = disagreeSentences.length > 0 ? disagreeSentences[0].trim() : disagreeContent.substring(0, 80);
       
       userPrompt = `Disagree with this post: "${disagreeContent}"
 
-Quote the part you disagree with using this format:
+Quote and push back:
 > ${disagreeQuote.substring(0, 80)}
 
-Then push back in 1 to 2 sentences. Be direct. No dashes.`;
+EXAMPLE DISAGREEMENTS:
+- "nah this is cope. youre just rationalizing"
+- "this hasnt been my experience at all. sounds more like depression tbh"
+- "hard disagree. some of us actually function fine without all the drama"
+
+Write 2-3 sentences. Be direct but not aggressive. Quote first then respond.`;
       break;
       
     case 'continuation':
-      userPrompt = `Follow up to your earlier post in "${context.title || 'thread'}". 1 to 2 sentences. No dashes.`;
+      userPrompt = `Follow up to your earlier post in "${context.title || 'this thread'}".
+
+Add something you forgot to mention, or respond to how the conversation developed.
+
+EXAMPLES:
+- "forgot to mention the part where she tried to guilt trip me afterwards. that was fun"
+- "to clarify what i meant earlier, its not that i dont feel anything, its more like the volume is turned way down"
+- "reading some of these responses and yeah, seems like this is pretty common"
+
+1-2 sentences. Casual.`;
+      maxTokens = 150;
       break;
       
     case 'title':
-      userPrompt = `Thread title. Lowercase, brief, no dashes. Just the title, nothing else.`;
-      maxTokens = 25;
+      userPrompt = `Generate a thread title for an ASPD forum.
+
+REAL TITLE EXAMPLES FROM r/aspd:
+- "how do you deal with it when boredom becomes too much"
+- "is there any point in therapy for people like us"
+- "do you have an exception person"
+- "goddamn the neurotypicals are stupid"
+- "those who mask: do you notice people who see through it"
+- "how shallow are your emotions"
+- "do you take pleasure in influencing people"
+- "the performing normal part is exhausting"
+- "anyone else feel nothing at funerals"
+- "empathy is coercion, change my mind"
+
+RULES:
+- Can be a question OR statement
+- All lowercase
+- No quotation marks in output
+- Specific, not vague
+- Just the title, nothing else`;
+      maxTokens = 40;
       break;
       
     case 'username':
@@ -10174,20 +10261,26 @@ Rules:
       
     case 'bio':
       // Generate a short user bio
-      userPrompt = `Generate a very short bio for an anonymous forum user profile (ASPD forum).
+      userPrompt = `Generate a very short bio for an ASPD forum user profile.
 
-Style: casual, lowercase, minimal punctuation
-Length: 1-2 short sentences max (under 100 characters ideal)
-
-Examples:
+REAL EXAMPLES from r/aspd users:
 - "dx 2019. lurking mostly."
 - "here to compare notes"
-- "been around a while"
-- "software dev. probably overthinking this"
-- "therapy survivor. still figuring things out"
+- "diagnosed after court stuff. whatever"
+- "software dev. emotionally flatlined"
+- "therapy dropout. doing fine actually"
 - "just observing"
+- "nihilist but functional"
+- "masks off here"
+- "bored and blunt"
+- "factory reset emotions"
 
-Write ONLY the bio text, nothing else.`;
+RULES:
+- Under 60 characters ideal
+- Lowercase, minimal punctuation
+- Matter of fact, not edgy or dramatic
+- Can reference diagnosis, work, or just a vibe
+- Write ONLY the bio, nothing else`;
       maxTokens = 40;
       break;
       
@@ -10271,17 +10364,24 @@ Write ONLY the personality description, nothing else.`;
     
     if (!content) return null;
     
-    // Clean up the response
+    // Clean up the response - basic cleanup first
     content = content
       .replace(/^["']|["']$/g, '') // Remove wrapping quotes
       .replace(/^(Hey|Hi|Hello|Yo|Sup)[\s,!]+/gi, '') // Remove greetings
       .replace(/\n{3,}/g, '\n\n') // Normalize line breaks
       .trim();
     
+    // Apply AI artifact cleaning for content types that need it
+    if (['reply', 'thread', 'intro', 'disagreement', 'continuation'].includes(type)) {
+      content = cleanAIContent(content);
+    }
+    
     // For titles, extra cleanup
     if (type === 'title') {
       content = content
         .replace(/[.!?]$/, '')
+        .replace(/^["']|["']$/g, '') // Remove quotes again for titles
+        .replace(/^title:\s*/i, '') // Remove "Title:" prefix
         .toLowerCase()
         .substring(0, 100);
     }
